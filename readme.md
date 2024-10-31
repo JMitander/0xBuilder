@@ -33,14 +33,22 @@
 ```
 /0xplorer/
 ├── Config/
-│   ├── Config.py               # Configuration management
-│   ├── token.adresses.json     # List of monitored token addresses
-│   └── token.symbols.json      # List of monitored token addresses combined with the relevant symbol
+│   └── Config.py               # Configuration management
 ├── Core/
 │   ├── 0xplorer.py             # Main
 │   ├── NonceManager.py         # Manages Ethereum nonces
 │   ├── StrategyManager.py      # Handles trading strategies
 │   └── TransactionArray.py     # Builds and sends transaction bundles
+├── Utils/
+|   ├── token_adresses.json     # List of monitored token addresses
+|   └── token_symbols.json      # List of monitored token addresses combined with the relevant symbol
+├── ABI
+|   ├── erc20_ABI.json
+|   ├── aave_v3_flashloan_ABI.json
+|   ├── aave_v3_lending_pool_ABI.sjon
+|   ├── sushiswap_router_ABI.json
+|   ├── pancakeswap_router_ABI.json
+|   └── balancer_router_ABI.json
 ├── Analysis/
 │   ├── MarketAnalyzer.py       # Analyzes market data
 │   ├── MonitorArray.py         # Monitors mempool for transactions
@@ -138,7 +146,7 @@ Before running 0xplorer, ensure you have the following:
 
 ## Geth Node Setup
 
-- Set up an Ethereum node/Execution Client using Geth as an example.
+- Set up an Ethereum node/Execution Client, Geth is recommended. 
 
 1. **Install Geth**
 
@@ -175,41 +183,129 @@ Ensure all environment variables in the `.env` file are correctly set.
 ### Example `.env` File
 
 ```sh
-# Ethereum Node Connection
-HTTP_PROVIDER=http://127.0.0.1:8545
-WEBSOCKET_PROVIDER=ws://127.0.0.1:8546
-IPC_PROVIDER=/path/to/geth.ipc
-
-# Wallet Details
-WALLET_ADDRESS=0xYourWalletAddressHere
-WALLET_PRIVATE_KEY=YourPrivateKeyHere
-
-# Flashloan Configuration
-AAVE_V3_LENDING_POOL_ADDRESS=0xYourLendingPoolAddress
-AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS=0xYourFlashloanContractAddress
-
-# API Keys
-INFURA_PROJECT_ID=YourInfuraProjectID
+# ================================ API Configuration ================================ #
+# All API keys can be obtained free of charge by registering on the respective platforms (limitied usage may apply)
+# Etherscan API Key for accessing Etherscan services # REQUIRED
 ETHERSCAN_API_KEY=YourEtherscanAPIKey
+# Infura Project ID for connecting to Ethereum nodes via Infura # OPTIONAL
+INFURA_PROJECT_ID=YourInfuraProjectID
+# CoinGecko API Key for fetching cryptocurrency prices and market data # REQUIRED
 COINGECKO_API_KEY=YourCoinGeckoAPIKey
+# CoinMarketCap API Key for accessing market capitalization and pricing data # REQUIRED
 COINMARKETCAP_API_KEY=YourCoinMarketCapAPIKey
+# CryptoCompare API Key for obtaining cryptocurrency price information # REQUIRED
 CRYPTOCOMPARE_API_KEY=YourCryptoCompareAPIKey
 
-# ABI Paths
-ERC20_ABI_PATH=ABI/erc20.json
-AAVE_V3_FLASHLOAN_ABI_PATH=ABI/aave_v3_flashloan.json
-AAVE_V3_LENDING_POOL_ABI_PATH=ABI/lending_pool.json
+# ================================ Ethereum Node Configuration ================================ #
+# At least one of the following Ethereum node configurations is required to connect to the Ethereum network
 
-# Monitored Tokens
-MONITORED_TOKENS=config/Monitored_tokens.json
-TOKEN_SYMBOLS=tokens/token_symbols.json
+# HTTP Provider URL for connecting to the Ethereum network via Geth
+HTTP_ENDPOINT=http://127.0.0.1:8545
+# AsyncWeb3 Provider URL (WebSocket) for subscribing to blockchain events via Geth 
+WEB3_ENDPOINT=wss://127.0.0.1:8545
+# WebSocket Provider URL for subscribing to blockchain events via Geth
+WEBSOCKET_ENDPOINT=wss://127.0.0.1:8545
+# IPC Provider Path for inter-process communication trough pipe socket via Geth
+IPC_ENDPOINT=GethIPCPath
+
+# ================================ Wallet Configuration ================================ #
+
+# Private Key (**Ensure this is kept secret! USE ENCRYPTION AND NEVER SHARE, NOT EVEN WITH YOUR DOG!**) # REQUIRED
+WALLET_KEY=YourWalletPrivateKey
+# BOT Wallet Address associated with the private key above # REQUIRED
+WALLET_ADDRESS=0xYourWalletAddress
+# Wallet for receiving potential profits from operations. # OPTIONAL (If not provided, the bot wallet address will be used)
+PROFIT_ADDRESS=0xYourProfitAddress
+
+# ================================ Token Configuration ================================ #
+
+# Path to the JSON file containing monitored token addresses # REQUIRED
+TOKEN_ADDRESSES=/Your/directory/0xplorer/monitored_tokens.json
+# Path to the JSON file containing token symbols mapping (address to symbol) # REQUIRED
+TOKEN_SYMBOLS=/Your/directory/0xplorer/token_symbols.json
+
+# ============================ UNISWAP V2 ============================== #
+
+# Uniswap v2 router contract address for executing trades # OPTIONAL
+UNISWAP_V2_ROUTER_ADDRESS=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+# Uniswap v2 router contract ABI for interacting with the router contract # OPTIONAL
+UNISWAP_V2_ROUTER_ABI=Y/our/directory/0xplorer/ABI/uniswap_v2_router_ABI.json
+
+# ============================ SUSHISWAP ==============================
+
+# Sushiswap router contract address for executing trades # OPTIONAL
+SUSHISWAP_ROUTER_ADDRESS=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F 
+# Sushiswap router contract ABI for interacting with the router contract # OPTIONAL
+SUSHISWAP_ROUTER_ABI=Your/directory/0xplorer/ABI/sushiswap_router_ABI.json
+
+# ============================ PANCAKESWAP ============================== #
+
+# Pancakeswap router contract address for executing trades # OPTIONAL
+PANCAKESWAP_ROUTER_ADDRESS=0xEfF92A263d31888d860bD50809A8D171709b7b1c
+# Pancakeswap router contract ABI for interacting with the router contract # OPTIONAL
+PANCAKESWAP_ROUTER_ABI=Your/directory/0xplorer/ABI/pancakeswap_router_ABI.json
+
+# ============================ BALANCER ============================== #
+
+# Balancer exchange contract address for executing trades # OPTIONAL
+BALANCER_ROUTER_ADDRESS=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
+# Balancer exchange contract ABI for interacting with the exchange contract # OPTIONAL
+BALANCER_ROUTER_ABI=Your/directory/0xplorer/ABI/balancer_router_ABI.json
+
+# ============================ ERC20 ================================ #
+
+# ERC20 ABI for interacting with ERC20 tokens # REQUIRED
+ERC20_ABI=Your/directory/0xplorer/ABI/erc20_ABI.json
+# ERC20 function signatures # REQUIRED
+ERC20_SIGNATURES=/Your/directory/0xplorer/erc20_signatures.json
+
+# ================================ FLASHLOAN Configuration ================================ #
+
+# Aave V3 Flashloan Contract Address for executing flashloan operations # HIGHLY RECOMMENDED
+AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS=YourDeployedFlashloanContractAddress
+
+# Aave V3 Flashloan Contract ABI for interacting with the flashloan contract # HIGHLY RECOMMENDED
+AAVE_V3_FLASHLOAN_CONTRACT_ABI=Your/directory/0xplorer/ABI/aave_v3_flashloan_contract_ABI.json
+
+# Aave V3 Lending Pool Address for interacting with Aave's lending protocols # HIGHLY RECOMMENDED
+AAVE_V3_LENDING_POOL_ADDRESS=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2 
+
+# Aave V3 Pool Abi for interacting with Aave's lending protocols # HIGHLY RECOMMENDED
+AAVE_V3_LENDING_POOL_ABI=Your/directory/0xplorer/ABI/aave_v3_lending_pool_ABI.json
+
+# ================================ Treshold and Slippage Configuration ================================ #
+
+# Maximum slippage percentage for executing trades (0.01 = 1%) # Adjustable based on your risk tolerance
+MAX_SLIPPAGE=0.025 
+
+# Minimum profit percentage for executing trades (0.01 = 1%) # Adjustable based on your profit expectations
+MIN_PROFIT=0.001
+
+# Minimum account balance for executing trades (in ETH) # Adjustable based on your risk tolerance
+MIN_BALANCE=0.01
+
+# ================================ Gas Configuration ================================ #
+
+# Gas price in Gwei for executing transactions (1 Gwei = 1e9 Wei) # Adjustable based on your transaction speed requirements
+MAX_GAS_PRICE=100
+
+# Gas limit for executing transactions # Adjustable based on the complexity of the transaction
+GAS_LIMIT=1000000
+
+# ================================ Logging Configuration ================================ #
+
+# Log level for the application (DEBUG, INFO, WARNING, ERROR, CRITICAL) # Adjustable based on your logging requirements
+LOG_LEVEL=DEBUG
+
+# Log file path for storing application logs (default: 0xplorer.log)
+LOG_FILE=/Your/directory/0xplorer/0xplorer.log
 ```
 
 ### Monitored Tokens
 
 Optional
 
-Update `config/Monitored_tokens.json` with the token addresses you want the bot to monitor:
+Update `config/token_addresses.json` with the token addresses you want the bot to monitor:
 
 ```json
 [
@@ -224,23 +320,7 @@ To execute flashloan strategies, you need to create and deploy a flashloan smart
 
 It's recommended to follow this guide: [Flashloan Guide](https://www.quicknode.com/guides/defi/lending-protocols/how-to-make-a-flash-loan-using-aave)
 
-### Prerequisites
-
-- **MetaMask**: Browser extension wallet (or any other wallet provider: Coinbase, Trustwallet, Exodus, etc.)
-- **Remix IDE**: [Remix IDE](https://remix.ethereum.org/) (Recommended)
-
-### Step 1: Setup MetaMask
-
-1. **Install MetaMask**: [Download MetaMask](https://metamask.io/)
-2. **Create a Wallet**: Set up a new wallet and secure your seed phrase.
-3. **Add Custom RPC**: Add the Ethereum testnet or mainnet RPC URL from QuickNode.
-   - **Network Name**: Ethereum Mainnet (or desired testnet)
-   - **New RPC URL**: Your Geth HTTP Provider URL
-   - **Chain ID**: 1 for Mainnet (or corresponding testnet ID)
-   - **Currency Symbol**: ETH
-4. **Fund Your Wallet**: Obtain test ETH from a faucet if deploying on a testnet.
-
-### Step 2: Create the Flash Loan Contract
+### Step 1: Create the Flash Loan Contract
 
 1. **Open Remix IDE**: [Remix IDE](https://remix.ethereum.org/)
 2. **Create a New File**: Name it `SimpleFlashLoan.sol`
@@ -299,13 +379,13 @@ It's recommended to follow this guide: [Flashloan Guide](https://www.quicknode.c
    }
    ```
 
-### Step 3: Compile the Contract
+### Step 2: Compile the Contract
 
 1. **Select Compiler Version**: In the Remix sidebar, click on the "Solidity Compiler" tab and select version `0.8.10`.
 2. **Compile**: Click on the "Compile SimpleFlashLoan.sol" button.
 3. **Ignore Warnings**: You may see some warnings; ensure there are no errors.
 
-### Step 4: Deploy the Contract
+### Step 3: Deploy the Contract
 
 1. **Set Environment**: In the "Deploy & Run Transactions" tab, set the environment to "Injected Web3" to use MetaMask.
 2. **Provide Constructor Argument**:
@@ -313,30 +393,9 @@ It's recommended to follow this guide: [Flashloan Guide](https://www.quicknode.c
 3. **Deploy**: Click the "Deploy" button and confirm the transaction in MetaMask.
 4. **Save Contract Address**: After deployment, note down the contract address for future use.
 
-### Step 5: Fund the Contract (if needed)
+### Step 4: Execute Flashloan Function
 
-If your strategy requires initial funds (e.g., to cover flashloan fees), send tokens or ETH to the contract address.
-
-### Step 6: Execute Flashloan Function
-
-1. **Interact with the Contract**:
-   - Expand the deployed contract in Remix.
-   - Locate the `fn_RequestFlashLoan` function.
-2. **Provide Parameters**:
-   - **_token**: The address of the token you want to borrow.
-   - **_amount**: The amount you want to borrow (consider token decimals).
-3. **Execute**: Click on "transact" and confirm the transaction in MetaMask.
-
-### Step 7: Verify Execution
-
-1. **Check Transaction**: Use Etherscan to view the transaction details.
-2. **Logs**: Ensure the flashloan was successful and the funds were returned.
-
-### Notes
-
-- **Custom Logic**: Implement your trading logic within the `executeOperation` function.
-- **Fees**: Remember that Aave charges a fee (e.g., 0.09%) on the flashloan amount.
-- **Permissions**: Ensure your contract has the necessary approvals to interact with tokens.
+The flashloan execution is handled automatically by the Python bot. There is no need to manually interact with the contract through Remix or MetaMask.
 
 ## Usage
 

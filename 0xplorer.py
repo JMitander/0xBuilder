@@ -31,7 +31,7 @@ dotenv.load_dotenv()
 
 
 async def loading_bar(message: str, total_time: int):
-    """Creates a loading bar for the console."""
+
     bar_length = 20
     try:
         for i in range(101):
@@ -67,38 +67,6 @@ async def setup_logging():
 class Config:
     """
     Loads configuration from environment variables and monitored tokens from a JSON file.
-
-    Args:
-        logger (Optional[logging.Logger]): Logger instance.
-    
-    Attributes:
-        logger (logging.Logger): Logger instance.
-        ETHERSCAN_API_KEY (str): Etherscan API key.
-        INFURA_PROJECT_ID (str): Infura Project ID.
-        COINGECKO_API_KEY (str): CoinGecko API key.
-        COINMARKETCAP_API_KEY (str): CoinMarketCap API key.
-        CRYPTOCOMPARE_API_KEY (str): CryptoCompare API key.
-        HTTP_ENDPOINT (str): HTTP endpoint for Web3 connection.
-        IPC_ENDPOINT (str): IPC endpoint for Web3 connection.
-        WEBSOCKET_ENDPOINT (str): WebSocket endpoint for Web3 connection.
-        WALLET_KEY (str): Private key of the Ethereum wallet.
-        WALLET_ADDRESS (str): Ethereum address of the wallet.
-        AAVE_V3_LENDING_POOL_ADDRESS (str): Aave V3 Lending Pool address.
-        TOKEN_ADDRESSES (List[str]): List of monitored token addresses.
-        TOKEN_SYMBOLS (str): Path to the JSON file containing token symbols.
-        ERC20_ABI (str): Path to the ERC20 ABI JSON file.
-        ERC20_SIGNATURES (Dict[str, str]): ERC20 function signatures.
-        SUSHISWAP_ROUTER_ABI (str): Path to the SushiSwap Router ABI JSON file.
-        SUSHISWAP_ROUTER_ADDRESS (str): SushiSwap Router address.
-        UNISWAP_V2_ROUTER_ABI (str): Path to the Uniswap V2 Router ABI JSON file.
-        UNISWAP_V2_ROUTER_ADDRESS (str): Uniswap V2 Router address.
-        AAVE_V3_FLASHLOAN_ABI (str): Path to the Aave V3 Flashloan contract ABI JSON file.
-        AAVE_V3_LENDING_POOL_ABI (str): Path to the Aave V3 Lending Pool ABI JSON file.
-        AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS (str): Aave V3 Flashloan contract address.
-        PANCAKESWAP_ROUTER_ABI (str): Path to the PancakeSwap Router ABI JSON file.
-        PANCAKESWAP_ROUTER_ADDRESS (str): PancakeSwap Router address.
-        BALANCER_ROUTER_ABI (str): Path to the Balancer Router ABI JSON file.
-        BALANCER_ROUTER_ADDRESS (str): Balancer Router address
     """
 
     def __init__(self, logger: Optional[logging.Logger] = None):
@@ -108,7 +76,7 @@ class Config:
         await self._load_config()
 
     async def _load_config(self):
-        """Loads configuration from environment variables and JSON files."""
+
         try:
             # API Keys
             await loading_bar("Loading Environment Variables", 2)
@@ -182,19 +150,7 @@ class Config:
             raise
 
     def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
-        """
-        Fetches an environment variable and raises an error if not set.
 
-        Args:
-            var_name (str): The name of the environment variable.
-            default (Optional[str]): Default value if the variable is not set.
-
-        Returns:
-            str: The value of the environment variable.
-        
-        Raises:
-            EnvironmentError: If the environment variable is not set.
-        """
         value = os.getenv(var_name, default)
         if value is None:
             self.logger.error(f"Missing environment variable: {var_name} ❌")
@@ -202,15 +158,7 @@ class Config:
         return value
 
     async def _load_monitored_tokens(self, file_path: str) -> List[str]:
-        """
-        Loads monitored token addresses from the provided JSON file.
 
-        Args:
-            file_path (str): Path to the JSON file containing monitored token addresses.
-
-        Returns:
-            List[str]: List of monitored token addresses.
-        """
         await loading_bar("Loading Monitored Tokens", 1)
         try:
             async with aiofiles.open(file_path, "r") as f:
@@ -227,15 +175,7 @@ class Config:
             return []
 
     async def _load_erc20_function_signatures(self, file_path: str) -> Dict[str, str]:
-        """
-        Loads ERC20 function signatures from the provided JSON file.
 
-        Args:
-            file_path (str): Path to the JSON file containing ERC20 function signatures.
-
-        Returns:
-                Dict[str, str]: Dictionary of ERC20 function signatures.
-        """
         await loading_bar("Loading ERC20 Function Signatures", 1)
         try:
             async with aiofiles.open(file_path, "r") as f:
@@ -252,20 +192,7 @@ class Config:
             return {}
 
     async def _construct_ABI_path(self, base_path: str, ABI_filename: str) -> str:
-        """
-        Constructs the path to a contract ABI file and ensures it exists.
 
-        Args:
-            base_path (str): The base path to the ABI file.
-            ABI_filename (str): The filename of the ABI file.
-        
-        Returns:
-            str: The full path to the ABI file. 
-        
-        Raises:
-            FileNotFoundError: If the ABI file is not found
-        """
-        
         ABI_path = os.path.join(base_path, ABI_filename)
         await loading_bar(f"Constructing '{ABI_filename}'", 1)
         if not os.path.exists(ABI_path):
@@ -276,61 +203,30 @@ class Config:
         return ABI_path
 
     def get_ABI_path(self, ABI_name: str) -> str:
-        """
-        Retrieves the ABI path for a given contract name.
 
-        Args:
-            ABI_name (str): The name of the contract ABI.
-
-        Returns:
-            str: The path to the contract ABI file.
-
-        Raises:
-            KeyError: If the ABI name is not found.
-        """
         ABI_paths = {
             "erc20": self.ERC20_ABI,
             "sushiswap": self.SUSHISWAP_ROUTER_ABI,
             "uniswap_v2": self.UNISWAP_V2_ROUTER_ABI,
             "aave_v3_flashloan": self.AAVE_V3_FLASHLOAN_ABI,
             "lending_pool": self.AAVE_V3_LENDING_POOL_ABI,
+            "pancakeswap": self.PANCAKESWAP_ROUTER_ABI,
+            "balancer": self.BALANCER_ROUTER_ABI,
         }
         return ABI_paths.get(ABI_name.lower(), "")
 
     async def get_token_addresses(self) -> List[str]:
-        """
-        Returns:
-            List[str]: List of monitored token addresses.
-        """
+
         return self.TOKEN_ADDRESSES
 
     async def get_token_symbols(self) -> str:
-        """
-        Returns:
-            str: The path to the token symbols JSON file.
-        """
+
         return self.TOKEN_SYMBOLS
 
 
 class NonceManager:
     """
     Manages the nonce for an Ethereum account to prevent transaction nonce collisions.
-
-    Args:
-        web3 (AsyncWeb3): AsyncWeb3 instance connected to the Ethereum network.
-        address (str): The Ethereum address for which the nonce is managed.
-        logger (Optional[logging.Logger]): Logger instance.
-        max_retries (int): Maximum number of retries for nonce fetch.
-        retry_delay (float): Delay between retries in seconds.
-    
-    Attributes:
-        web3 (AsyncWeb3): AsyncWeb3 instance connected to the Ethereum network.
-        address (str): The Ethereum address for which the nonce is managed.
-        logger (logging.Logger): Logger instance.
-        max_retries (int): Maximum number of retries for nonce fetch.
-        retry_delay (float): Delay between retries in seconds.
-        lock (asyncio.Lock): Lock to ensure atomic nonce updates.
-        current_nonce (Optional[int]): The current nonce value.
     """
 
     def __init__(
@@ -353,7 +249,7 @@ class NonceManager:
         self.current_nonce = await self._fetch_current_nonce_with_retries()
 
     async def _fetch_current_nonce_with_retries(self) -> int:
-        """ Fetches the current nonce with retry mechanism. """
+
         await loading_bar("Fetching Current Nonce", 0)
         attempt = 0
         while attempt < self.max_retries:
@@ -379,16 +275,7 @@ class NonceManager:
         )
 
     async def get_nonce(self) -> int:
-        """
-        Retrieves the next nonce safely for the address. This method locks the nonce manager to avoid
-        concurrent modifications, ensuring each transaction has a unique nonce.
 
-        Returns:
-            int: The next nonce for the address.
-        
-        Raises:
-            RuntimeError: If the nonce fetch fails after multiple attempts.
-        """
         async with self.lock:
             nonce = self.current_nonce
             self.current_nonce += 1
@@ -398,13 +285,7 @@ class NonceManager:
             return nonce
 
     async def refresh_nonce(self):
-        """
-        Updates the current nonce value by fetching the latest nonce from the blockchain.
-        This is a soft refresh and only updates if the on-chain nonce is higher than the internal one.
 
-        Raises:
-            RuntimeError: If the nonce refresh fails after multiple attempts.
-        """
         async with self.lock:
             latest_nonce = await self._fetch_current_nonce_with_retries()
             if latest_nonce > self.current_nonce:
@@ -418,13 +299,7 @@ class NonceManager:
                 )
 
     async def sync_nonce_with_chain(self):
-        """
-        This method is a more aggressive sync that forces the nonce to synchronize with the blockchain.
-        Useful in case of transaction reverts or nonce conflicts.
 
-        Raises:
-            RuntimeError: If the nonce sync fails after multiple attempts.
-        """
         async with self.lock:
             await loading_bar("Synchronizing Nonce", 0)
             try:
@@ -437,13 +312,7 @@ class NonceManager:
                 raise RuntimeError(f"Failed to synchronize nonce: {e} ❌")
 
     async def handle_nonce_discrepancy(self, external_nonce: int):
-        """
-        Adjusts the current nonce if an external nonce (e.g., from a failed transaction) is higher
-        than the internally managed nonce. This helps resolve nonce conflicts.
 
-        Args:
-            external_nonce (int): The externally detected nonce (e.g., from a failed or pending transaction).
-        """
         async with self.lock:
             if external_nonce > self.current_nonce:
                 self.logger.warning(
@@ -459,13 +328,7 @@ class NonceManager:
                 )
 
     async def reset_nonce(self):
-        """
-        Resets the current nonce to the on-chain value. Useful in case of major nonce conflicts or after
-        manually handling stuck transactions.
 
-        Raises:
-            RuntimeError: If the nonce reset fails after multiple attempts.
-        """
         async with self.lock:
             await loading_bar("Resetting Nonce", 0)
             try:
@@ -486,15 +349,6 @@ class SafetyNet:
         account: Account,
         logger: Optional[logging.Logger] = None,
     ):
-        """
-        Provides safety checks and utility functions for transactions.
-
-        Args:
-            web3 (AsyncWeb3): AsyncWeb3 instance connected to the Ethereum network.
-            config (Config): Configuration object containing API keys and settings.
-            account (Account): The Ethereum account.
-            logger (Optional[logging.Logger]): Logger instance.
-        """
         self.web3 = web3
         self.config = config
         self.account = account
@@ -511,15 +365,7 @@ class SafetyNet:
         self.api_success_rate_lock = asyncio.Lock()
 
     async def get_balance(self, account: Account) -> Decimal:
-        """
-        Returns the balance of an account in ETH.
 
-        Args:
-            account (Account): The Ethereum account.
-
-        Returns:
-            Decimal: The balance in ETH.
-        """
         try:
             balance_wei = await self.web3.eth.get_balance(account.address)
             balance_eth = self.web3.from_wei(balance_wei, "ether")
@@ -538,16 +384,7 @@ class SafetyNet:
         transaction_data: Dict[str, Any],
         minimum_profit_eth: Optional[float] = None,
     ) -> bool:
-        """
-        Ensures that a transaction is profitable after accounting for gas costs and slippage.
 
-        Args:
-            transaction_data (Dict[str, Any]): Data related to the transaction.
-            minimum_profit_eth (float): The minimum acceptable profit in ETH.
-
-        Returns:
-            bool: True if the transaction is profitable, False otherwise.
-        """
         if minimum_profit_eth is None:
             if await self.get_balance(self.account) < Decimal("0.5"):
                 minimum_profit_eth = 0.003  # Lower threshold for small balances
@@ -629,15 +466,7 @@ class SafetyNet:
         return False
 
     async def estimate_gas(self, transaction_data: Dict[str, Any]) -> int:
-        """
-        Estimates the gas required for a transaction.
 
-        Args:
-            transaction_data (Dict[str, Any]): Data related to the transaction.
-
-        Returns:
-            int: The estimated gas required.
-        """
         try:
             tx = {
                 "from": self.account.address,
@@ -652,12 +481,7 @@ class SafetyNet:
             return 0
 
     async def get_dynamic_gas_price(self) -> float:
-        """
-        Fetch the current gas price using gas oracles with fallback options.
 
-        Returns:
-            float: The gas price in Gwei.
-        """
         try:
             # Try Etherscan API
             async with aiohttp.ClientSession() as session:
@@ -684,12 +508,7 @@ class SafetyNet:
                 return 100.0
 
     async def adjust_slippage_tolerance(self) -> float:
-        """
-        Adjust slippage tolerance based on network congestion and market volatility.
 
-        Returns:
-            float: The adjusted slippage tolerance.
-        """
         network_congestion = await self.get_network_congestion()
         if network_congestion > 0.8:
             self.logger.debug(
@@ -708,12 +527,7 @@ class SafetyNet:
             return 0.1  # Default slippage tolerance
 
     async def get_network_congestion(self) -> float:
-        """
-        Estimate network congestion level (0 to 1).
 
-        Returns:
-            float: The network congestion level.
-        """
         try:
             pending_block = await self.web3.eth.get_block("pending", full_transactions=False)
             pending_tx = len(pending_block["transactions"])
@@ -725,15 +539,7 @@ class SafetyNet:
             return 1.0  # Assume high congestion if failed
 
     async def get_real_time_price(self, token: str) -> Decimal:
-        """
-        Fetches the real-time price of a token in terms of ETH from multiple sources.
 
-        Args:
-            token (str): The token symbol.
-
-        Returns:
-            Decimal: The price of the token in ETH.
-        """
         try:
             await loading_bar(f"Fetching Real-Time Price for {token}", 0)
             price_sources = {
@@ -763,7 +569,7 @@ class SafetyNet:
         return Decimal(0)
 
     async def _fetch_price_from_binance(self, token: str) -> Optional[Decimal]:
-        """Fetches the real-time price of a token in terms of ETH from Binance API."""
+
         try:
             symbol = self._convert_token_id_to_binance_symbol(token)
             if not symbol:
@@ -804,7 +610,7 @@ class SafetyNet:
             return None
 
     def _load_token_symbols(self) -> dict:
-        """Load token symbols from the JSON file."""
+
         try:
             with open(self.token_symbols, "r") as file:
                 return json.load(file)
@@ -813,9 +619,7 @@ class SafetyNet:
             return {}
 
     def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
-        """
-        Converts a token ID to a Binance symbol using the loaded mappings.
-        """
+
         return self.symbol_mapping.get(token_id.lower())
 
     async def _fetch_price_from_coingecko(self, token: str) -> Optional[Decimal]:
@@ -836,7 +640,7 @@ class SafetyNet:
             return None
 
     async def _fetch_price_from_coinmarketcap(self, token: str) -> Optional[Decimal]:
-        """Fetches the real-time price of a token in terms of ETH from CoinMarketCap."""
+
         try:
             url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
             params = {"symbol": token}
@@ -855,7 +659,7 @@ class SafetyNet:
             return None
 
     async def _fetch_price_from_cryptocompare(self, token: str) -> Optional[Decimal]:
-        """Fetches the real-time price of a token in terms of ETH from CryptoCompare."""
+
         try:
             url = f"https://min-api.cryptocompare.com/data/price"
             params = {"fsym": token, "tsyms": "ETH"}
@@ -879,20 +683,7 @@ class SafetyNet:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> aiohttp.ClientResponse:
-        """
-        Make a request to an external API with retry mechanism and exponential backoff.
 
-        Args:
-            url (str): The API endpoint.
-            params (Optional[Dict[str, Any]]): Query parameters.
-            headers (Optional[Dict[str, str]]): Request headers.
-
-        Returns:
-            aiohttp.ClientResponse: The API response.
-
-        Raises:
-            Exception: If the request fails after maximum retries.
-        """
         max_attempts = 5
         backoff_time = 1  # Initial backoff time in seconds
 
@@ -926,17 +717,7 @@ class SafetyNet:
 class MonitorArray:
     """
     MonitorArray class monitors the mempool for profitable transactions.
-
-    Args:
-        web3 (AsyncWeb3): AsyncWeb3 instance connected to the Ethereum network.
-        safety_net (SafetyNet): SafetyNet instance for safety checks.
-        nonce_manager (NonceManager): NonceManager instance for managing nonces.
-        logger (Optional[logging.Logger]): Logger instance.
-        monitored_tokens (Optional[List[str]]): List of token addresses to monitor.
-        erc20_ABI (List[Dict[str, Any]]): ERC20 ABI for token contract interactions.
-        config (Config): Configuration object containing API keys and settings.
     """
-
     def __init__(
         self,
         web3: AsyncWeb3,
@@ -968,7 +749,6 @@ class MonitorArray:
         self.logger.info("MonitorArray initialized and ready for monitoring. 📡✅")
 
     async def start_monitoring(self):
-        """Start monitoring the mempool."""
         if self.running:
             self.logger.warning("Monitoring is already running.")
             return
@@ -978,7 +758,6 @@ class MonitorArray:
         self.logger.info("Mempool monitoring started. 📡 ✅")
 
     async def stop_monitoring(self):
-        """Stop monitoring the mempool."""
         if not self.running:
             self.logger.warning("Monitoring is not running.")
             return
@@ -987,14 +766,11 @@ class MonitorArray:
         self.logger.info("Mempool monitoring has been stopped. 🛑")
 
     async def _run_monitoring(self):
-        """Internal method to run the monitoring loop."""
         await self.mempool_monitor()
 
     async def mempool_monitor(self):
-        """Monitor the mempool for profitable transactions."""
         self.logger.info("Starting mempool monitoring... 📡")
         
-        # Ensure we're using a valid provider
         if not isinstance(self.web3.provider, (AsyncHTTPProvider, AsyncIPCProvider)):
             self.logger.error("Provider is not an HTTP, WebSocket, or IPC provider. ❌")
         else:
@@ -1002,9 +778,7 @@ class MonitorArray:
                 f"Connected to Ethereum network via {self.web3.provider.__class__.__name__}. ✨"
             )
             return
-
         try:
-            # Create a new filter for pending transactions
             pending_filter = await self.web3.eth.filter("pending")
         except Exception as e:
             self.logger.error(f"Error setting up pending transaction filter: {e} ❌")
@@ -1032,7 +806,6 @@ class MonitorArray:
             await asyncio.sleep(0.1)
 
     async def process_transaction(self, tx_hash):
-        """Process a single transaction hash."""
         tx_hash_hex = tx_hash.hex()
 
         # Check if the transaction has already been processed
@@ -1093,7 +866,7 @@ class MonitorArray:
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
-        """Analyze a token transaction to determine if it's profitable."""
+
         try:
             # Create a contract instance using the transaction's destination address and ERC20 ABI
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_ABI)
@@ -1140,7 +913,6 @@ class MonitorArray:
             return {"is_profitable": False}
 
     async def _is_profitable_eth_transaction(self, tx) -> bool:
-        """Check if an ETH transaction is profitable."""
         try:
             # Estimate the potential profit of the ETH transaction
             potential_profit = await self._estimate_eth_transaction_profit(tx)
@@ -1153,7 +925,7 @@ class MonitorArray:
             return False
 
     async def _estimate_eth_transaction_profit(self, tx: Any) -> Decimal:
-        """Estimate the profit of an ETH transaction."""
+
         try:
             # Retrieve the current dynamic gas price (assumed to be in Gwei)
             gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
@@ -1178,7 +950,7 @@ class MonitorArray:
             return Decimal(0)
 
     async def _estimate_profit(self, tx, function_params: Dict[str, Any]) -> Decimal:
-        """Estimate the profit of a token transaction."""
+
         try:
             # Convert gas price from Wei to Gwei
             gas_price_gwei = self.web3.from_wei(tx.gasPrice, "gwei")
@@ -1236,7 +1008,7 @@ class MonitorArray:
 
     @cached(cache=TTLCache(maxsize=1000, ttl=86400))
     async def get_token_symbol(self, token_address: str) -> Optional[str]:
-        """Get the symbol of a token using its address."""
+
         try:
             # First check token symbols from environment variables
             if token_address in self.config.TOKEN_SYMBOLS:
@@ -1250,8 +1022,9 @@ class MonitorArray:
             return None
 
     async def _log_transaction_details(self, tx, is_eth=False):
-        """Log the details of a transaction."""
+
         try:
+            # Log the transaction details
             transaction_info = {
                 "transaction hash": tx.hash.hex(),
                 "value": self.web3.from_wei(tx.value, "ether") if is_eth else tx.value,
@@ -1278,25 +1051,7 @@ class TransactionArray:
     TransactionArray class builds and executes transactions, including front-run,
     back-run, and sandwich attack strategies. It interacts with smart contracts,
     manages transaction signing, gas price estimation, and handles flashloans.
-
-    Attributes:
-            web3 (AsyncWeb3): AsyncWeb3 instance.
-            account (Account): Account instance.
-            flashloan_contract_address (str): Address of the flashloan contract.
-            flashloan_contract_ABI (List[Dict[str, Any]]): ABI of the flashloan contract.
-            lending_pool_contract_address (str): Address of the lending pool contract.
-            lending_pool_contract_ABI (List[Dict[str, Any]]): ABI of the lending pool contract.
-            monitor (MonitorArray): MonitorArray instance.
-            nonce_manager (NonceManager): NonceManager instance.
-            safety_net (SafetyNet): SafetyNet instance.
-            config (Config): Config instance.
-            logger (Optional[logging.Logger], optional): Logger instance. Defaults to None.
-            gas_price_multiplier (float, optional): Gas price multiplier. Defaults to 1.1.
-            retry_attempts (int, optional): Number of retry attempts. Defaults to 3.
-            retry_delay (float, optional): Delay between retries. Defaults to 1.0.
-            erc20_ABI (Optional[List[Dict[str, Any]]], optional): ABI of the ERC20 token contract. Defaults to None.
     """
-
     def __init__(
         self,
         web3: AsyncWeb3,
@@ -1315,11 +1070,7 @@ class TransactionArray:
         retry_delay: float = 1.0,
         erc20_ABI: Optional[List[Dict[str, Any]]] = None,
     ):
-        """
-        Initializes the TransactionArray with necessary components.
-
-        Note: Since __init__ cannot be async, any async initializations are moved to an async `initialize` method.
-        """
+        # since web3 is shared among all instances, we need to make sure it's an async web3 instance
         self.web3 = web3
         self.account = account
         self.config = config
@@ -1341,6 +1092,7 @@ class TransactionArray:
 
         self.logger.info("TransactionArray initialized successfully. ✅")
 
+    # Initialize contracts asynchronously
     async def initialize(self):
         """Async initialization of contracts."""
         self.flashloan_contract = await self._initialize_contract(
@@ -1376,26 +1128,14 @@ class TransactionArray:
         # Load ERC20 ABI if not provided
         self.erc20_ABI = self.erc20_ABI or await self._load_erc20_ABI()
 
+    # initialize contract instance
     async def _initialize_contract(
         self,
         contract_address: str,
         contract_ABI: List[Dict[str, Any]],
         contract_name: str,
     ) -> Contract:
-        """
-        Initializes a smart contract instance.
 
-        Args:
-            contract_address (str): Address of the smart contract.
-            contract_ABI (List[Dict[str, Any]]): ABI of the smart contract.
-            contract_name (str): Name identifier for the contract.
-
-        Returns:
-            Contract: Initialized contract instance.
-
-        Raises:
-            ValueError: If the contract cannot be initialized.
-        """
         try:
             contract_instance = self.web3.eth.contract(
                 address=self.web3.to_checksum_address(contract_address),
@@ -1412,23 +1152,11 @@ class TransactionArray:
             raise ValueError(
                 f"Contract initialization failed for {contract_name}"
             ) from e
-
+    # Builds a transaction with the given function call and additional parameters
     async def build_transaction(
         self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        Builds a transaction dictionary with necessary parameters.
 
-        Args:
-            function_call (Any): The contract function to call.
-            additional_params (Optional[Dict[str, Any]], optional): Additional transaction parameters. Defaults to None.
-
-        Returns:
-            Dict[str, Any]: The built transaction dictionary.
-
-        Raises:
-            Exception: If transaction building fails.
-        """
         additional_params = additional_params or {}
         try:
             tx_details = {
@@ -1452,12 +1180,7 @@ class TransactionArray:
             raise
 
     async def get_dynamic_gas_price(self) -> Dict[str, int]:
-        """
-        Retrieves the dynamic gas price, applying a multiplier.
 
-        Returns:
-            Dict[str, int]: Dictionary containing the gas price in Wei.
-        """
         try:
             gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
             self.logger.info(f"Fetched gas price: {gas_price_gwei} Gwei ⛽")
@@ -1473,15 +1196,7 @@ class TransactionArray:
         return {"gasPrice": gas_price}
 
     async def estimate_gas_smart(self, tx: Dict[str, Any]) -> int:
-        """
-        Estimates gas for a transaction using a smart estimation method.
 
-        Args:
-            tx (Dict[str, Any]): The transaction details.
-
-        Returns:
-            int: Estimated gas amount.
-        """
         try:
             gas_estimate = await self.web3.eth.estimate_gas(tx)
             self.logger.debug(f"Estimated gas: {gas_estimate} ⛽")
@@ -1493,15 +1208,7 @@ class TransactionArray:
             return 100_000  # Default gas limit
 
     async def execute_transaction(self, tx: Dict[str, Any]) -> Optional[str]:
-        """
-        Attempts to execute a transaction with retries in case of failure.
 
-        Args:
-            tx (Dict[str, Any]): The transaction details.
-
-        Returns:
-            Optional[str]: The transaction hash if successful, None otherwise.
-        """
         for attempt in range(1, self.retry_attempts + 1):
             try:
                 # Sign the transaction
@@ -1532,18 +1239,7 @@ class TransactionArray:
         return None
 
     async def sign_transaction(self, transaction: Dict[str, Any]) -> bytes:
-        """
-        Signs a transaction using the account's private key.
 
-        Args:
-            transaction (Dict[str, Any]): The transaction details.
-
-        Returns:
-            bytes: The signed transaction in raw bytes.
-
-        Raises:
-            Exception: If signing fails.
-        """
         try:
             signed_tx = self.web3.eth.account.sign_transaction(
                 transaction,
@@ -1558,15 +1254,7 @@ class TransactionArray:
             raise
 
     async def handle_eth_transaction(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Handles an ETH transaction by building and executing a front-run transaction.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the transaction was successfully executed, False otherwise.
-        """
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(f"Handling ETH transaction {tx_hash} 🚀")
 
@@ -1612,15 +1300,7 @@ class TransactionArray:
             return False
 
     def calculate_flashloan_amount(self, target_tx: Dict[str, Any]) -> int:
-        """
-        Calculates the flashloan amount based on the estimated profit from the target transaction.
-
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            int: The calculated flashloan amount in Wei.
-        """
+        # Extract the estimated profit from the target transaction
         estimated_profit = target_tx.get("profit", 0)
         if estimated_profit > 0:
             flashloan_amount = int(
@@ -1635,15 +1315,7 @@ class TransactionArray:
             return 0
 
     async def simulate_transaction(self, transaction: Dict[str, Any]) -> bool:
-        """
-        Simulates a transaction using eth_call to ensure it will succeed.
-
-        Args:
-            transaction (Dict[str, Any]): The transaction details.
-
-        Returns:
-            bool: True if the simulation succeeds, False otherwise.
-        """
+        # Log the transaction details
         self.logger.info(
             f"Simulating transaction with nonce {transaction.get('nonce', 'Unknown')}. 🔍📊"
         )
@@ -1659,16 +1331,7 @@ class TransactionArray:
     async def prepare_flashloan_transaction(
         self, flashloan_asset: str, flashloan_amount: int
     ) -> Optional[Dict[str, Any]]:
-        """
-        Prepares a flashloan transaction.
-
-        Args:
-            flashloan_asset (str): The asset to be flashloaned.
-            flashloan_amount (int): The amount of the asset to be flashloaned.
-
-        Returns:
-            Optional[Dict[str, Any]]: The prepared transaction details or None if preparation fails.
-        """
+        # Check if the flashloan amount is valid
         if flashloan_amount <= 0:
             self.logger.warning(
                 "Flashloan amount is 0 or less, skipping flashloan transaction preparation. 📉"
@@ -1693,15 +1356,7 @@ class TransactionArray:
             return None
 
     async def send_bundle(self, transactions: List[Dict[str, Any]]) -> bool:
-        """
-        Sends a bundle of transactions to the Flashbots relay.
-
-        Args:
-            transactions (List[Dict[str, Any]]): The list of transaction details.
-
-        Returns:
-            bool: True if the bundle was successfully sent, False otherwise.
-        """
+            # Send a bundle of transactions using Flashbots
         try:
             # Sign each transaction
             signed_txs = [await self.sign_transaction(tx) for tx in transactions]
@@ -1769,15 +1424,7 @@ class TransactionArray:
             return False
 
     async def front_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Attempts to front-run a target transaction by preparing and executing a flashloan and front-run transaction bundle.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the front-run was successfully executed, False otherwise.
-        """
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(
             f"Attempting front-run on target transaction: {tx_hash} 🏃💨📈"
@@ -1840,15 +1487,7 @@ class TransactionArray:
             return False
 
     async def back_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Attempts to back-run a target transaction by preparing and executing a flashloan and back-run transaction bundle.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the back-run was successfully executed, False otherwise.
-        """
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(f"Attempting back-run on target transaction: {tx_hash} 🔙🏃📉")
 
@@ -1909,16 +1548,7 @@ class TransactionArray:
             return False
 
     async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Attempts a sandwich attack on a target transaction by preparing and executing a flashloan,
-        front-run, and back-run transaction bundle.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the sandwich attack was successfully executed, False otherwise.
-        """
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(
             f"Attempting sandwich attack on target transaction: {tx_hash} 🥪🏃📈"
@@ -1996,15 +1626,7 @@ class TransactionArray:
     async def _prepare_front_run_transaction(
         self, target_tx: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """
-        Prepares a front-run transaction based on the target transaction.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            Optional[Dict[str, Any]]: The prepared front-run transaction details, or None if preparation fails.
-        """
         decoded_tx = await self.decode_transaction_input(
             target_tx.get("input", "0x"), target_tx.get("to", "")
         )
@@ -2060,15 +1682,7 @@ class TransactionArray:
     async def _prepare_back_run_transaction(
         self, target_tx: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """
-        Prepares a back-run transaction based on the target transaction.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            Optional[Dict[str, Any]]: The prepared back-run transaction details, or None if preparation fails.
-        """
         decoded_tx = await self.decode_transaction_input(
             target_tx.get("input", "0x"), target_tx.get("to", "")
         )
@@ -2135,16 +1749,7 @@ class TransactionArray:
     async def decode_transaction_input(
         self, input_data: str, to_address: str
     ) -> Optional[Dict[str, Any]]:
-        """
-        Decodes the input data of a transaction to extract the function name and parameters.
 
-        Args:
-            input_data (str): The input data of the transaction.
-            to_address (str): The address to which the transaction is sent.
-
-        Returns:
-            Optional[Dict[str, Any]]: A dictionary containing the function name and parameters, or None if decoding fails.
-        """
         try:
             to_address = self.web3.to_checksum_address(to_address)
             if to_address == self.config.UNISWAP_V2_ROUTER_ADDRESS:
@@ -2177,15 +1782,7 @@ class TransactionArray:
             return None
 
     async def cancel_transaction(self, nonce: NonceManager) -> bool:
-        """
-        Cancels a pending transaction by sending a zero-value transaction with the same nonce.
 
-        Args:
-            nonce (int): The nonce of the transaction to cancel.
-
-        Returns:
-            bool: True if the cancellation was successful, False otherwise.
-        """
         cancel_tx = {
             "data": "0x",
             "chainId": await self.web3.eth.chain_id,
@@ -2213,15 +1810,7 @@ class TransactionArray:
             return False
 
     async def estimate_gas_limit(self, tx: Dict[str, Any]) -> int:
-        """
-        Estimates the gas limit for a given transaction.
 
-        Args:
-            tx (Dict[str, Any]): The transaction details.
-
-        Returns:
-            int: Estimated gas limit.
-        """
         try:
             gas_estimate = await self.web3.eth.estimate_gas(tx)
             self.logger.debug(f"Estimated gas: {gas_estimate} ⛽")
@@ -2233,15 +1822,7 @@ class TransactionArray:
             return 100_000  # Default gas limit
 
     async def get_current_profit(self) -> Decimal:
-        """
-        Retrieves the current profit of the transaction array.
 
-        Returns:
-            Decimal: The current profit in ETH.
-
-        Raises:
-            Exception: If fetching the current profit fails.
-        """
         try:
             current_profit = await self.safety_net.get_current_profit()
             self.current_profit = Decimal(current_profit)
@@ -2251,15 +1832,8 @@ class TransactionArray:
             self.logger.error(f"Error fetching current profit: {e} ❌")
             return Decimal("0")
 
-    #--------------------------------- Withdrawal Functions ---------------------------------#
-
     async def withdraw_eth(self) -> bool:
-        """
-        Withdraws ETH from the flashloan contract to the owner's address.
 
-        Returns:
-            bool: True if the withdrawal was successful, False otherwise.
-        """
         try:
             withdraw_function = self.flashloan_contract.functions.withdrawETH()
             tx = await self.build_transaction(withdraw_function)
@@ -2277,15 +1851,7 @@ class TransactionArray:
             return False
 
     async def withdraw_token(self, token_address: str) -> bool:
-        """
-        Withdraws ERC20 tokens from the flashloan contract to the owner's address.
 
-        Args:
-            token_address (str): The address of the token to withdraw.
-
-        Returns:
-            bool: True if the withdrawal was successful, False otherwise.
-        """
         try:
             withdraw_function = self.flashloan_contract.functions.withdrawToken(
                 self.web3.to_checksum_address(token_address)
@@ -2311,17 +1877,6 @@ class StrategyManager:
     Manages and executes various trading strategies such as ETH transactions, front-running,
     back-running, and sandwich attacks. It tracks strategy performance, predicts market movements,
     and selects the best strategy based on historical performance and reinforcement learning.
-
-    Attributes:
-        transaction_array (TransactionArray): Instance managing transactions.
-        market_analyzer (MarketAnalyzer): Instance analyzing market conditions.
-        logger (Optional[logging.Logger]): Logger instance for logging.
-        strategy_performance (Dict[str, Dict[str, Any]]): Performance metrics for each strategy.
-        history_data (List[Dict[str, Any]]): Historical data for trend analysis.
-        price_model (LinearRegression): Model for predicting price trends.
-        reinforcement_weights (Dict[str, np.ndarray]): Weights for reinforcement learning.
-        decay_factor (float): Decay factor for past performance.
-        min_profit_threshold (Decimal): Minimum profit margin in ETH.
     """
 
     def __init__(
@@ -2330,14 +1885,6 @@ class StrategyManager:
         market_analyzer: "MarketAnalyzer",
         logger: Optional[logging.Logger] = None,
     ) -> None:
-        """
-        Initializes the StrategyManager with necessary components.
-
-        Args:
-            transaction_array (TransactionArray): Instance managing transactions.
-            market_analyzer (MarketAnalyzer): Instance analyzing market conditions.
-            logger (Optional[logging.Logger]): Logger instance for logging.
-        """
         self.transaction_array = transaction_array
         self.market_analyzer = market_analyzer
         self.logger = logger or logging.getLogger(self.__class__.__name__)
@@ -2370,16 +1917,7 @@ class StrategyManager:
     async def execute_best_strategy(
         self, target_tx: Dict[str, Any], strategy_type: str
     ) -> bool:
-        """
-        Executes the most suitable strategy based on historical performance and current market conditions.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-            strategy_type (str): The type of strategy to execute ('eth_transaction', 'front_run', 'back_run', 'sandwich_attack').
-
-        Returns:
-            bool: True if the strategy was executed successfully, False otherwise.
-        """
         strategies = self.get_strategies(strategy_type)
         if not strategies:
             self.logger.warning(f"No strategies available for type: {strategy_type} ❗")
@@ -2407,15 +1945,7 @@ class StrategyManager:
             return False
 
     def get_strategies(self, strategy_type: str) -> List[Any]:
-        """
-        Retrieves a list of strategies based on the strategy type.
 
-        Args:
-            strategy_type (str): The type of strategy.
-
-        Returns:
-            List[Any]: List of strategy functions.
-        """
         strategies = {
             "eth_transaction": [self.high_value_eth_transfer],
             "front_run": [
@@ -2444,16 +1974,7 @@ class StrategyManager:
         return strategies[strategy_type]
 
     def _select_strategy(self, strategies: List[Any], strategy_type: str) -> Any:
-        """
-        Selects a strategy based on reinforcement weights and decaying factors.
 
-        Args:
-            strategies (List[Any]): List of strategy functions.
-            strategy_type (str): The type of strategy.
-
-        Returns:
-            Any: Selected strategy function.
-        """
         weights = self.reinforcement_weights[strategy_type]
         # Apply decay to focus on recent performance
         weights *= self.decay_factor
@@ -2477,15 +1998,7 @@ class StrategyManager:
     async def update_history(
         self, strategy_name: str, success: bool, strategy_type: str, profit: Decimal
     ) -> None:
-        """
-        Updates the historical data and reinforcement weights based on the strategy execution outcome.
 
-        Args:
-            strategy_name (str): Name of the executed strategy.
-            success (bool): Whether the strategy execution was successful.
-            strategy_type (str): The type of strategy.
-            profit (Decimal): Profit made from the strategy execution.
-        """
         self.logger.info(
             f"Updating history for strategy: {strategy_name}, Success: {success}, Profit: {profit} ✅"
         )
@@ -2527,16 +2040,7 @@ class StrategyManager:
             )
 
     def get_strategy_index(self, strategy_name: str, strategy_type: str) -> int:
-        """
-        Retrieves the index of a strategy based on its name and type.
 
-        Args:
-            strategy_name (str): Name of the strategy.
-            strategy_type (str): Type of the strategy.
-
-        Returns:
-            int: Index of the strategy in the reinforcement weights array. Returns -1 if not found.
-        """
         strategy_mapping = {
             "eth_transaction": {
                 "high_value_eth_transfer": 0,
@@ -2563,15 +2067,7 @@ class StrategyManager:
         return strategy_mapping.get(strategy_type, {}).get(strategy_name, -1)
 
     async def predict_price_movement(self, token_symbol: str) -> float:
-        """
-        Predicts the next price movement of a token using historical price data.
 
-        Args:
-            token_symbol (str): The symbol of the token.
-
-        Returns:
-            float: Predicted price movement value.
-        """
         self.logger.info(f"Predicting price movement for {token_symbol} 🔮")
         try:
             prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
@@ -2603,15 +2099,7 @@ class StrategyManager:
     # -------------------- Strategy Methods --------------------
 
     async def high_value_eth_transfer(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Handles high-value ETH transfers.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the strategy was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating High-Value ETH Transfer Strategy... 🏃💨")
         try:
             # Check if it's a high-value ETH transfer
@@ -2636,15 +2124,7 @@ class StrategyManager:
             return False
 
     async def aggressive_front_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Aggressively front-runs transactions based on value.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the front-run was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Aggressive Front-Run Strategy... 🏃")
         try:
             if target_tx.get("value", 0) > self.transaction_array.web3.to_wei(
@@ -2663,15 +2143,7 @@ class StrategyManager:
             return False
 
     async def predictive_front_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Front-runs transactions based on price predictions.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the front-run was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Predictive Front-Run Strategy... 🏃")
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
@@ -2717,15 +2189,7 @@ class StrategyManager:
             return False
 
     async def volatility_front_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Front-runs transactions based on market volatility.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the front-run was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Volatility Front-Run Strategy... 🏃")
         try:
             market_conditions = await self.market_analyzer.check_market_conditions(
@@ -2745,15 +2209,7 @@ class StrategyManager:
             return False
 
     async def advanced_front_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Enhanced Strategy: Combines price predictions and market trends for front-running.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the enhanced front-run was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Advanced Front-Run Strategy... 🏃💨")
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
@@ -2803,15 +2259,7 @@ class StrategyManager:
             return False
 
     async def price_dip_back_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Executes back-run based on significant price dips.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the back-run was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Price Dip Back-Run Strategy... 🔙🏃")
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
@@ -2857,15 +2305,7 @@ class StrategyManager:
             return False
 
     async def flashloan_back_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Utilizes flashloan calculations to determine back-running profitability.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the back-run was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Flashloan Back-Run Strategy... 🔙🏃")
         try:
             estimated_profit = self.transaction_array.calculate_flashloan_amount(
@@ -2885,15 +2325,7 @@ class StrategyManager:
             return False
 
     async def high_volume_back_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Executes back-run based on high token trading volume.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the back-run was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating High Volume Back-Run Strategy... 🔙🏃")
         try:
             token_volume = await self.market_analyzer.get_token_volume(target_tx["to"])
@@ -2909,15 +2341,7 @@ class StrategyManager:
             return False
 
     async def advanced_back_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Enhanced Strategy: Combines price predictions and market trends for back-running.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the enhanced back-run was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Advanced Back-Run Strategy... 🔙🏃💨")
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
@@ -2968,15 +2392,7 @@ class StrategyManager:
             return False
 
     async def flash_profit_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Executes sandwich attack based on flashloan profitability.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the sandwich attack was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Flash Profit Sandwich Strategy... 🥪🏃")
         try:
             potential_profit = self.transaction_array.calculate_flashloan_amount(
@@ -2996,15 +2412,7 @@ class StrategyManager:
             return False
 
     async def price_boost_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Executes sandwich attack based on favorable token price conditions.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the sandwich attack was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Price Boost Sandwich Strategy... 🥪🏃")
         try:
             token_symbol = await self.market_analyzer.get_token_symbol(target_tx["to"])
@@ -3029,15 +2437,7 @@ class StrategyManager:
             return False
 
     async def arbitrage_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Strategy: Executes sandwich attack based on arbitrage opportunities.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the sandwich attack was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Arbitrage Sandwich Strategy... 🥪🏃")
         try:
             if await self.market_analyzer.is_arbitrage_opportunity(target_tx):
@@ -3054,15 +2454,7 @@ class StrategyManager:
             return False
 
     async def advanced_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Enhanced Strategy: Combines flashloan profitability and market volatility for sandwich attacks.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if the enhanced sandwich attack was executed successfully, False otherwise.
-        """
         self.logger.info("Initiating Advanced Sandwich Attack Strategy... 🥪🏃💨")
         try:
             potential_profit = self.transaction_array.calculate_flashloan_amount(
@@ -3088,18 +2480,8 @@ class StrategyManager:
             )
             return False
 
-    # -------------------- Utility Methods --------------------
-
     async def _determine_strategy_type(self, target_tx: Dict[str, Any]) -> Optional[str]:
-        """
-        Determines the appropriate strategy type based on the target transaction and market conditions.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            Optional[str]: The strategy type if applicable, else None.
-        """
         try:
             # Check for high-value ETH transactions
             if target_tx.get("value", 0) > self.transaction_array.web3.to_wei(
@@ -3136,15 +2518,7 @@ class StrategyManager:
             return None
 
     async def execute_strategy_for_transaction(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Determines and executes the best strategy for a given transaction.
 
-        Args:
-            target_tx (Dict[str, Any]): The target transaction details.
-
-        Returns:
-            bool: True if a strategy was executed successfully, False otherwise.
-        """
         strategy_type = await self._determine_strategy_type(target_tx)
         if strategy_type:
             success = await self.execute_best_strategy(target_tx, strategy_type)
@@ -3164,22 +2538,6 @@ class StrategyManager:
         return False
 
 class MarketAnalyzer:
-    """
-    MarketAnalyzer class analyzes market conditions, fetches price data, and checks for arbitrage opportunities.
-
-    Attributes:
-        web3 (AsyncWeb3): The Web3 instance.
-        erc20_ABI (List[Dict[str, Any]]): The ERC20 ABI.
-        config (Config): The configuration settings.
-        logger (logging.Logger): The logger instance.
-        price_cache (TTLCache): Cache for storing price data.
-        volume_cache (TTLCache): Cache for storing volume data.
-        token_symbols (str): Path to the token symbols JSON file.
-        symbol_mapping (dict): Mapping of token addresses to symbols.
-        token_symbol_cache (dict): Cache for token symbols.
-        cache_duration (int): Duration for caching data in seconds.
-        api_keys (dict): API keys for fallback services.
-    """
 
     def __init__(
         self,
@@ -3208,11 +2566,7 @@ class MarketAnalyzer:
         }
 
     def _load_token_symbols(self) -> dict:
-        """Load token symbols from the JSON file.
 
-        Returns:
-            dict: The token symbols mapping
-        """
         try:
             if not self.token_symbols:
                 self.logger.error("TOKEN_SYMBOLS path not set in configuration. ❌")
@@ -3224,7 +2578,7 @@ class MarketAnalyzer:
             return {}
 
     async def check_market_conditions(self, token_address: str) -> Dict[str, Any]:
-        """ Checks the market conditions for a given token. """
+
         market_conditions = {
             "high_volatility": False,
             "bullish_trend": False,
@@ -3273,7 +2627,6 @@ class MarketAnalyzer:
         return market_conditions
 
     async def get_token_symbol(self, token_address: str) -> Optional[str]:
-        """ Retrieves the token symbol for a given address. """
         if token_address in self.token_symbol_cache:
             return self.token_symbol_cache[token_address]
         elif token_address in self.config.TOKEN_SYMBOLS:
@@ -3355,7 +2708,6 @@ class MarketAnalyzer:
             return False
 
     async def fetch_historical_prices(self, token_id: str, days: int = 30) -> List[float]:
-        """ Fetches historical prices for a token from various services. """
         cache_key = f"{token_id}_{days}"
         if cache_key in self.price_cache:
             self.logger.debug(
@@ -3418,7 +2770,7 @@ class MarketAnalyzer:
         return []
 
     async def get_token_volume(self, token_id: str) -> float:
-        """ Fetches the trading volume for a token from various services. """
+
         if token_id in self.volume_cache:
             self.logger.debug(
                 f"Returning cached trading volume for {token_id}. 📊⏳"
@@ -3480,7 +2832,7 @@ class MarketAnalyzer:
         return 0.0
 
     async def get_current_price(self, token_id: str) -> Optional[float]:
-        """ Fetches the current price for a token from various services. """
+
         for service in self.api_keys.keys():
             try:
                 self.logger.debug(
@@ -3574,7 +2926,6 @@ class MarketAnalyzer:
         raise Exception("Failed HTTP request after multiple attempts. ❌ ")
 
     def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
-        """ Converts token ID to Binance symbol format. """
         return self.symbol_mapping.get(token_id.lower())
 
 
@@ -3582,34 +2933,12 @@ class Xplorer:
     """
     Builds and manages the entire bot, initializing all components,
     managing connections, and orchestrating the main execution loop.
-
-    Attributes:
-
-        config (Config): Configuration object containing settings and API keys.
-        logger (Optional[logging.Logger]): Logger instance for logging.
-        web3 (Optional[AsyncWeb3]): Initialized AsyncWeb3 instance.
-        account (Optional[Account]): Account object for bot operations.
-        nonce_manager (Optional[NonceManager]): NonceManager instance for managing transaction nonces.
-        safety_net (Optional[SafetyNet]): SafetyNet instance for handling failed transactions.
-        market_analyzer (Optional[MarketAnalyzer]): MarketAnalyzer instance for analyzing market conditions.
-        monitor_array (Optional[MonitorArray]): MonitorArray instance for monitoring transactions.
-        transaction_array (Optional[TransactionArray]): TransactionArray instance for managing transactions.
-        strategy_manager (Optional[StrategyManager]): StrategyManager instance for executing strategies.
     """
 
     def __init__(
         self, config: Config, logger: Optional[logging.Logger] = None
     ) -> None:
-        """
-        Initializes the Xplorer, setting up all necessary components.
-
-        Args:
-            config (Config): Configuration object containing settings and API keys.
-            logger (Optional[logging.Logger]): Logger instance for logging.
-
-        Raises:
-            SystemExit: If any component fails to initialize
-        """
+      
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.config = config
         self.web3: Optional[AsyncWeb3] = None  # Will be initialized asynchronously
@@ -3626,12 +2955,7 @@ class Xplorer:
         self.logger.debug("Xplorer initialized successfully. 🌐✅")
 
     async def initialize(self):
-        """
-        Asynchronous initialization of components that require async calls.
-        
-        Raises:
-            SystemExit: If any component fails to initialize.
-        """
+     
         try:
             self.web3 = await self._initialize_web3()
             self.account = await self._initialize_account()
@@ -3697,15 +3021,7 @@ class Xplorer:
             sys.exit(1)
 
     async def _initialize_web3(self) -> AsyncWeb3:
-        """
-        Initializes the AsyncWeb3 connection using IPC, WebSocket, or HTTP providers.
-
-        Returns:
-            AsyncWeb3: Initialized AsyncWeb3 instance.
-
-        Raises:
-            SystemExit: If all connection methods fail.
-        """
+       
         providers = []    
 
         # Attempt to connect via IPC if IPC_ENDPOINT is provided
@@ -3745,15 +3061,7 @@ class Xplorer:
         sys.exit(1)
 
     async def _add_middleware(self, web3: AsyncWeb3) -> None:
-        """ 
-        Injects the appropriate middleware based on the chain ID.
 
-        Args:
-            web3 (AsyncWeb3): Initialized AsyncWeb3 instance.
-
-        Raises:
-            SystemExit: If middleware injection fails.
-        """
         try:
             chain_id = await web3.eth.chain_id
             if chain_id in (99, 100, 77, 7766, 56):
@@ -3771,18 +3079,7 @@ class Xplorer:
             raise
 
     async def _initialize_account(self) -> Account:
-        """
-        Initializes the Ethereum account using the private key provided in the configuration.
-
-        Args:
-            config (Config): Configuration object containing settings and API keys.
-
-        Returns:
-            Account: Initialized Account instance.
-
-        Raises:
-            SystemExit: If account initialization fails.
-        """
+       
         try:
             account = Account.from_key(self.config.WALLET_KEY)
             self.web3.eth.default_account = account.address
@@ -3797,18 +3094,7 @@ class Xplorer:
             sys.exit(1)
 
     async def _load_contract_ABI(self, abi_path: str) -> List[Dict[str, Any]]:
-        """
-        Loads the ABI from a given file path.
-
-        Args:
-            abi_path (str): Path to the ABI JSON file.
-
-        Returns:
-            List[Dict[str, Any]]: ABI as a list of dictionaries.
-
-        Raises:
-            SystemExit: If ABI loading fails.
-        """
+      
         try:
             async with aiofiles.open(abi_path, "r") as abi_file:
                 content = await abi_file.read()
@@ -3820,20 +3106,6 @@ class Xplorer:
             sys.exit(1)
 
     async def run(self) -> None:
-        """
-        Main execution loop for the bot. Continuously monitors the mempool,
-        identifies profitable transactions, and executes appropriate strategies.
-
-        Args:
-            monitor_array (MonitorArray): The MonitorArray instance for monitoring transactions
-            strategy_manager (StrategyManager): The StrategyManager instance for executing strategies
-
-        Returns:
-            None
-
-        Raises:
-            SystemExit: If the bot is interrupted or an unexpected error occurs.
-        """
         self.logger.info(f"Starting 0xplorer on {Web3.client_version}.. 🚀")
         await self.monitor_array.start_monitoring()
 
@@ -3870,16 +3142,6 @@ class Xplorer:
             sys.exit(1)
 
     async def save_linearregression_session_data(self, token_symbol: str, model: LinearRegression) -> None:
-        """
-        Saves the Linear Regression model to a file for later use.
-
-        Args:
-            token_symbol (str): The token symbol for which the model was trained.
-            model (LinearRegression): The trained Linear Regression model.
-
-        Raises:
-            SystemExit: If the model saving fails.
-        """
         try:
             model_path = f"{self.config.MODEL_DIR}/{token_symbol}_linear_regression.joblib"
             joblib.dump(model, model_path)
@@ -3887,36 +3149,9 @@ class Xplorer:
         except Exception as e:
             self.logger.error(f"Failed to save Linear Regression model for {token_symbol}: {e} ❌")
             sys.exit(1)
-    async def load_linearregression_session_data(self, token_symbol: str) -> Optional[LinearRegression]:
-        """
-        Loads the Linear Regression model from a file.
 
-        Args:
-            token_symbol (str): The token symbol for which the model was trained.
-
-        Returns:
-            Optional[LinearRegression]: The loaded Linear Regression model if successful, else None.
-        """
-        try:
-            model_path = f"{self.config.MODEL_DIR}/{token_symbol}_linear_regression.joblib"
-            model = joblib.load(model_path)
-            self.logger.debug(f"Loaded Linear Regression model for {token_symbol} from {model_path} ✅")
-            return model
-        except Exception as e:
-            self.logger.error(f"Failed to load Linear Regression model for {token_symbol}: {e} ❌")
-            return None
     async def linearregression_save_market_data(self, token_symbol: str, prices: List[float], volumes: List[float]) -> None:
-        """
-        Saves the market data for a token to a CSV file.
 
-        Args:
-            token_symbol (str): The token symbol for which the data was collected.
-            prices (List[float]): List of historical prices.
-            volumes (List[float]): List of historical volumes.
-
-        Raises:
-            SystemExit: If the data saving fails.
-        """
         try:
             data = pd.DataFrame({"Price": prices, "Volume": volumes})
             data_path = f"{self.config.DATA_DIR}/{token_symbol}_market_data.csv"
@@ -3927,9 +3162,6 @@ class Xplorer:
             sys.exit(1) 
 
     async def stop(self) -> None:
-        """
-        Stops the bot's execution gracefully.
-        """
         self.logger.debug("Stopping 0xplorer... 🛑⏳")
         await self.monitor_array.stop_monitoring()
         self.logger.debug("0xplorer wishes you a great day! 👋")
@@ -3937,7 +3169,6 @@ class Xplorer:
 
 
 async def main():
-    """ Main entry point for the bot. """
     # Set up logging
     await setup_logging() 
 
@@ -3955,6 +3186,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-# ----------------- End of 0xplorer.py ----------------- #

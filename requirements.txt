@@ -1,1 +1,12 @@
-
+aiofiles==24.1.0
+aiohttp==3.10.10
+cachetools==5.5.0
+eth_account==0.13.4
+hexbytes==1.2.1
+joblib==1.4.2
+numpy==2.1.2
+pandas==2.2.3
+plotly==5.24.1
+python-dotenv==1.0.1
+scikit_learn==1.5.2
+web3==7.4.0

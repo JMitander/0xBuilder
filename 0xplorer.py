@@ -8,30 +8,28 @@ import asyncio
 import aiofiles
 import aiohttp
 import joblib
+import plotly.express as px 
 import numpy as np
 import tracemalloc
 import hexbytes
 import pandas as pd
-
-from cachetools import *
+from cachetools import TTLCache, cached
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression
-from typing import *
+from sklearn.model_selection import train_test_split
 from decimal import Decimal
-
-from eth_account.messages import *
+from typing import Set, List, Dict, Any, Optional
+from eth_account.messages import encode_defunct
 from web3.exceptions import TransactionNotFound, ContractLogicError
 from web3 import AsyncWeb3, AsyncIPCProvider, AsyncHTTPProvider, Web3
-from web3.middleware import *
-from web3.geth import *
+from web3.middleware import SignAndSendRawMiddlewareBuilder, ExtraDataToPOAMiddleware
+from web3.geth import isinstance
 from web3.eth import AsyncEth, Contract
 from eth_account import Account
 
 dotenv.load_dotenv()
 
-
 async def loading_bar(message: str, total_time: int):
-
     bar_length = 20
     try:
         for i in range(101):
@@ -48,7 +46,6 @@ async def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)  # Set the lowest level for the logger
     tracemalloc.start()  # Start memory tracing
-
     # Create console handler for INFO level
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)  # Console logs only INFO and above
@@ -68,7 +65,6 @@ class Config:
     """
     Loads configuration from environment variables and monitored tokens from a JSON file.
     """
-
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.logger = logger or logging.getLogger(self.__class__.__name__)
 
@@ -76,7 +72,6 @@ class Config:
         await self._load_config()
 
     async def _load_config(self):
-
         try:
             # API Keys
             await loading_bar("Loading Environment Variables", 2)
@@ -85,14 +80,12 @@ class Config:
             self.COINGECKO_API_KEY = self._get_env_variable("COINGECKO_API_KEY")
             self.COINMARKETCAP_API_KEY = self._get_env_variable("COINMARKETCAP_API_KEY")
             self.CRYPTOCOMPARE_API_KEY = self._get_env_variable("CRYPTOCOMPARE_API_KEY")
-
             # Providers and Account
             self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT")
             self.IPC_ENDPOINT = self._get_env_variable("IPC_ENDPOINT")
             self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT")
             self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
             self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
-
             # JSON Elements
             self.AAVE_V3_LENDING_POOL_ADDRESS = self._get_env_variable(
                 "AAVE_V3_LENDING_POOL_ADDRESS"
@@ -138,7 +131,6 @@ class Config:
             self.BALANCER_ROUTER_ADDRESS = self._get_env_variable(
                 "BALANCER_ROUTER_ADDRESS")
             self.logger.info("Configuration loaded successfully. ✅")
-
         except EnvironmentError as e:
             self.logger.error(f"Environment variable error: {e} ❌")
             raise
@@ -150,7 +142,6 @@ class Config:
             raise
 
     def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
-
         value = os.getenv(var_name, default)
         if value is None:
             self.logger.error(f"Missing environment variable: {var_name} ❌")
@@ -158,7 +149,6 @@ class Config:
         return value
 
     async def _load_monitored_tokens(self, file_path: str) -> List[str]:
-
         await loading_bar("Loading Monitored Tokens", 1)
         try:
             async with aiofiles.open(file_path, "r") as f:
@@ -173,9 +163,8 @@ class Config:
                 f"Failed to load monitored tokens from {file_path}: {e} ❌"
             )
             return []
-
+        
     async def _load_erc20_function_signatures(self, file_path: str) -> Dict[str, str]:
-
         await loading_bar("Loading ERC20 Function Signatures", 1)
         try:
             async with aiofiles.open(file_path, "r") as f:
@@ -192,7 +181,6 @@ class Config:
             return {}
 
     async def _construct_ABI_path(self, base_path: str, ABI_filename: str) -> str:
-
         ABI_path = os.path.join(base_path, ABI_filename)
         await loading_bar(f"Constructing '{ABI_filename}'", 1)
         if not os.path.exists(ABI_path):
@@ -203,7 +191,6 @@ class Config:
         return ABI_path
 
     def get_ABI_path(self, ABI_name: str) -> str:
-
         ABI_paths = {
             "erc20": self.ERC20_ABI,
             "sushiswap": self.SUSHISWAP_ROUTER_ABI,
@@ -216,11 +203,9 @@ class Config:
         return ABI_paths.get(ABI_name.lower(), "")
 
     async def get_token_addresses(self) -> List[str]:
-
         return self.TOKEN_ADDRESSES
 
     async def get_token_symbols(self) -> str:
-
         return self.TOKEN_SYMBOLS
 
 
@@ -228,7 +213,6 @@ class NonceManager:
     """
     Manages the nonce for an Ethereum account to prevent transaction nonce collisions.
     """
-
     def __init__(
         self,
         web3: AsyncWeb3,
@@ -249,7 +233,6 @@ class NonceManager:
         self.current_nonce = await self._fetch_current_nonce_with_retries()
 
     async def _fetch_current_nonce_with_retries(self) -> int:
-
         await loading_bar("Fetching Current Nonce", 0)
         attempt = 0
         while attempt < self.max_retries:
@@ -275,7 +258,6 @@ class NonceManager:
         )
 
     async def get_nonce(self) -> int:
-
         async with self.lock:
             nonce = self.current_nonce
             self.current_nonce += 1
@@ -285,7 +267,6 @@ class NonceManager:
             return nonce
 
     async def refresh_nonce(self):
-
         async with self.lock:
             latest_nonce = await self._fetch_current_nonce_with_retries()
             if latest_nonce > self.current_nonce:
@@ -299,7 +280,6 @@ class NonceManager:
                 )
 
     async def sync_nonce_with_chain(self):
-
         async with self.lock:
             await loading_bar("Synchronizing Nonce", 0)
             try:
@@ -312,7 +292,6 @@ class NonceManager:
                 raise RuntimeError(f"Failed to synchronize nonce: {e} ❌")
 
     async def handle_nonce_discrepancy(self, external_nonce: int):
-
         async with self.lock:
             if external_nonce > self.current_nonce:
                 self.logger.warning(
@@ -328,7 +307,6 @@ class NonceManager:
                 )
 
     async def reset_nonce(self):
-
         async with self.lock:
             await loading_bar("Resetting Nonce", 0)
             try:
@@ -339,7 +317,6 @@ class NonceManager:
             except Exception as e:
                 self.logger.error(f"Failed to reset nonce for {self.address}: {e} ❌")
                 raise RuntimeError(f"Failed to reset nonce: {e} ❌")
-
 
 class SafetyNet:
     def __init__(
@@ -365,7 +342,6 @@ class SafetyNet:
         self.api_success_rate_lock = asyncio.Lock()
 
     async def get_balance(self, account: Account) -> Decimal:
-
         try:
             balance_wei = await self.web3.eth.get_balance(account.address)
             balance_eth = self.web3.from_wei(balance_wei, "ether")
@@ -378,24 +354,21 @@ class SafetyNet:
                 f"Failed to retrieve balance for account {account.address}: {e} ❌"
             )
             return Decimal(0)
-
+        
     async def ensure_profit(
         self,
         transaction_data: Dict[str, Any],
         minimum_profit_eth: Optional[float] = None,
     ) -> bool:
-
         if minimum_profit_eth is None:
             if await self.get_balance(self.account) < Decimal("0.5"):
                 minimum_profit_eth = 0.003  # Lower threshold for small balances
             else:
                 minimum_profit_eth = 0.01
-
         try:
             # Fetch dynamic gas price
             gas_price_gwei = await self.get_dynamic_gas_price()
             gas_price_gwei = Decimal(gas_price_gwei)
-
             # Estimate gas used
             gas_used = await self.estimate_gas(transaction_data)
             if gas_used == 0:
@@ -403,7 +376,6 @@ class SafetyNet:
                     "Gas used for the transaction is not defined or is zero. ⚠️⛽"
                 )
                 return False
-
             # Calculate gas cost in ETH
             gas_cost_eth = gas_price_gwei * gas_used * Decimal("1e-9")
             self.logger.debug(
@@ -412,10 +384,8 @@ class SafetyNet:
                 f" - Gas Used: {gas_used}\n ⛽"
                 f" - Gas Cost: {gas_cost_eth:.6f} ETH 💰"
             )
-
             # Adjust slippage tolerance based on market conditions
             slippage_tolerance = await self.adjust_slippage_tolerance()
-
             # Fetch and calculate expected output based on current real-time price
             output_token = transaction_data["output_token"]
             real_time_price = await self.get_real_time_price(output_token)
@@ -424,18 +394,15 @@ class SafetyNet:
                     f"Real-time price for token {output_token} could not be determined. Aborting profit estimation. ⚠️"
                 )
                 return False
-
             expected_output = Decimal(real_time_price) * Decimal(
                 transaction_data["amountOut"]
             )
             input_amount = Decimal(transaction_data["amountIn"])
-
             # Adjust expected output based on slippage tolerance
             slippage_adjusted_output = expected_output * (
                 1 - Decimal(slippage_tolerance)
             )
             profit = slippage_adjusted_output - input_amount - gas_cost_eth
-
             # Log all critical values involved in the profit calculation
             self.logger.debug(
                 f"Profit Calculation:\n"
@@ -446,7 +413,6 @@ class SafetyNet:
                 f" - Gas Cost: {gas_cost_eth:.6f} ETH\n ⛽"
                 f" - Calculated Profit: {profit:.6f} ETH 💹"
             )
-
             # Ensure profit exceeds minimum profit threshold
             is_profitable = profit > Decimal(minimum_profit_eth)
             self.logger.debug(
@@ -455,18 +421,15 @@ class SafetyNet:
                 else "Transaction is not profitable. ⚠️"
             )
             return is_profitable
-
         except KeyError as e:
             self.logger.error(
                 f"Missing key in transaction data: {e}. Data: {transaction_data} ⚠️"
             )
         except Exception as e:
             self.logger.exception(f"Error ensuring transaction profitability: {e} ⚠️")
-
         return False
 
     async def estimate_gas(self, transaction_data: Dict[str, Any]) -> int:
-
         try:
             tx = {
                 "from": self.account.address,
@@ -481,7 +444,6 @@ class SafetyNet:
             return 0
 
     async def get_dynamic_gas_price(self) -> float:
-
         try:
             # Try Etherscan API
             async with aiohttp.ClientSession() as session:
@@ -508,7 +470,6 @@ class SafetyNet:
                 return 100.0
 
     async def adjust_slippage_tolerance(self) -> float:
-
         network_congestion = await self.get_network_congestion()
         if network_congestion > 0.8:
             self.logger.debug(
@@ -527,7 +488,6 @@ class SafetyNet:
             return 0.1  # Default slippage tolerance
 
     async def get_network_congestion(self) -> float:
-
         try:
             pending_block = await self.web3.eth.get_block("pending", full_transactions=False)
             pending_tx = len(pending_block["transactions"])
@@ -537,9 +497,8 @@ class SafetyNet:
         except Exception as e:
             self.logger.error(f"Failed to get network congestion: {e} ⚠️")
             return 1.0  # Assume high congestion if failed
-
+        
     async def get_real_time_price(self, token: str) -> Decimal:
-
         try:
             await loading_bar(f"Fetching Real-Time Price for {token}", 0)
             price_sources = {
@@ -548,7 +507,6 @@ class SafetyNet:
                 "coinmarketcap": await self._fetch_price_from_coinmarketcap(token),
                 "cryptocompare": await self._fetch_price_from_cryptocompare(token),
             }
-
             # Prioritize sources with higher historical success rate
             async with self.api_success_rate_lock:
                 sorted_sources = sorted(
@@ -556,20 +514,16 @@ class SafetyNet:
                     key=lambda x: self.api_success_rate.get(x[0], 1.0),
                     reverse=True,
                 )
-
             for source, price in sorted_sources:
                 if price is not None:
                     return price
-
         except Exception as e:
             self.logger.error(f"Error fetching real-time price for {token}: {e} ⚠️")
-
         # If no price could be fetched, log and return 0
         self.logger.error(f"Failed to retrieve price for {token}. Returning 0. ⚠️")
         return Decimal(0)
 
     async def _fetch_price_from_binance(self, token: str) -> Optional[Decimal]:
-
         try:
             symbol = self._convert_token_id_to_binance_symbol(token)
             if not symbol:
@@ -610,7 +564,6 @@ class SafetyNet:
             return None
 
     def _load_token_symbols(self) -> dict:
-
         try:
             with open(self.token_symbols, "r") as file:
                 return json.load(file)
@@ -619,7 +572,6 @@ class SafetyNet:
             return {}
 
     def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
-
         return self.symbol_mapping.get(token_id.lower())
 
     async def _fetch_price_from_coingecko(self, token: str) -> Optional[Decimal]:
@@ -640,7 +592,6 @@ class SafetyNet:
             return None
 
     async def _fetch_price_from_coinmarketcap(self, token: str) -> Optional[Decimal]:
-
         try:
             url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
             params = {"symbol": token}
@@ -659,7 +610,6 @@ class SafetyNet:
             return None
 
     async def _fetch_price_from_cryptocompare(self, token: str) -> Optional[Decimal]:
-
         try:
             url = f"https://min-api.cryptocompare.com/data/price"
             params = {"fsym": token, "tsyms": "ETH"}
@@ -683,10 +633,8 @@ class SafetyNet:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> aiohttp.ClientResponse:
-
         max_attempts = 5
         backoff_time = 1  # Initial backoff time in seconds
-
         for attempt in range(1, max_attempts + 1):
             try:
                 await loading_bar("Making Request with Exponential Backoff", 1)
@@ -710,9 +658,7 @@ class SafetyNet:
                 if attempt < max_attempts:
                     await asyncio.sleep(backoff_time)
                     backoff_time *= 2  # Exponential backoff
-
         raise Exception("Failed to make request after several attempts.")
-
 
 class MonitorArray:
     """
@@ -752,7 +698,6 @@ class MonitorArray:
         if self.running:
             self.logger.warning("Monitoring is already running.")
             return
-
         self.running = True
         asyncio.create_task(self._run_monitoring())
         self.logger.info("Mempool monitoring started. 📡 ✅")
@@ -761,7 +706,6 @@ class MonitorArray:
         if not self.running:
             self.logger.warning("Monitoring is not running.")
             return
-
         self.running = False
         self.logger.info("Mempool monitoring has been stopped. 🛑")
 
@@ -770,7 +714,6 @@ class MonitorArray:
 
     async def mempool_monitor(self):
         self.logger.info("Starting mempool monitoring... 📡")
-        
         if not isinstance(self.web3.provider, (AsyncHTTPProvider, AsyncIPCProvider)):
             self.logger.error("Provider is not an HTTP, WebSocket, or IPC provider. ❌")
         else:
@@ -783,7 +726,6 @@ class MonitorArray:
         except Exception as e:
             self.logger.error(f"Error setting up pending transaction filter: {e} ❌")
             return
-
         while self.running:
             try:
                 # Get new entries from the pending transaction filter
@@ -791,7 +733,6 @@ class MonitorArray:
 
                 for tx_hash in tx_hashes:
                     await self.process_transaction(tx_hash)
-
             except Exception as e:
                 self.logger.exception(f"Error in mempool monitoring: {str(e)} ⚠️")
                 # Reinitialize the filter in case of disconnection or errors
@@ -802,23 +743,18 @@ class MonitorArray:
                         f"Error resetting pending transaction filter: {e} ❌"
                     )
                     await asyncio.sleep(5)  # Wait before retrying
-
             await asyncio.sleep(0.1)
 
     async def process_transaction(self, tx_hash):
         tx_hash_hex = tx_hash.hex()
-
         # Check if the transaction has already been processed
         if tx_hash_hex in self.processed_transactions:
             return
-
         # Mark the transaction as processed
         self.processed_transactions.add(tx_hash_hex)
-
         try:
             # Fetch the transaction details
             tx = await self.web3.eth.get_transaction(tx_hash)
-
             # Analyze the transaction
             analysis = await self.analyze_transaction(tx)
             if analysis.get("is_profitable"):
@@ -826,7 +762,6 @@ class MonitorArray:
                 self.logger.info(
                     f"Identified profitable transaction {tx_hash_hex} in the mempool. 📡"
                 )
-
         except TransactionNotFound:
             # Transaction details not yet available; may need to wait
             self.logger.debug(
@@ -842,7 +777,6 @@ class MonitorArray:
                 f"Transaction {tx.hash.hex()} is missing essential fields. Skipping."
             )
             return {"is_profitable": False}
-
         try:
             # Handle ETH transactions
             if tx.value > 0:
@@ -858,7 +792,6 @@ class MonitorArray:
                         "gasPrice": tx.gasPrice,
                     }
                 return {"is_profitable": False}
-
             # Handle token transactions
             return await self._analyze_token_transaction(tx)
         except Exception as e:
@@ -866,19 +799,16 @@ class MonitorArray:
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
-
         try:
             # Create a contract instance using the transaction's destination address and ERC20 ABI
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_ABI)
             # Decode the transaction input to extract the function ABI and parameters
             function_ABI, function_params = contract.decode_function_input(tx.input)
             function_name = function_ABI["name"]
-
             # Check if the function name is in the list of ERC20 function signatures
             if function_name in self.config.ERC20_SIGNATURES:
                 # Estimate the profit of the transaction
                 estimated_profit = await self._estimate_profit(tx, function_params)
-
                 # Check if the estimated profit exceeds the minimum profit threshold
                 if estimated_profit > self.minimum_profit_threshold:
                     self.logger.info(
@@ -925,51 +855,42 @@ class MonitorArray:
             return False
 
     async def _estimate_eth_transaction_profit(self, tx: Any) -> Decimal:
-
         try:
             # Retrieve the current dynamic gas price (assumed to be in Gwei)
             gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
             # Retrieve the gas used for the transaction
             gas_used = tx.gas  # Note: tx.gas is the gas limit, actual gas used is unknown at this point
-
             # Calculate the gas cost in ETH
             gas_cost_eth = (
                 Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
             )  # Convert Gwei to ETH
-
             # Convert the transaction value from Wei to ETH
             eth_value = Decimal(self.web3.from_wei(tx.value, "ether"))
-
             # Calculate the potential profit
             potential_profit = eth_value - gas_cost_eth
-
             # Return the potential profit if it's positive, otherwise return zero
             return potential_profit if potential_profit > 0 else Decimal(0)
         except Exception as e:
             self.logger.error(f"Error estimating ETH transaction profit: {e} ❌")
             return Decimal(0)
-
+        
     async def _estimate_profit(self, tx, function_params: Dict[str, Any]) -> Decimal:
-
         try:
             # Convert gas price from Wei to Gwei
             gas_price_gwei = self.web3.from_wei(tx.gasPrice, "gwei")
             gas_used = tx.gas
             # Calculate gas cost in ETH
             gas_cost_eth = Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
-
             # Retrieve input and output amounts from function parameters
             input_amount_wei = Decimal(function_params.get("amountIn", 0))
             output_amount_min_wei = Decimal(function_params.get("amountOutMin", 0))
             path = function_params.get("path", [])
-
             # Validate the transaction path
             if len(path) < 2:
                 self.logger.debug(
                     f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping. ⚠️"
                 )
                 return Decimal(0)
-
             # Get the output token address and symbol
             output_token_address = path[-1]
             output_token_symbol = await self.get_token_symbol(output_token_address)
@@ -978,7 +899,6 @@ class MonitorArray:
                     f"Output token symbol not found for address {output_token_address}. Skipping. ⚠️"
                 )
                 return Decimal(0)
-
             # Get the real-time market price of the output token
             market_price = await self.safety_net.get_real_time_price(
                 output_token_symbol.lower()
@@ -988,7 +908,6 @@ class MonitorArray:
                     f"Market price not available for token {output_token_symbol}. Skipping. ⚠️"
                 )
                 return Decimal(0)
-
             # Convert input amount from Wei to ETH
             input_amount_eth = Decimal(self.web3.from_wei(input_amount_wei, "ether"))
             # Calculate the profit
@@ -997,7 +916,6 @@ class MonitorArray:
                 - input_amount_eth
                 - gas_cost_eth
             )
-
             # Return the profit if it's positive, otherwise return zero
             return profit if profit > 0 else Decimal(0)
         except Exception as e:
@@ -1008,7 +926,6 @@ class MonitorArray:
 
     @cached(cache=TTLCache(maxsize=1000, ttl=86400))
     async def get_token_symbol(self, token_address: str) -> Optional[str]:
-
         try:
             # First check token symbols from environment variables
             if token_address in self.config.TOKEN_SYMBOLS:
@@ -1022,7 +939,6 @@ class MonitorArray:
             return None
 
     async def _log_transaction_details(self, tx, is_eth=False):
-
         try:
             # Log the transaction details
             transaction_info = {
@@ -1083,18 +999,15 @@ class TransactionArray:
         self.retry_delay = retry_delay
         self.erc20_ABI = erc20_ABI or []
         self.current_profit = Decimal("0")
-
         # Store contract details for async initialization
         self.flashloan_contract_address = flashloan_contract_address
         self.flashloan_contract_ABI = flashloan_contract_ABI
         self.lending_pool_contract_address = lending_pool_contract_address
         self.lending_pool_contract_ABI = lending_pool_contract_ABI
-
         self.logger.info("TransactionArray initialized successfully. ✅")
 
     # Initialize contracts asynchronously
     async def initialize(self):
-        """Async initialization of contracts."""
         self.flashloan_contract = await self._initialize_contract(
             self.flashloan_contract_address,
             self.flashloan_contract_ABI,
@@ -1127,7 +1040,6 @@ class TransactionArray:
         )
         # Load ERC20 ABI if not provided
         self.erc20_ABI = self.erc20_ABI or await self._load_erc20_ABI()
-
     # initialize contract instance
     async def _initialize_contract(
         self,
@@ -1135,7 +1047,6 @@ class TransactionArray:
         contract_ABI: List[Dict[str, Any]],
         contract_name: str,
     ) -> Contract:
-
         try:
             contract_instance = self.web3.eth.contract(
                 address=self.web3.to_checksum_address(contract_address),
@@ -1152,11 +1063,11 @@ class TransactionArray:
             raise ValueError(
                 f"Contract initialization failed for {contract_name}"
             ) from e
+        
     # Builds a transaction with the given function call and additional parameters
     async def build_transaction(
         self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-
         additional_params = additional_params or {}
         try:
             tx_details = {
@@ -1167,12 +1078,10 @@ class TransactionArray:
                 "from": self.account.address,
             }
             tx_details.update(additional_params)
-
             # Estimate gas after building the transaction
             tx = tx_details.copy()
             tx["gas"] = await self.estimate_gas_smart(tx)
             tx.update(await self.get_dynamic_gas_price())
-
             self.logger.debug(f"Built transaction: {tx}")
             return tx
         except Exception as e:
@@ -1180,7 +1089,6 @@ class TransactionArray:
             raise
 
     async def get_dynamic_gas_price(self) -> Dict[str, int]:
-
         try:
             gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
             self.logger.info(f"Fetched gas price: {gas_price_gwei} Gwei ⛽")
@@ -1196,7 +1104,6 @@ class TransactionArray:
         return {"gasPrice": gas_price}
 
     async def estimate_gas_smart(self, tx: Dict[str, Any]) -> int:
-
         try:
             gas_estimate = await self.web3.eth.estimate_gas(tx)
             self.logger.debug(f"Estimated gas: {gas_estimate} ⛽")
@@ -1208,7 +1115,6 @@ class TransactionArray:
             return 100_000  # Default gas limit
 
     async def execute_transaction(self, tx: Dict[str, Any]) -> Optional[str]:
-
         for attempt in range(1, self.retry_attempts + 1):
             try:
                 # Sign the transaction
@@ -1234,12 +1140,10 @@ class TransactionArray:
                     sleep_time = self.retry_delay * attempt
                     self.logger.info(f"Retrying in {sleep_time} seconds...")
                     await asyncio.sleep(sleep_time)  # Exponential backoff
-
         self.logger.error("Failed to execute transaction after multiple attempts. ❌")
         return None
 
     async def sign_transaction(self, transaction: Dict[str, Any]) -> bytes:
-
         try:
             signed_tx = self.web3.eth.account.sign_transaction(
                 transaction,
@@ -1254,14 +1158,11 @@ class TransactionArray:
             raise
 
     async def handle_eth_transaction(self, target_tx: Dict[str, Any]) -> bool:
-
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(f"Handling ETH transaction {tx_hash} 🚀")
-
         try:
             # Extract the value of ETH to be transferred
             eth_value = target_tx.get("value", 0)
-
             # Build the transaction details
             tx_details = {
                 "data": target_tx.get("input", "0x"),
@@ -1272,19 +1173,16 @@ class TransactionArray:
                 "nonce": await self.nonce_manager.get_nonce(),
                 "from": self.account.address,
             }
-
             # Use a gas price slightly higher than the original transaction
             original_gas_price = int(target_tx.get("gasPrice", 0))
             tx_details["gasPrice"] = int(
                 original_gas_price * 1.1
             )  # 10% higher gas price
-
             # Log transaction details
             eth_value_ether = self.web3.from_wei(eth_value, "ether")
             self.logger.info(
                 f"Building ETH front-run transaction for {eth_value_ether} ETH to {tx_details['to']}"
             )
-
             # Sign and execute the transaction
             tx_hash_executed = await self.execute_transaction(tx_details)
             if tx_hash_executed:
@@ -1337,7 +1235,6 @@ class TransactionArray:
                 "Flashloan amount is 0 or less, skipping flashloan transaction preparation. 📉"
             )
             return None
-
         try:
             flashloan_function = self.flashloan_contract.functions.fn_RequestFlashLoan(
                 self.web3.to_checksum_address(flashloan_asset), flashloan_amount
@@ -1372,7 +1269,6 @@ class TransactionArray:
                     }
                 ],
             }
-
             # Sign the payload using the private key
             message = encode_defunct(text=json.dumps(bundle_payload["params"][0]))
             signed_message = self.web3.eth.account.sign_message(
@@ -1382,7 +1278,6 @@ class TransactionArray:
                 "Content-Type": "application/json",
                 "X-Flashbots-Signature": f"{self.account.address}:{signed_message.signature()}",
             }
-
             for attempt in range(1, self.retry_attempts + 1):
                 try:
                     self.logger.info(f"Attempt {attempt} to send bundle. 📦💨")
@@ -1416,7 +1311,6 @@ class TransactionArray:
                 except ValueError as e:
                     self.logger.error(f"Bundle submission error: {e} ⚠️📦")
                     break
-
             self.logger.error("Failed to send bundle after multiple attempts. ⚠️📦")
             return False
         except Exception as e:
@@ -1429,7 +1323,6 @@ class TransactionArray:
         self.logger.info(
             f"Attempting front-run on target transaction: {tx_hash} 🏃💨📈"
         )
-
         decoded_tx = await self.decode_transaction_input(
             target_tx.get("input", "0x"), target_tx.get("to", "")
         )
@@ -1438,22 +1331,23 @@ class TransactionArray:
                 "Failed to decode target transaction input for front-run. ⚠️"
             )
             return False
-
         try:
             # Get the parameters for the front-run
             flashloan_asset = decoded_tx["params"].get("path", [])[0]
             flashloan_amount = self.calculate_flashloan_amount(target_tx)
-
             # Prepare the flashloan transaction
-            flashloan_tx = await self.prepare_flashloan_transaction(
-                flashloan_asset, flashloan_amount
-            )
+            if flashloan_amount > 0:
+                flashloan_tx = await self.prepare_flashloan_transaction(
+                    flashloan_asset, flashloan_amount
+                )
+            else:
+                self.logger.info("Flashloan amount is zero or less. Skipping flashloan transaction preparation. ⚠️")
+                return False
             if not flashloan_tx:
                 self.logger.info(
                     "Failed to prepare flashloan transaction for front-run. Aborting. ⚠️"
                 )
                 return False
-
             # Prepare the front-run transaction
             front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
             if not front_run_tx_details:
@@ -1461,7 +1355,6 @@ class TransactionArray:
                     "Failed to prepare front-run transaction. Aborting. ⚠️"
                 )
                 return False
-
             # Simulate transactions
             if not (
                 await self.simulate_transaction(flashloan_tx)
@@ -1471,7 +1364,6 @@ class TransactionArray:
                     "Simulation of front-run or flashloan failed. Aborting. ⚠️"
                 )
                 return False
-
             # Execute as a bundle
             if await self.send_bundle([flashloan_tx, front_run_tx_details]):
                 self.logger.info(
@@ -1481,16 +1373,13 @@ class TransactionArray:
             else:
                 self.logger.error("Failed to send front-run transaction bundle. ⚠️")
                 return False
-
         except Exception as e:
             self.logger.exception(f"Error executing front-run: {e} ⚠️")
             return False
 
     async def back_run(self, target_tx: Dict[str, Any]) -> bool:
-
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(f"Attempting back-run on target transaction: {tx_hash} 🔙🏃📉")
-
         decoded_tx = await self.decode_transaction_input(
             target_tx.get("input", "0x"), target_tx.get("to", "")
         )
@@ -1499,12 +1388,10 @@ class TransactionArray:
                 "Failed to decode target transaction input for back-run. ⚠️"
             )
             return False
-
         try:
             # Get the parameters for the back-run
             flashloan_asset = decoded_tx["params"].get("path", [])[-1]
             flashloan_amount = self.calculate_flashloan_amount(target_tx)
-
             # Prepare the flashloan transaction
             flashloan_tx = await self.prepare_flashloan_transaction(
                 flashloan_asset, flashloan_amount
@@ -1514,7 +1401,6 @@ class TransactionArray:
                     "Failed to prepare flashloan transaction for back-run. Aborting. ⚠️"
                 )
                 return False
-
             # Prepare the back-run transaction
             back_run_tx_details = await self._prepare_back_run_transaction(target_tx)
             if not back_run_tx_details:
@@ -1522,7 +1408,6 @@ class TransactionArray:
                     "Failed to prepare back-run transaction. Aborting. ⚠️"
                 )
                 return False
-
             # Simulate transactions
             if not (
                 await self.simulate_transaction(flashloan_tx)
@@ -1546,14 +1431,13 @@ class TransactionArray:
         except Exception as e:
             self.logger.exception(f"Error executing back-run: {e} ⚠️")
             return False
-
+        
     async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
 
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(
             f"Attempting sandwich attack on target transaction: {tx_hash} 🥪🏃📈"
         )
-
         decoded_tx = await self.decode_transaction_input(
             target_tx.get("input", "0x"), target_tx.get("to", "")
         )
@@ -1562,12 +1446,10 @@ class TransactionArray:
                 "Failed to decode target transaction input for sandwich attack. ⚠️"
             )
             return False
-
         try:
             # Get the parameters for the sandwich attack
             flashloan_asset = decoded_tx["params"].get("path", [])[0]
             flashloan_amount = self.calculate_flashloan_amount(target_tx)
-
             # Prepare the flashloan transaction
             flashloan_tx = await self.prepare_flashloan_transaction(
                 flashloan_asset, flashloan_amount
@@ -1577,7 +1459,6 @@ class TransactionArray:
                     "Failed to prepare flashloan transaction for sandwich attack. Aborting. ⚠️"
                 )
                 return False
-
             # Prepare the front-run transaction
             front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
             if not front_run_tx_details:
@@ -1585,7 +1466,6 @@ class TransactionArray:
                     "Failed to prepare front-run transaction for sandwich attack. Aborting. ⚠️"
                 )
                 return False
-
             # Prepare the back-run transaction
             back_run_tx_details = await self._prepare_back_run_transaction(target_tx)
             if not back_run_tx_details:
@@ -1593,7 +1473,6 @@ class TransactionArray:
                     "Failed to prepare back-run transaction for sandwich attack. Aborting. ⚠️"
                 )
                 return False
-
             # Simulate transactions
             if not (
                 await self.simulate_transaction(flashloan_tx)
@@ -1604,7 +1483,6 @@ class TransactionArray:
                     "Simulation of one or more transactions failed during sandwich attack. Aborting. ⚠️"
                 )
                 return False
-
             # Execute all three transactions as a bundle
             if await self.send_bundle(
                 [flashloan_tx, front_run_tx_details, back_run_tx_details]
@@ -1618,7 +1496,6 @@ class TransactionArray:
                     "Failed to send sandwich attack transaction bundle. ⚠️"
                 )
                 return False
-
         except Exception as e:
             self.logger.exception(f"Error executing sandwich attack: {e} ❌")
             return False
@@ -1635,11 +1512,9 @@ class TransactionArray:
                 "Failed to decode target transaction input for front-run preparation. ⚠️"
             )
             return None
-
         function_name = decoded_tx.get("function_name")
         function_params = decoded_tx.get("params", {})
-
-        try: 
+        try:
             # Determine which router to use based on the target address
             to_address = self.web3.to_checksum_address(target_tx.get("to", ""))
             if to_address == self.config.UNISWAP_V2_ROUTER_ADDRESS:
@@ -1654,11 +1529,9 @@ class TransactionArray:
             elif to_address == self.config.BALANCER_ROUTER_ADDRESS:
                 router_contract = self.balancer_router_contract
                 exchange_name = "Balancer"
-            
             else:
                 self.logger.error("Unknown router address. Cannot determine exchange. ❌")
                 return None
-
             # Get the function object by name
             front_run_function = getattr(router_contract.functions, function_name)(
                 **function_params
@@ -1677,12 +1550,10 @@ class TransactionArray:
         except Exception as e:
             self.logger.exception(f"Error preparing front-run transaction: {e} ❌")
             return None
-        
 
     async def _prepare_back_run_transaction(
         self, target_tx: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-
         decoded_tx = await self.decode_transaction_input(
             target_tx.get("input", "0x"), target_tx.get("to", "")
         )
@@ -1691,10 +1562,8 @@ class TransactionArray:
                 "Failed to decode target transaction input for back-run preparation. ⚠️"
             )
             return None
-
         function_name = decoded_tx.get("function_name")
         function_params = decoded_tx.get("params", {})
-
         # Reverse the path parameter for back-run
         path = function_params.get("path", [])
         if path:
@@ -1703,7 +1572,6 @@ class TransactionArray:
             self.logger.warning(
                 "Transaction has no path parameter for back-run preparation. ❗"
             )
-
         try:
             # Determine which router to use based on the target address
             to_address = self.web3.to_checksum_address(target_tx.get("to", ""))
@@ -1719,14 +1587,9 @@ class TransactionArray:
             elif to_address == self.config.BALANCER_ROUTER_ADDRESS:
                 router_contract = self.balancer_router_contract
                 exchange_name = "Balancer"
-            # if normal eth transaction
-            elif to_address == ("0x0000000000000000000000000000000000000000"):
-                router_contract = self.web3.eth.contract(address=to_address, abi=self.erc20_ABI)
-                exchange_name = "ETH"
             else:
                 self.logger.error("Unknown router address. Cannot determine exchange. ❌")
                 return None
-
             # Get the function object by name
             back_run_function = getattr(router_contract.functions, function_name)(
                 **function_params
@@ -1749,7 +1612,6 @@ class TransactionArray:
     async def decode_transaction_input(
         self, input_data: str, to_address: str
     ) -> Optional[Dict[str, Any]]:
-
         try:
             to_address = self.web3.to_checksum_address(to_address)
             if to_address == self.config.UNISWAP_V2_ROUTER_ADDRESS:
@@ -1761,12 +1623,14 @@ class TransactionArray:
             elif to_address == self.config.PANCAKESWAP_ROUTER_ADDRESS:
                 abi = self.config.PANCAKESWAP_ROUTER_ABI
                 exchange_name = "Pancakeswap"
+            elif to_address == self.config.BALANCER_ROUTER_ADDRESS:
+                abi = self.config.BALANCER_ROUTER_ABI
+                exchange_name = "Balancer"
             else:
                 self.logger.error(
                     "Unknown router address. Cannot determine ABI for decoding. ❌"
                 )
                 return None
-
             contract = self.web3.eth.contract(address=to_address, abi=abi)
             function_obj, function_params = contract.decode_function_input(input_data)
             decoded_data = {
@@ -1782,7 +1646,6 @@ class TransactionArray:
             return None
 
     async def cancel_transaction(self, nonce: NonceManager) -> bool:
-
         cancel_tx = {
             "data": "0x",
             "chainId": await self.web3.eth.chain_id,
@@ -1810,7 +1673,6 @@ class TransactionArray:
             return False
 
     async def estimate_gas_limit(self, tx: Dict[str, Any]) -> int:
-
         try:
             gas_estimate = await self.web3.eth.estimate_gas(tx)
             self.logger.debug(f"Estimated gas: {gas_estimate} ⛽")
@@ -1822,7 +1684,6 @@ class TransactionArray:
             return 100_000  # Default gas limit
 
     async def get_current_profit(self) -> Decimal:
-
         try:
             current_profit = await self.safety_net.get_current_profit()
             self.current_profit = Decimal(current_profit)
@@ -1833,7 +1694,6 @@ class TransactionArray:
             return Decimal("0")
 
     async def withdraw_eth(self) -> bool:
-
         try:
             withdraw_function = self.flashloan_contract.functions.withdrawETH()
             tx = await self.build_transaction(withdraw_function)
@@ -1851,7 +1711,6 @@ class TransactionArray:
             return False
 
     async def withdraw_token(self, token_address: str) -> bool:
-
         try:
             withdraw_function = self.flashloan_contract.functions.withdrawToken(
                 self.web3.to_checksum_address(token_address)
@@ -1870,15 +1729,12 @@ class TransactionArray:
             self.logger.exception(f"Error withdrawing token: {e} ❌")
             return False
 
-
-
 class StrategyManager:
     """
     Manages and executes various trading strategies such as ETH transactions, front-running,
     back-running, and sandwich attacks. It tracks strategy performance, predicts market movements,
     and selects the best strategy based on historical performance and reinforcement learning.
     """
-
     def __init__(
         self,
         transaction_array: TransactionArray,
@@ -1889,7 +1745,6 @@ class StrategyManager:
         self.market_analyzer = market_analyzer
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.logger.info("StrategyManager initialized successfully. ✅")
-
         # Track strategy performance and profitability
         self.strategy_performance: Dict[str, Dict[str, Any]] = {
             "eth_transaction": {"successes": 0, "failures": 0, "profit": Decimal("0")},
@@ -1897,11 +1752,9 @@ class StrategyManager:
             "back_run": {"successes": 0, "failures": 0, "profit": Decimal("0")},
             "sandwich_attack": {"successes": 0, "failures": 0, "profit": Decimal("0")},
         }
-
         # Maintain historical data to identify trends and optimize strategy
         self.history_data: List[Dict[str, Any]] = []
         self.price_model = LinearRegression()
-
         # Reinforcement weights with decaying factors for continuous learning
         self.reinforcement_weights: Dict[str, np.ndarray] = {
             "eth_transaction": np.ones(1),
@@ -1917,26 +1770,21 @@ class StrategyManager:
     async def execute_best_strategy(
         self, target_tx: Dict[str, Any], strategy_type: str
     ) -> bool:
-
         strategies = self.get_strategies(strategy_type)
         if not strategies:
             self.logger.warning(f"No strategies available for type: {strategy_type} ❗")
             return False
-
         selected_strategy = self._select_strategy(strategies, strategy_type)
         self.logger.info(f"Executing strategy: {selected_strategy.__name__} ⚔️🏃")
-
         try:
             profit_before = await self.transaction_array.get_current_profit()  # Track profit before execution
             success = await selected_strategy(target_tx)
             profit_after = await self.transaction_array.get_current_profit()  # Profit after execution
-
             # Calculate profit/loss from the strategy execution
             profit_made = Decimal(profit_after) - Decimal(profit_before)
             await self.update_history(
                 selected_strategy.__name__, success, strategy_type, profit_made
             )
-
             return success
         except Exception as e:
             self.logger.error(
@@ -1945,7 +1793,6 @@ class StrategyManager:
             return False
 
     def get_strategies(self, strategy_type: str) -> List[Any]:
-
         strategies = {
             "eth_transaction": [self.high_value_eth_transfer],
             "front_run": [
@@ -1967,14 +1814,12 @@ class StrategyManager:
                 self.advanced_sandwich_attack,
             ],
         }
-
         if strategy_type not in strategies:
             self.logger.error(f"Invalid strategy type provided: {strategy_type} ❌")
             return []
         return strategies[strategy_type]
 
     def _select_strategy(self, strategies: List[Any], strategy_type: str) -> Any:
-
         weights = self.reinforcement_weights[strategy_type]
         # Apply decay to focus on recent performance
         weights *= self.decay_factor
@@ -1994,7 +1839,6 @@ class StrategyManager:
                 f"Error selecting strategy: {e}. Falling back to random selection."
             )
             return np.random.choice(strategies)
-
     async def update_history(
         self, strategy_name: str, success: bool, strategy_type: str, profit: Decimal
     ) -> None:
@@ -2002,7 +1846,6 @@ class StrategyManager:
         self.logger.info(
             f"Updating history for strategy: {strategy_name}, Success: {success}, Profit: {profit} ✅"
         )
-
         # Update performance metrics
         if success:
             self.strategy_performance[strategy_type]["successes"] += 1
@@ -2012,7 +1855,6 @@ class StrategyManager:
             self.strategy_performance[strategy_type][
                 "profit"
             ] += profit  # Note: profit may be negative
-
         # Append to history data
         self.history_data.append(
             {
@@ -2023,7 +1865,6 @@ class StrategyManager:
                 "total_profit": self.strategy_performance[strategy_type]["profit"],
             }
         )
-
         # Update reinforcement weights based on profit and success
         strategy_index = self.get_strategy_index(strategy_name, strategy_type)
         if strategy_index >= 0:
@@ -2040,7 +1881,6 @@ class StrategyManager:
             )
 
     def get_strategy_index(self, strategy_name: str, strategy_type: str) -> int:
-
         strategy_mapping = {
             "eth_transaction": {
                 "high_value_eth_transfer": 0,
@@ -2067,7 +1907,6 @@ class StrategyManager:
         return strategy_mapping.get(strategy_type, {}).get(strategy_name, -1)
 
     async def predict_price_movement(self, token_symbol: str) -> float:
-
         self.logger.info(f"Predicting price movement for {token_symbol} 🔮")
         try:
             prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
@@ -2096,10 +1935,7 @@ class StrategyManager:
             )
             return 0.0
 
-    # -------------------- Strategy Methods --------------------
-
     async def high_value_eth_transfer(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating High-Value ETH Transfer Strategy... 🏃💨")
         try:
             # Check if it's a high-value ETH transfer
@@ -2124,7 +1960,6 @@ class StrategyManager:
             return False
 
     async def aggressive_front_run(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Aggressive Front-Run Strategy... 🏃")
         try:
             if target_tx.get("value", 0) > self.transaction_array.web3.to_wei(
@@ -2143,7 +1978,6 @@ class StrategyManager:
             return False
 
     async def predictive_front_run(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Predictive Front-Run Strategy... 🏃")
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
@@ -2189,7 +2023,6 @@ class StrategyManager:
             return False
 
     async def volatility_front_run(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Volatility Front-Run Strategy... 🏃")
         try:
             market_conditions = await self.market_analyzer.check_market_conditions(
@@ -2209,7 +2042,6 @@ class StrategyManager:
             return False
 
     async def advanced_front_run(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Advanced Front-Run Strategy... 🏃💨")
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
@@ -2259,7 +2091,6 @@ class StrategyManager:
             return False
 
     async def price_dip_back_run(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Price Dip Back-Run Strategy... 🔙🏃")
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
@@ -2305,7 +2136,6 @@ class StrategyManager:
             return False
 
     async def flashloan_back_run(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Flashloan Back-Run Strategy... 🔙🏃")
         try:
             estimated_profit = self.transaction_array.calculate_flashloan_amount(
@@ -2325,7 +2155,6 @@ class StrategyManager:
             return False
 
     async def high_volume_back_run(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating High Volume Back-Run Strategy... 🔙🏃")
         try:
             token_volume = await self.market_analyzer.get_token_volume(target_tx["to"])
@@ -2341,7 +2170,6 @@ class StrategyManager:
             return False
 
     async def advanced_back_run(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Advanced Back-Run Strategy... 🔙🏃💨")
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
@@ -2392,7 +2220,6 @@ class StrategyManager:
             return False
 
     async def flash_profit_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Flash Profit Sandwich Strategy... 🥪🏃")
         try:
             potential_profit = self.transaction_array.calculate_flashloan_amount(
@@ -2412,7 +2239,6 @@ class StrategyManager:
             return False
 
     async def price_boost_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Price Boost Sandwich Strategy... 🥪🏃")
         try:
             token_symbol = await self.market_analyzer.get_token_symbol(target_tx["to"])
@@ -2437,7 +2263,6 @@ class StrategyManager:
             return False
 
     async def arbitrage_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Arbitrage Sandwich Strategy... 🥪🏃")
         try:
             if await self.market_analyzer.is_arbitrage_opportunity(target_tx):
@@ -2454,7 +2279,6 @@ class StrategyManager:
             return False
 
     async def advanced_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
-
         self.logger.info("Initiating Advanced Sandwich Attack Strategy... 🥪🏃💨")
         try:
             potential_profit = self.transaction_array.calculate_flashloan_amount(
@@ -2481,14 +2305,12 @@ class StrategyManager:
             return False
 
     async def _determine_strategy_type(self, target_tx: Dict[str, Any]) -> Optional[str]:
-
         try:
             # Check for high-value ETH transactions
             if target_tx.get("value", 0) > self.transaction_array.web3.to_wei(
                 10, "ether"
             ):
                 return "eth_transaction"
-
             # Analyze market conditions
             market_conditions = await self.market_analyzer.check_market_conditions(
                 target_tx["to"]
@@ -2496,7 +2318,6 @@ class StrategyManager:
             self.logger.debug(
                 f"Market conditions for {target_tx['to']}: {market_conditions}"
             )
-
             # Determine strategy based on market conditions and transaction details
             if market_conditions.get("high_volatility", False):
                 return "sandwich_attack"
@@ -2516,9 +2337,8 @@ class StrategyManager:
                 f"Failed to determine strategy type for transaction {target_tx.get('tx_hash', '')}: {e} ❌"
             )
             return None
-
+        
     async def execute_strategy_for_transaction(self, target_tx: Dict[str, Any]) -> bool:
-
         strategy_type = await self._determine_strategy_type(target_tx)
         if strategy_type:
             success = await self.execute_best_strategy(target_tx, strategy_type)
@@ -2536,9 +2356,8 @@ class StrategyManager:
             f"No suitable strategy found for transaction {target_tx.get('tx_hash', '')}."
         )
         return False
-
+    
 class MarketAnalyzer:
-
     def __init__(
         self,
         web3: AsyncWeb3,
@@ -2556,7 +2375,6 @@ class MarketAnalyzer:
         self.symbol_mapping = self._load_token_symbols()
         self.token_symbol_cache = {}
         self.cache_duration = 60 * 5  # Cache duration in seconds (5 minutes)
-
         # Fallback API keys and services
         self.api_keys = {
             "BINANCE": None,  # Binance Public API does not require an API key
@@ -2566,7 +2384,6 @@ class MarketAnalyzer:
         }
 
     def _load_token_symbols(self) -> dict:
-
         try:
             if not self.token_symbols:
                 self.logger.error("TOKEN_SYMBOLS path not set in configuration. ❌")
@@ -2576,21 +2393,17 @@ class MarketAnalyzer:
         except (FileNotFoundError, json.JSONDecodeError) as e:
             self.logger.error(f"Error loading token symbols: {e} ❌")
             return {}
-
     async def check_market_conditions(self, token_address: str) -> Dict[str, Any]:
-
         market_conditions = {
             "high_volatility": False,
             "bullish_trend": False,
             "bearish_trend": False,
             "low_liquidity": False,
         }
-
         token_symbol = await self.get_token_symbol(token_address)
         if not token_symbol:
             self.logger.error(f"Cannot get token symbol for address {token_address} ❌")
             return market_conditions
-
         # Fetch recent price data (e.g., last 1 day)
         prices = await self.fetch_historical_prices(token_symbol, days=1)
         if len(prices) < 2:
@@ -2598,7 +2411,6 @@ class MarketAnalyzer:
                 f"Not enough price data to analyze market conditions for {token_symbol} 📊"
             )
             return market_conditions
-
         # Calculate volatility
         prices_array = np.array(prices)
         returns = np.diff(prices_array) / prices_array[:-1]
@@ -2645,12 +2457,9 @@ class MarketAnalyzer:
             )
             return None
         
-        
-
     async def decode_transaction_input(
         self, input_data: str, contract_address: str
     ) -> Optional[Dict[str, Any]]:
-        """ Decodes the input data of a transaction. """
         try:
             contract = self.web3.eth.contract(
                 address=contract_address, abi=self.erc20_ABI
@@ -2662,7 +2471,6 @@ class MarketAnalyzer:
             return None
 
     async def is_arbitrage_opportunity(self, target_tx: Dict[str, Any]) -> bool:
-        """ Checks for arbitrage opportunities in a transaction. """
         try:
             # Decode transaction input
             decoded_tx = await self.decode_transaction_input(
@@ -2670,31 +2478,24 @@ class MarketAnalyzer:
             )
             if not decoded_tx:
                 return False
-
             function_params = decoded_tx["params"]
             path = function_params.get("path", [])
             if len(path) < 2:
                 return False
-
             token_address = path[-1]  # The token being bought
             token_symbol = await self.get_token_symbol(token_address)
-
             if not token_symbol:
                 return False
-
             # Get prices from different services
             price_binance = await self.get_current_price(token_symbol)
             price_coingecko = await self.get_current_price(token_symbol)
-
             if price_binance is None or price_coingecko is None:
                 return False
-
             # Check for arbitrage opportunity
             price_difference = abs(price_binance - price_coingecko)
             average_price = (price_binance + price_coingecko) / 2
             if average_price == 0:
                 return False
-
             price_difference_percentage = price_difference / average_price
             if price_difference_percentage > 0.01:
                 self.logger.debug(
@@ -2706,7 +2507,7 @@ class MarketAnalyzer:
         except Exception as e:
             self.logger.error(f"Failed in checking arbitrage opportunity: {e} ❌")
             return False
-
+        
     async def fetch_historical_prices(self, token_id: str, days: int = 30) -> List[float]:
         cache_key = f"{token_id}_{days}"
         if cache_key in self.price_cache:
@@ -2714,7 +2515,6 @@ class MarketAnalyzer:
                 f"Returning cached historical prices for {token_id}. 📊⏳"
             )
             return self.price_cache[cache_key]
-
         for service in self.api_keys.keys():
             try:
                 self.logger.debug(
@@ -2740,10 +2540,8 @@ class MarketAnalyzer:
                     headers = {"Apikey": self.api_keys[service]}
                 else:
                     continue
-
                 response = await self.make_request(url, params=params, headers=headers)
                 data = await response.json()
-
                 if service == "BINANCE":
                     prices = [float(entry[4]) for entry in data]  # Close prices
                 elif service == "COINGECKO":
@@ -2754,29 +2552,24 @@ class MarketAnalyzer:
                     prices = [day["close"] for day in data["Data"]["Data"]]
                 else:
                     continue
-
                 self.price_cache[cache_key] = prices
                 self.logger.debug(
                     f"Fetched historical prices for {token_id} using {service} successfully. 📊"
                 )
                 return prices
-
             except Exception as e:
                 self.logger.error(
                     f"Failed to fetch historical prices using {service}: {e} ⚠️"
                 )
-
         self.logger.error(f"Failed to fetch historical prices for {token_id}. ❌")
         return []
 
     async def get_token_volume(self, token_id: str) -> float:
-
         if token_id in self.volume_cache:
             self.logger.debug(
                 f"Returning cached trading volume for {token_id}. 📊⏳"
             )
             return self.volume_cache[token_id]
-
         for service in self.api_keys.keys():
             try:
                 self.logger.debug(
@@ -2802,10 +2595,8 @@ class MarketAnalyzer:
                     headers = {"Apikey": self.api_keys[service]}
                 else:
                     continue
-
                 response = await self.make_request(url, params=params, headers=headers)
                 data = await response.json()
-
                 if service == "BINANCE":
                     volume = float(data["quoteVolume"])
                 elif service == "COINGECKO":
@@ -2816,23 +2607,19 @@ class MarketAnalyzer:
                     volume = data["RAW"][token_id]["USD"]["VOLUME24HOUR"]
                 else:
                     continue
-
                 self.volume_cache[token_id] = volume
                 self.logger.debug(
                     f"Fetched trading volume for {token_id} using {service} successfully. 📊"
                 )
                 return volume
-
             except Exception as e:
                 self.logger.error(
                     f"Failed to fetch trading volume using {service}: {e} ⚠️"
                 )
-
         self.logger.error(f"Failed to fetch trading volume for {token_id}. ❌")
         return 0.0
 
     async def get_current_price(self, token_id: str) -> Optional[float]:
-
         for service in self.api_keys.keys():
             try:
                 self.logger.debug(
@@ -2858,10 +2645,8 @@ class MarketAnalyzer:
                     headers = {"Apikey": self.api_keys[service]}
                 else:
                     continue
-
                 response = await self.make_request(url, params=params, headers=headers)
                 data = await response.json()
-
                 if service == "BINANCE":
                     price = float(data["price"])
                 elif service == "COINGECKO":
@@ -2872,17 +2657,14 @@ class MarketAnalyzer:
                     price = data["USD"]
                 else:
                     continue
-
                 self.logger.debug(
                     f"Fetched current price for {token_id} using {service} successfully. 📊"
                 )
                 return price
-
             except Exception as e:
                 self.logger.error(
                     f"Failed to fetch current price using {service}: {e} ⚠️"
                 )
-
         self.logger.error(
             f"Failed on all services to fetch current price for {token_id}. ❌"
         )
@@ -2928,22 +2710,18 @@ class MarketAnalyzer:
     def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
         return self.symbol_mapping.get(token_id.lower())
 
-
 class Xplorer:
     """
     Builds and manages the entire bot, initializing all components,
     managing connections, and orchestrating the main execution loop.
     """
-
     def __init__(
         self, config: Config, logger: Optional[logging.Logger] = None
     ) -> None:
-      
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.config = config
         self.web3: Optional[AsyncWeb3] = None  # Will be initialized asynchronously
         self.account: Optional[Account] = None  # Will be initialized asynchronously
-
         # Initialize core components (will be set after async initialization)
         self.nonce_manager: Optional[NonceManager] = None
         self.safety_net: Optional[SafetyNet] = None
@@ -2951,30 +2729,23 @@ class Xplorer:
         self.monitor_array: Optional[MonitorArray] = None
         self.transaction_array: Optional[TransactionArray] = None
         self.strategy_manager: Optional[StrategyManager] = None
-
         self.logger.debug("Xplorer initialized successfully. 🌐✅")
 
     async def initialize(self):
-     
         try:
             self.web3 = await self._initialize_web3()
             self.account = await self._initialize_account()
-
             # Initialize NonceManager
             self.nonce_manager = NonceManager(self.web3, self.account.address, self.logger)
             await self.nonce_manager.initialize()
-
             # Initialize SafetyNet
             self.safety_net = SafetyNet(self.web3, self.config, self.account, self.logger)
-
             # Load ERC20 ABI
             erc20_ABI = await self._load_contract_ABI(self.config.ERC20_ABI)
-
             # Initialize MarketAnalyzer
             self.market_analyzer = MarketAnalyzer(
                 self.web3, erc20_ABI, self.config, self.logger
             )
-
             # Initialize MonitorArray
             monitored_tokens = await self.config.get_token_addresses()
             self.monitor_array = MonitorArray(
@@ -2986,11 +2757,9 @@ class Xplorer:
                 erc20_ABI=erc20_ABI,
                 config=self.config,
             )
-
             # Load Flashloan and Lending Pool ABIs
             flashloan_ABI = await self._load_contract_ABI(self.config.AAVE_V3_FLASHLOAN_ABI)
             lending_pool_ABI = await self._load_contract_ABI(self.config.AAVE_V3_LENDING_POOL_ABI)
-
             # Initialize TransactionArray
             self.transaction_array = TransactionArray(
                 web3=self.web3,
@@ -3007,37 +2776,29 @@ class Xplorer:
                 erc20_ABI=erc20_ABI,
             )
             await self.transaction_array.initialize()
-
             # Initialize StrategyManager
             self.strategy_manager = StrategyManager(
                 transaction_array=self.transaction_array,
                 market_analyzer=self.market_analyzer,
                 logger=self.logger,
             )
-
             self.logger.debug("All components initialized successfully. 🌐✅")
         except Exception as e:
             self.logger.exception(f"Error during initialization: {e} ❌")
             sys.exit(1)
-
     async def _initialize_web3(self) -> AsyncWeb3:
-       
         providers = []    
-
         # Attempt to connect via IPC if IPC_ENDPOINT is provided
         if self.config.IPC_ENDPOINT:
             providers.append(("IPC", AsyncIPCProvider(self.config.IPC_ENDPOINT)))
-
         # Attempt to connect via HTTP if HTTP_ENDPOINT is provided
         if self.config.HTTP_ENDPOINT:
             providers.append(("HTTP", AsyncHTTPProvider(self.config.HTTP_ENDPOINT)))
-
         if not providers:
             self.logger.error(
                 "No valid endpoints provided in configuration. Exiting... ❌"
             )
             sys.exit(1)
-
         for name, provider in providers:
             self.logger.info(f"Connecting to Ethereum Network with {name}...")
             web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)}, middleware=[])
@@ -3056,12 +2817,10 @@ class Xplorer:
                     await loading_bar(f"Connection failed. Retrying with {name}...", 3)
             except Exception as e:
                 self.logger.error(f"Error connecting with {name} provider: {e} ❌")
-
         self.logger.error("Failed to connect on all providers. Exiting... ❌")
         sys.exit(1)
 
     async def _add_middleware(self, web3: AsyncWeb3) -> None:
-
         try:
             chain_id = await web3.eth.chain_id
             if chain_id in (99, 100, 77, 7766, 56):
@@ -3079,7 +2838,6 @@ class Xplorer:
             raise
 
     async def _initialize_account(self) -> Account:
-       
         try:
             account = Account.from_key(self.config.WALLET_KEY)
             self.web3.eth.default_account = account.address
@@ -3094,7 +2852,6 @@ class Xplorer:
             sys.exit(1)
 
     async def _load_contract_ABI(self, abi_path: str) -> List[Dict[str, Any]]:
-      
         try:
             async with aiofiles.open(abi_path, "r") as abi_file:
                 content = await abi_file.read()
@@ -3108,7 +2865,6 @@ class Xplorer:
     async def run(self) -> None:
         self.logger.info(f"Starting 0xplorer on {Web3.client_version}.. 🚀")
         await self.monitor_array.start_monitoring()
-
         try:
             while True:
                 # Process profitable transactions
@@ -3126,9 +2882,7 @@ class Xplorer:
                         self.logger.warning(
                             f"Failed to execute strategy for transaction {tx_hash}. ⚠️"
                         )
-
                 await asyncio.sleep(1)
-
         except KeyboardInterrupt:
             self.logger.warning(
                 "0xplorer interrupted by user. Stopping monitoring... 🛑⏳"
@@ -3150,8 +2904,20 @@ class Xplorer:
             self.logger.error(f"Failed to save Linear Regression model for {token_symbol}: {e} ❌")
             sys.exit(1)
 
-    async def linearregression_save_market_data(self, token_symbol: str, prices: List[float], volumes: List[float]) -> None:
+    async def load_linearregression_session_data(self, token_symbol: str) -> Optional[LinearRegression]:
+        try:
+            model_path = f"{self.config.MODEL_DIR}/{token_symbol}_linear_regression.joblib"
+            model = joblib.load(model_path)
+            self.logger.debug(f"Loaded Linear Regression model for {token_symbol} from {model_path} ✅")
+            return model
+        except FileNotFoundError:
+            self.logger.warning(f"Model file not found for {token_symbol}. Returning None. ⚠️")
+            return None
+        except Exception as e:
+            self.logger.error(f"Failed to load Linear Regression model for {token_symbol}: {e} ❌")
+            return None
 
+    async def linearregression_save_market_data(self, token_symbol: str, prices: List[float], volumes: List[float]) -> None:
         try:
             data = pd.DataFrame({"Price": prices, "Volume": volumes})
             data_path = f"{self.config.DATA_DIR}/{token_symbol}_market_data.csv"
@@ -3159,7 +2925,20 @@ class Xplorer:
             self.logger.debug(f"Saved market data for {token_symbol} to {data_path} ✅")
         except Exception as e:
             self.logger.error(f"Failed to save market data for {token_symbol}: {e} ❌")
-            sys.exit(1) 
+            sys.exit(1)
+
+    async def linearregression_load_market_data(self, token_symbol: str) -> Optional[pd.DataFrame]:
+        try:
+            data_path = f"{self.config.DATA_DIR}/{token_symbol}_market_data.csv"
+            data = pd.read_csv(data_path)
+            self.logger.debug(f"Loaded market data for {token_symbol} from {data_path} ✅")
+            return data
+        except FileNotFoundError:
+            self.logger.warning(f"Market data file not found for {token_symbol}. Returning None. ⚠️")
+            return None
+        except Exception as e:
+            self.logger.error(f"Failed to load market data for {token_symbol}: {e} ❌")
+            return None
 
     async def stop(self) -> None:
         self.logger.debug("Stopping 0xplorer... 🛑⏳")
@@ -3167,22 +2946,17 @@ class Xplorer:
         self.logger.debug("0xplorer wishes you a great day! 👋")
         sys.exit(0)
 
-
 async def main():
     # Set up logging
     await setup_logging() 
-
     # Create a logger instance for the "Xplorer" module
     logger = logging.getLogger("0xplorer")
-
     # Load configuration
     config = Config(logger)
     await config.load()
-
     # Initialize and run the bot
     bot = Xplorer(config, logger)
     await bot.initialize()
     await bot.run()
-
 if __name__ == "__main__":
     asyncio.run(main())

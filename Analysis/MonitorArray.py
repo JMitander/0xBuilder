@@ -1,6 +1,7 @@
 class MonitorArray:
-    """MonitorArray class monitors the mempool for profitable transactions."""
-
+    """
+    MonitorArray class monitors the mempool for profitable transactions.
+    """
     def __init__(
         self,
         web3: AsyncWeb3,
@@ -32,44 +33,37 @@ class MonitorArray:
         self.logger.info("MonitorArray initialized and ready for monitoring. 📡✅")
 
     async def start_monitoring(self):
-        """Start monitoring the mempool."""
         if self.running:
             self.logger.warning("Monitoring is already running.")
             return
-
         self.running = True
         asyncio.create_task(self._run_monitoring())
         self.logger.info("Mempool monitoring started. 📡 ✅")
 
     async def stop_monitoring(self):
-        """Stop monitoring the mempool."""
         if not self.running:
             self.logger.warning("Monitoring is not running.")
             return
-
         self.running = False
         self.logger.info("Mempool monitoring has been stopped. 🛑")
 
     async def _run_monitoring(self):
-        """Internal method to run the monitoring loop."""
         await self.mempool_monitor()
 
     async def mempool_monitor(self):
-        """Monitor the mempool for profitable transactions."""
         self.logger.info("Starting mempool monitoring... 📡")
-        
-        # Ensure we're using a valid provider
         if not isinstance(self.web3.provider, (AsyncHTTPProvider, AsyncIPCProvider)):
-            self.logger.error("Provider is not an HTTP, WebSocket, or IPC provider. ❌")
-            return 
-
+            self.logger.error("Provider is not an HTTP or IPC provider. ❌")
+            return
+        else:
+            self.logger.info(
+                f"Connected to Ethereum network via {self.web3.provider.__class__.__name__}. ✨"
+            )
         try:
-            # Create a new filter for pending transactions
             pending_filter = await self.web3.eth.filter("pending")
         except Exception as e:
             self.logger.error(f"Error setting up pending transaction filter: {e} ❌")
             return
-
         while self.running:
             try:
                 # Get new entries from the pending transaction filter
@@ -77,7 +71,6 @@ class MonitorArray:
 
                 for tx_hash in tx_hashes:
                     await self.process_transaction(tx_hash)
-
             except Exception as e:
                 self.logger.exception(f"Error in mempool monitoring: {str(e)} ⚠️")
                 # Reinitialize the filter in case of disconnection or errors
@@ -88,24 +81,18 @@ class MonitorArray:
                         f"Error resetting pending transaction filter: {e} ❌"
                     )
                     await asyncio.sleep(5)  # Wait before retrying
-
             await asyncio.sleep(0.1)
 
     async def process_transaction(self, tx_hash):
-        """Process a single transaction hash."""
         tx_hash_hex = tx_hash.hex()
-
         # Check if the transaction has already been processed
         if tx_hash_hex in self.processed_transactions:
             return
-
         # Mark the transaction as processed
         self.processed_transactions.add(tx_hash_hex)
-
         try:
             # Fetch the transaction details
             tx = await self.web3.eth.get_transaction(tx_hash)
-
             # Analyze the transaction
             analysis = await self.analyze_transaction(tx)
             if analysis.get("is_profitable"):
@@ -113,7 +100,6 @@ class MonitorArray:
                 self.logger.info(
                     f"Identified profitable transaction {tx_hash_hex} in the mempool. 📡"
                 )
-
         except TransactionNotFound:
             # Transaction details not yet available; may need to wait
             self.logger.debug(
@@ -129,7 +115,6 @@ class MonitorArray:
                 f"Transaction {tx.hash.hex()} is missing essential fields. Skipping."
             )
             return {"is_profitable": False}
-
         try:
             # Handle ETH transactions
             if tx.value > 0:
@@ -145,7 +130,6 @@ class MonitorArray:
                         "gasPrice": tx.gasPrice,
                     }
                 return {"is_profitable": False}
-
             # Handle token transactions
             return await self._analyze_token_transaction(tx)
         except Exception as e:
@@ -153,19 +137,16 @@ class MonitorArray:
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
-        """Analyze a token transaction to determine if it's profitable."""
         try:
             # Create a contract instance using the transaction's destination address and ERC20 ABI
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_ABI)
             # Decode the transaction input to extract the function ABI and parameters
             function_ABI, function_params = contract.decode_function_input(tx.input)
             function_name = function_ABI["name"]
-
             # Check if the function name is in the list of ERC20 function signatures
             if function_name in self.config.ERC20_SIGNATURES:
                 # Estimate the profit of the transaction
                 estimated_profit = await self._estimate_profit(tx, function_params)
-
                 # Check if the estimated profit exceeds the minimum profit threshold
                 if estimated_profit > self.minimum_profit_threshold:
                     self.logger.info(
@@ -200,7 +181,6 @@ class MonitorArray:
             return {"is_profitable": False}
 
     async def _is_profitable_eth_transaction(self, tx) -> bool:
-        """Check if an ETH transaction is profitable."""
         try:
             # Estimate the potential profit of the ETH transaction
             potential_profit = await self._estimate_eth_transaction_profit(tx)
@@ -213,51 +193,42 @@ class MonitorArray:
             return False
 
     async def _estimate_eth_transaction_profit(self, tx: Any) -> Decimal:
-        """Estimate the profit of an ETH transaction."""
         try:
             # Retrieve the current dynamic gas price (assumed to be in Gwei)
             gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
             # Retrieve the gas used for the transaction
             gas_used = tx.gas  # Note: tx.gas is the gas limit, actual gas used is unknown at this point
-
             # Calculate the gas cost in ETH
             gas_cost_eth = (
                 Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
             )  # Convert Gwei to ETH
-
             # Convert the transaction value from Wei to ETH
             eth_value = Decimal(self.web3.from_wei(tx.value, "ether"))
-
             # Calculate the potential profit
             potential_profit = eth_value - gas_cost_eth
-
             # Return the potential profit if it's positive, otherwise return zero
             return potential_profit if potential_profit > 0 else Decimal(0)
         except Exception as e:
             self.logger.error(f"Error estimating ETH transaction profit: {e} ❌")
             return Decimal(0)
-
+        
     async def _estimate_profit(self, tx, function_params: Dict[str, Any]) -> Decimal:
-        """Estimate the profit of a token transaction."""
         try:
             # Convert gas price from Wei to Gwei
             gas_price_gwei = self.web3.from_wei(tx.gasPrice, "gwei")
             gas_used = tx.gas
             # Calculate gas cost in ETH
             gas_cost_eth = Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
-
             # Retrieve input and output amounts from function parameters
             input_amount_wei = Decimal(function_params.get("amountIn", 0))
             output_amount_min_wei = Decimal(function_params.get("amountOutMin", 0))
             path = function_params.get("path", [])
-
             # Validate the transaction path
             if len(path) < 2:
                 self.logger.debug(
                     f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping. ⚠️"
                 )
                 return Decimal(0)
-
             # Get the output token address and symbol
             output_token_address = path[-1]
             output_token_symbol = await self.get_token_symbol(output_token_address)
@@ -266,7 +237,6 @@ class MonitorArray:
                     f"Output token symbol not found for address {output_token_address}. Skipping. ⚠️"
                 )
                 return Decimal(0)
-
             # Get the real-time market price of the output token
             market_price = await self.safety_net.get_real_time_price(
                 output_token_symbol.lower()
@@ -276,7 +246,6 @@ class MonitorArray:
                     f"Market price not available for token {output_token_symbol}. Skipping. ⚠️"
                 )
                 return Decimal(0)
-
             # Convert input amount from Wei to ETH
             input_amount_eth = Decimal(self.web3.from_wei(input_amount_wei, "ether"))
             # Calculate the profit
@@ -285,7 +254,6 @@ class MonitorArray:
                 - input_amount_eth
                 - gas_cost_eth
             )
-
             # Return the profit if it's positive, otherwise return zero
             return profit if profit > 0 else Decimal(0)
         except Exception as e:
@@ -296,7 +264,6 @@ class MonitorArray:
 
     @cached(cache=TTLCache(maxsize=1000, ttl=86400))
     async def get_token_symbol(self, token_address: str) -> Optional[str]:
-        """Get the symbol of a token using its address."""
         try:
             # First check token symbols from environment variables
             if token_address in self.config.TOKEN_SYMBOLS:
@@ -310,8 +277,8 @@ class MonitorArray:
             return None
 
     async def _log_transaction_details(self, tx, is_eth=False):
-        """Log the details of a transaction."""
         try:
+            # Log the transaction details
             transaction_info = {
                 "transaction hash": tx.hash.hex(),
                 "value": self.web3.from_wei(tx.value, "ether") if is_eth else tx.value,

@@ -1,24 +1,7 @@
 class NonceManager:
     """
     Manages the nonce for an Ethereum account to prevent transaction nonce collisions.
-
-    Args:
-        web3 (AsyncWeb3): AsyncWeb3 instance connected to the Ethereum network.
-        address (str): The Ethereum address for which the nonce is managed.
-        logger (Optional[logging.Logger]): Logger instance.
-        max_retries (int): Maximum number of retries for nonce fetch.
-        retry_delay (float): Delay between retries in seconds.
-    
-    Attributes:
-        web3 (AsyncWeb3): AsyncWeb3 instance connected to the Ethereum network.
-        address (str): The Ethereum address for which the nonce is managed.
-        logger (logging.Logger): Logger instance.
-        max_retries (int): Maximum number of retries for nonce fetch.
-        retry_delay (float): Delay between retries in seconds.
-        lock (asyncio.Lock): Lock to ensure atomic nonce updates.
-        current_nonce (Optional[int]): The current nonce value.
     """
-
     def __init__(
         self,
         web3: AsyncWeb3,
@@ -39,7 +22,6 @@ class NonceManager:
         self.current_nonce = await self._fetch_current_nonce_with_retries()
 
     async def _fetch_current_nonce_with_retries(self) -> int:
-        """ Fetches the current nonce with retry mechanism. """
         await loading_bar("Fetching Current Nonce", 0)
         attempt = 0
         while attempt < self.max_retries:
@@ -65,16 +47,6 @@ class NonceManager:
         )
 
     async def get_nonce(self) -> int:
-        """
-        Retrieves the next nonce safely for the address. This method locks the nonce manager to avoid
-        concurrent modifications, ensuring each transaction has a unique nonce.
-
-        Returns:
-            int: The next nonce for the address.
-        
-        Raises:
-            RuntimeError: If the nonce fetch fails after multiple attempts.
-        """
         async with self.lock:
             nonce = self.current_nonce
             self.current_nonce += 1
@@ -84,13 +56,6 @@ class NonceManager:
             return nonce
 
     async def refresh_nonce(self):
-        """
-        Updates the current nonce value by fetching the latest nonce from the blockchain.
-        This is a soft refresh and only updates if the on-chain nonce is higher than the internal one.
-
-        Raises:
-            RuntimeError: If the nonce refresh fails after multiple attempts.
-        """
         async with self.lock:
             latest_nonce = await self._fetch_current_nonce_with_retries()
             if latest_nonce > self.current_nonce:
@@ -104,13 +69,6 @@ class NonceManager:
                 )
 
     async def sync_nonce_with_chain(self):
-        """
-        This method is a more aggressive sync that forces the nonce to synchronize with the blockchain.
-        Useful in case of transaction reverts or nonce conflicts.
-
-        Raises:
-            RuntimeError: If the nonce sync fails after multiple attempts.
-        """
         async with self.lock:
             await loading_bar("Synchronizing Nonce", 0)
             try:
@@ -123,13 +81,6 @@ class NonceManager:
                 raise RuntimeError(f"Failed to synchronize nonce: {e} ❌")
 
     async def handle_nonce_discrepancy(self, external_nonce: int):
-        """
-        Adjusts the current nonce if an external nonce (e.g., from a failed transaction) is higher
-        than the internally managed nonce. This helps resolve nonce conflicts.
-
-        Args:
-            external_nonce (int): The externally detected nonce (e.g., from a failed or pending transaction).
-        """
         async with self.lock:
             if external_nonce > self.current_nonce:
                 self.logger.warning(
@@ -145,13 +96,6 @@ class NonceManager:
                 )
 
     async def reset_nonce(self):
-        """
-        Resets the current nonce to the on-chain value. Useful in case of major nonce conflicts or after
-        manually handling stuck transactions.
-
-        Raises:
-            RuntimeError: If the nonce reset fails after multiple attempts.
-        """
         async with self.lock:
             await loading_bar("Resetting Nonce", 0)
             try:

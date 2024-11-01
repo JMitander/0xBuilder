@@ -6,15 +6,6 @@ class SafetyNet:
         account: Account,
         logger: Optional[logging.Logger] = None,
     ):
-        """
-        Provides safety checks and utility functions for transactions.
-
-        Args:
-            web3 (AsyncWeb3): AsyncWeb3 instance connected to the Ethereum network.
-            config (Config): Configuration object containing API keys and settings.
-            account (Account): The Ethereum account.
-            logger (Optional[logging.Logger]): Logger instance.
-        """
         self.web3 = web3
         self.config = config
         self.account = account
@@ -31,15 +22,6 @@ class SafetyNet:
         self.api_success_rate_lock = asyncio.Lock()
 
     async def get_balance(self, account: Account) -> Decimal:
-        """
-        Returns the balance of an account in ETH.
-
-        Args:
-            account (Account): The Ethereum account.
-
-        Returns:
-            Decimal: The balance in ETH.
-        """
         try:
             balance_wei = await self.web3.eth.get_balance(account.address)
             balance_eth = self.web3.from_wei(balance_wei, "ether")
@@ -52,33 +34,21 @@ class SafetyNet:
                 f"Failed to retrieve balance for account {account.address}: {e} ❌"
             )
             return Decimal(0)
-
+        
     async def ensure_profit(
         self,
         transaction_data: Dict[str, Any],
         minimum_profit_eth: Optional[float] = None,
     ) -> bool:
-        """
-        Ensures that a transaction is profitable after accounting for gas costs and slippage.
-
-        Args:
-            transaction_data (Dict[str, Any]): Data related to the transaction.
-            minimum_profit_eth (float): The minimum acceptable profit in ETH.
-
-        Returns:
-            bool: True if the transaction is profitable, False otherwise.
-        """
         if minimum_profit_eth is None:
             if await self.get_balance(self.account) < Decimal("0.5"):
                 minimum_profit_eth = 0.003  # Lower threshold for small balances
             else:
                 minimum_profit_eth = 0.01
-
         try:
             # Fetch dynamic gas price
             gas_price_gwei = await self.get_dynamic_gas_price()
             gas_price_gwei = Decimal(gas_price_gwei)
-
             # Estimate gas used
             gas_used = await self.estimate_gas(transaction_data)
             if gas_used == 0:
@@ -86,7 +56,6 @@ class SafetyNet:
                     "Gas used for the transaction is not defined or is zero. ⚠️⛽"
                 )
                 return False
-
             # Calculate gas cost in ETH
             gas_cost_eth = gas_price_gwei * gas_used * Decimal("1e-9")
             self.logger.debug(
@@ -95,10 +64,8 @@ class SafetyNet:
                 f" - Gas Used: {gas_used}\n ⛽"
                 f" - Gas Cost: {gas_cost_eth:.6f} ETH 💰"
             )
-
             # Adjust slippage tolerance based on market conditions
             slippage_tolerance = await self.adjust_slippage_tolerance()
-
             # Fetch and calculate expected output based on current real-time price
             output_token = transaction_data["output_token"]
             real_time_price = await self.get_real_time_price(output_token)
@@ -107,18 +74,15 @@ class SafetyNet:
                     f"Real-time price for token {output_token} could not be determined. Aborting profit estimation. ⚠️"
                 )
                 return False
-
             expected_output = Decimal(real_time_price) * Decimal(
                 transaction_data["amountOut"]
             )
             input_amount = Decimal(transaction_data["amountIn"])
-
             # Adjust expected output based on slippage tolerance
             slippage_adjusted_output = expected_output * (
                 1 - Decimal(slippage_tolerance)
             )
             profit = slippage_adjusted_output - input_amount - gas_cost_eth
-
             # Log all critical values involved in the profit calculation
             self.logger.debug(
                 f"Profit Calculation:\n"
@@ -129,7 +93,6 @@ class SafetyNet:
                 f" - Gas Cost: {gas_cost_eth:.6f} ETH\n ⛽"
                 f" - Calculated Profit: {profit:.6f} ETH 💹"
             )
-
             # Ensure profit exceeds minimum profit threshold
             is_profitable = profit > Decimal(minimum_profit_eth)
             self.logger.debug(
@@ -138,26 +101,15 @@ class SafetyNet:
                 else "Transaction is not profitable. ⚠️"
             )
             return is_profitable
-
         except KeyError as e:
             self.logger.error(
                 f"Missing key in transaction data: {e}. Data: {transaction_data} ⚠️"
             )
         except Exception as e:
             self.logger.exception(f"Error ensuring transaction profitability: {e} ⚠️")
-
         return False
 
     async def estimate_gas(self, transaction_data: Dict[str, Any]) -> int:
-        """
-        Estimates the gas required for a transaction.
-
-        Args:
-            transaction_data (Dict[str, Any]): Data related to the transaction.
-
-        Returns:
-            int: The estimated gas required.
-        """
         try:
             tx = {
                 "from": self.account.address,
@@ -172,12 +124,6 @@ class SafetyNet:
             return 0
 
     async def get_dynamic_gas_price(self) -> float:
-        """
-        Fetch the current gas price using gas oracles with fallback options.
-
-        Returns:
-            float: The gas price in Gwei.
-        """
         try:
             # Try Etherscan API
             async with aiohttp.ClientSession() as session:
@@ -204,12 +150,6 @@ class SafetyNet:
                 return 100.0
 
     async def adjust_slippage_tolerance(self) -> float:
-        """
-        Adjust slippage tolerance based on network congestion and market volatility.
-
-        Returns:
-            float: The adjusted slippage tolerance.
-        """
         network_congestion = await self.get_network_congestion()
         if network_congestion > 0.8:
             self.logger.debug(
@@ -228,12 +168,6 @@ class SafetyNet:
             return 0.1  # Default slippage tolerance
 
     async def get_network_congestion(self) -> float:
-        """
-        Estimate network congestion level (0 to 1).
-
-        Returns:
-            float: The network congestion level.
-        """
         try:
             pending_block = await self.web3.eth.get_block("pending", full_transactions=False)
             pending_tx = len(pending_block["transactions"])
@@ -243,17 +177,8 @@ class SafetyNet:
         except Exception as e:
             self.logger.error(f"Failed to get network congestion: {e} ⚠️")
             return 1.0  # Assume high congestion if failed
-
+        
     async def get_real_time_price(self, token: str) -> Decimal:
-        """
-        Fetches the real-time price of a token in terms of ETH from multiple sources.
-
-        Args:
-            token (str): The token symbol.
-
-        Returns:
-            Decimal: The price of the token in ETH.
-        """
         try:
             await loading_bar(f"Fetching Real-Time Price for {token}", 0)
             price_sources = {
@@ -262,7 +187,6 @@ class SafetyNet:
                 "coinmarketcap": await self._fetch_price_from_coinmarketcap(token),
                 "cryptocompare": await self._fetch_price_from_cryptocompare(token),
             }
-
             # Prioritize sources with higher historical success rate
             async with self.api_success_rate_lock:
                 sorted_sources = sorted(
@@ -270,20 +194,16 @@ class SafetyNet:
                     key=lambda x: self.api_success_rate.get(x[0], 1.0),
                     reverse=True,
                 )
-
             for source, price in sorted_sources:
                 if price is not None:
                     return price
-
         except Exception as e:
             self.logger.error(f"Error fetching real-time price for {token}: {e} ⚠️")
-
         # If no price could be fetched, log and return 0
         self.logger.error(f"Failed to retrieve price for {token}. Returning 0. ⚠️")
         return Decimal(0)
 
     async def _fetch_price_from_binance(self, token: str) -> Optional[Decimal]:
-        """Fetches the real-time price of a token in terms of ETH from Binance API."""
         try:
             symbol = self._convert_token_id_to_binance_symbol(token)
             if not symbol:
@@ -324,7 +244,6 @@ class SafetyNet:
             return None
 
     def _load_token_symbols(self) -> dict:
-        """Load token symbols from the JSON file."""
         try:
             with open(self.token_symbols, "r") as file:
                 return json.load(file)
@@ -333,9 +252,6 @@ class SafetyNet:
             return {}
 
     def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
-        """
-        Converts a token ID to a Binance symbol using the loaded mappings.
-        """
         return self.symbol_mapping.get(token_id.lower())
 
     async def _fetch_price_from_coingecko(self, token: str) -> Optional[Decimal]:
@@ -356,7 +272,6 @@ class SafetyNet:
             return None
 
     async def _fetch_price_from_coinmarketcap(self, token: str) -> Optional[Decimal]:
-        """Fetches the real-time price of a token in terms of ETH from CoinMarketCap."""
         try:
             url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
             params = {"symbol": token}
@@ -375,7 +290,6 @@ class SafetyNet:
             return None
 
     async def _fetch_price_from_cryptocompare(self, token: str) -> Optional[Decimal]:
-        """Fetches the real-time price of a token in terms of ETH from CryptoCompare."""
         try:
             url = f"https://min-api.cryptocompare.com/data/price"
             params = {"fsym": token, "tsyms": "ETH"}
@@ -399,23 +313,8 @@ class SafetyNet:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> aiohttp.ClientResponse:
-        """
-        Make a request to an external API with retry mechanism and exponential backoff.
-
-        Args:
-            url (str): The API endpoint.
-            params (Optional[Dict[str, Any]]): Query parameters.
-            headers (Optional[Dict[str, str]]): Request headers.
-
-        Returns:
-            aiohttp.ClientResponse: The API response.
-
-        Raises:
-            Exception: If the request fails after maximum retries.
-        """
         max_attempts = 5
         backoff_time = 1  # Initial backoff time in seconds
-
         for attempt in range(1, max_attempts + 1):
             try:
                 await loading_bar("Making Request with Exponential Backoff", 1)
@@ -439,5 +338,4 @@ class SafetyNet:
                 if attempt < max_attempts:
                     await asyncio.sleep(backoff_time)
                     backoff_time *= 2  # Exponential backoff
-
         raise Exception("Failed to make request after several attempts.")

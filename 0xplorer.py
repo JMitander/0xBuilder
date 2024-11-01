@@ -8,7 +8,6 @@ import asyncio
 import aiofiles
 import aiohttp
 import joblib
-import plotly.express as px 
 import numpy as np
 import tracemalloc
 import hexbytes

@@ -2,6 +2,11 @@
 
 0xplorer is an advanced Ethereum trading bot designed for high-frequency trading and MEV (Miner Extractable Value) opportunities. It implements strategies like front-running, back-running, sandwich attacks, and flashloan executions using Python, Geth, Remix, and AsyncWeb3.py. The bot continuously monitors the Ethereum mempool for profitable transactions and executes trades automatically.
 
+the bot is highly configurable, allowing users to adjust parameters, strategies, and risk levels based on their preferences. It supports multiple wallets, tokens, and trading pairs, with real-time market analysis and safety checks. The bot can be run on any Ethereum-compatible network, with support for various APIs and external data sources.
+
+Note that 0xplorer is a work in progress and nowhere near production-ready.
+
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -27,8 +32,16 @@
 - **Sandwich Attacks**: Surround a trade with your own transactions to capture profits.
 - **Nonce Management**: Avoid nonce collisions when sending multiple transactions.
 - **Dynamic Gas Pricing**: Optimize gas prices in real-time using external APIs.
+- **Market Analysis**: Analyze market data and trends for profitable opportunities.
+- **Safety Checks**: Validate transactions and ensure they meet predefined criteria.
+- **Transaction Bundling**: Group multiple transactions into a single block for efficiency.
+- **API Integration**: Connect to various APIs for blockchain data, pricing, and market information.
+
+The bot is designed to be highly configurable, allowing users to adjust parameters, strategies, and risk levels based on their preferences. It can be run on any Ethereum-compatible network, with support for multiple wallets, tokens, and trading pairs.
 
 ## Project Structure
+
+![alt text](image.png)
 
 ```
 /0xplorer/
@@ -41,7 +54,7 @@
 │   └── TransactionArray.py     # Builds and sends transaction bundles
 ├── Utils/
 |   ├── token_adresses.json     # List of monitored token addresses
-|   └── token_symbols.json      # List of monitored token addresses combined with the relevant symbol
+|   └── token_symbols.json      # List of monitored token addresses 
 ├── ABI
 |   ├── erc20_ABI.json
 |   ├── aave_v3_flashloan_ABI.json
@@ -57,7 +70,7 @@
 │   └── SimpleFlashLoan.sol     # Flash loan smart contract
 ├── Logs/
 │   └── 0xplorer.log            # Logs bot activities
-├── .env-template               # Example environment variables
+├── .env                        # environment variables
 ├── requirements.txt            # Python dependencies
 ├── License.md                  # License information
 └── README.md                   # Project documentation
@@ -69,6 +82,9 @@ Before running 0xplorer, ensure you have the following:
 
 - **Python 3.x**: Programming language used for the bot.
 - **Ethereum Node**: A fully synchronized execution client.
+- **API keys**: For Infura, Etherscan, CoinGecko, CoinMarketCap, and CryptoCompare.
+- **Wallet Address**: With sufficient funds for trading and gas fees.
+- **Private Key**: For signing transactions and interacting with the Ethereum network.
 
 | Client                                                                   | Language   | Operating systems     | Networks                  | Sync strategies                                                |
 | ------------------------------------------------------------------------ | ---------- | --------------------- | ------------------------- | -------------------------------------------------------------- |
@@ -86,6 +102,7 @@ Before running 0xplorer, ensure you have the following:
   - [CoinMarketCap](https://coinmarketcap.com/api/)
   - [CryptoCompare](https://min-api.cryptocompare.com/)
   - [Binance](https://www.binance.com/en/binance-api)
+
 - **Remix IDE**: Browser-based IDE for Solidity smart contracts - OPTIONAL
 - **Node.js**: Open-source JavaScript runtime environment - OPTIONAL
 
@@ -98,7 +115,7 @@ Before running 0xplorer, ensure you have the following:
    cd 0xplorer
    ```
 
-2. **Create a Virtual Environment** (recommended)
+2. **Create a Virtual Environment** 
 
    ```sh
    python3 -m venv venv
@@ -146,19 +163,27 @@ Before running 0xplorer, ensure you have the following:
 
 ## Geth Node Setup
 
-- Set up an Ethereum node/Execution Client, Geth is recommended. 
+- Set up a Ethereum node using either Geth, Nethermind, Besu, Erigon, Reth, or EthereumJS. refer to the [Ethereum Node](https://ethereum.org/en/developers/docs/nodes-and-clients/) documentation for more information.
+- We will use Geth for the execution client and prysm for the beacon chain in this guide.
+  You will also need to set up a beacon chain. We recommend using [Prysm](https://docs.prylabs.network/docs/install/install-with-docker) or [Lighthouse](https://lighthouse-book.sigmaprime.io/installation.html).
 
 1. **Install Geth**
 
-   Follow the [official installation guide](https://geth.ethereum.org/docs)
+   Follow the [Geth installation guide](https://geth.ethereum.org/docs/install-and-build/installing-geth) for your operating system.
 
-2. **Start Geth Node**
+  **Install Prysm**
+
+   Follow the [Prysm installation guide](https://docs.prylabs.network/docs/install/install-with-docker) for your operating system.
+
+2. **Start the execution client and beacon chain**
 
    ```sh
-   geth --mainnet --networkid "1" --syncmode "snap" --http --http.api eth,net,admin,engine,txpool,web3 --ipcpath /path/to/geth.ipc --maxpeers 100
+   ./prysm.sh beacon-chain --execution-endpoint=<PATH_GETH_IPC> --mainnet --checkpoint-sync-url=https://beaconstate.info --genesis-beacon-api-url=https://beaconstate.info --suggested-fee-recipient=YourWalletAddress --accept-terms-of-use
    ```
 
-   You will also need to set up a beacon-chain running alongside Geth (required after the merge). Follow the [Prylabs docs](https://docs.prylabs.network/docs/install/install-with-script).
+   ```sh
+   ./geth --mainnet --syncmode "snap" --http --http.api eth,net,admin,engine,web3,txpool --ipcpath /path/to/geth.ipc --maxpeers 100 --http.corsdomain "*" --cache 4096 
+   ```
 
 3. **Verify Synchronization**
 
@@ -175,6 +200,7 @@ Before running 0xplorer, ensure you have the following:
    ```
 
    Wait until synchronization is complete before running the bot.
+   This may take from 12 hours to several days, depending on your hardware and network speed.
 
 ## Configuration
 
@@ -185,15 +211,15 @@ Ensure all environment variables in the `.env` file are correctly set.
 ```sh
 # ================================ API Configuration ================================ #
 # All API keys can be obtained free of charge by registering on the respective platforms (limitied usage may apply)
-# Etherscan API Key for accessing Etherscan services # REQUIRED
+# Etherscan API Key for accessing Etherscan services
 ETHERSCAN_API_KEY=YourEtherscanAPIKey
-# Infura Project ID for connecting to Ethereum nodes via Infura # OPTIONAL
+# Infura Project ID for connecting to Ethereum nodes via Infura
 INFURA_PROJECT_ID=YourInfuraProjectID
-# CoinGecko API Key for fetching cryptocurrency prices and market data # REQUIRED
+# CoinGecko API Key for fetching cryptocurrency prices and market data
 COINGECKO_API_KEY=YourCoinGeckoAPIKey
-# CoinMarketCap API Key for accessing market capitalization and pricing data # REQUIRED
+# CoinMarketCap API Key for accessing market capitalization and pricing data
 COINMARKETCAP_API_KEY=YourCoinMarketCapAPIKey
-# CryptoCompare API Key for obtaining cryptocurrency price information # REQUIRED
+# CryptoCompare API Key for obtaining cryptocurrency price information
 CRYPTOCOMPARE_API_KEY=YourCryptoCompareAPIKey
 
 # ================================ Ethereum Node Configuration ================================ #
@@ -201,55 +227,55 @@ CRYPTOCOMPARE_API_KEY=YourCryptoCompareAPIKey
 
 # HTTP Provider URL for connecting to the Ethereum network via Geth
 HTTP_ENDPOINT=http://127.0.0.1:8545
-# AsyncWeb3 Provider URL (WebSocket) for subscribing to blockchain events via Geth 
+# AsyncWeb3 Provider URL (WebSocket) for subscribing to blockchain events via Geth
 WEB3_ENDPOINT=wss://127.0.0.1:8545
 # WebSocket Provider URL for subscribing to blockchain events via Geth
 WEBSOCKET_ENDPOINT=wss://127.0.0.1:8545
 # IPC Provider Path for inter-process communication trough pipe socket via Geth
-IPC_ENDPOINT=GethIPCPath
+IPC_ENDPOINT=path/to/geth.ipc
 
 # ================================ Wallet Configuration ================================ #
 
-# Private Key (**Ensure this is kept secret! USE ENCRYPTION AND NEVER SHARE, NOT EVEN WITH YOUR DOG!**) # REQUIRED
+# Private Key (**Ensure this is kept secret! USE ENCRYPTION AND NEVER SHARE, NOT EVEN WITH YOUR DOG!**) 
 WALLET_KEY=YourWalletPrivateKey
-# BOT Wallet Address associated with the private key above # REQUIRED
+# BOT Wallet Address associated with the private key above 
 WALLET_ADDRESS=0xYourWalletAddress
-# Wallet for receiving potential profits from operations. # OPTIONAL (If not provided, the bot wallet address will be used)
+# Wallet for receiving potential profits from operations.
 PROFIT_ADDRESS=0xYourProfitAddress
 
 # ================================ Token Configuration ================================ #
 
 # Path to the JSON file containing monitored token addresses # REQUIRED
 TOKEN_ADDRESSES=/Your/directory/0xplorer/monitored_tokens.json
-# Path to the JSON file containing token symbols mapping (address to symbol) # REQUIRED
+# Path to the JSON file containing token symbols mapping (address to symbol)
 TOKEN_SYMBOLS=/Your/directory/0xplorer/token_symbols.json
 
 # ============================ UNISWAP V2 ============================== #
 
-# Uniswap v2 router contract address for executing trades # OPTIONAL
+# Uniswap v2 router contract address for executing trades
 UNISWAP_V2_ROUTER_ADDRESS=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-# Uniswap v2 router contract ABI for interacting with the router contract # OPTIONAL
+# Uniswap v2 router contract ABI for interacting with the router contract
 UNISWAP_V2_ROUTER_ABI=Y/our/directory/0xplorer/ABI/uniswap_v2_router_ABI.json
 
 # ============================ SUSHISWAP ==============================
 
 # Sushiswap router contract address for executing trades # OPTIONAL
 SUSHISWAP_ROUTER_ADDRESS=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F 
-# Sushiswap router contract ABI for interacting with the router contract # OPTIONAL
+# Sushiswap router contract ABI for interacting with the router contract
 SUSHISWAP_ROUTER_ABI=Your/directory/0xplorer/ABI/sushiswap_router_ABI.json
 
 # ============================ PANCAKESWAP ============================== #
 
 # Pancakeswap router contract address for executing trades # OPTIONAL
 PANCAKESWAP_ROUTER_ADDRESS=0xEfF92A263d31888d860bD50809A8D171709b7b1c
-# Pancakeswap router contract ABI for interacting with the router contract # OPTIONAL
+# Pancakeswap router contract ABI for interacting with the router contract
 PANCAKESWAP_ROUTER_ABI=Your/directory/0xplorer/ABI/pancakeswap_router_ABI.json
 
 # ============================ BALANCER ============================== #
 
-# Balancer exchange contract address for executing trades # OPTIONAL
+# Balancer exchange contract address for executing trades
 BALANCER_ROUTER_ADDRESS=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
-# Balancer exchange contract ABI for interacting with the exchange contract # OPTIONAL
+# Balancer exchange contract ABI for interacting with the exchange contract
 BALANCER_ROUTER_ABI=Your/directory/0xplorer/ABI/balancer_router_ABI.json
 
 # ============================ ERC20 ================================ #
@@ -261,64 +287,42 @@ ERC20_SIGNATURES=/Your/directory/0xplorer/erc20_signatures.json
 
 # ================================ FLASHLOAN Configuration ================================ #
 
-# Aave V3 Flashloan Contract Address for executing flashloan operations # HIGHLY RECOMMENDED
+# Aave V3 Flashloan Contract Address for executing flashloan operations
 AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS=YourDeployedFlashloanContractAddress
 
-# Aave V3 Flashloan Contract ABI for interacting with the flashloan contract # HIGHLY RECOMMENDED
+# Aave V3 Flashloan Contract ABI for interacting with the flashloan contract
 AAVE_V3_FLASHLOAN_CONTRACT_ABI=Your/directory/0xplorer/ABI/aave_v3_flashloan_contract_ABI.json
 
-# Aave V3 Lending Pool Address for interacting with Aave's lending protocols # HIGHLY RECOMMENDED
+# Aave V3 Lending Pool Address for interacting with Aave's lending protocols
 AAVE_V3_LENDING_POOL_ADDRESS=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2 
 
-# Aave V3 Pool Abi for interacting with Aave's lending protocols # HIGHLY RECOMMENDED
+# Aave V3 Pool Abi for interacting with Aave's lending protocols
 AAVE_V3_LENDING_POOL_ABI=Your/directory/0xplorer/ABI/aave_v3_lending_pool_ABI.json
 
-# ================================ Treshold and Slippage Configuration ================================ #
 
-# Maximum slippage percentage for executing trades (0.01 = 1%) # Adjustable based on your risk tolerance
-MAX_SLIPPAGE=0.025 
-
-# Minimum profit percentage for executing trades (0.01 = 1%) # Adjustable based on your profit expectations
-MIN_PROFIT=0.001
-
-# Minimum account balance for executing trades (in ETH) # Adjustable based on your risk tolerance
-MIN_BALANCE=0.01
-
-# ================================ Gas Configuration ================================ #
-
-# Gas price in Gwei for executing transactions (1 Gwei = 1e9 Wei) # Adjustable based on your transaction speed requirements
-MAX_GAS_PRICE=100
-
-# Gas limit for executing transactions # Adjustable based on the complexity of the transaction
-GAS_LIMIT=1000000
-
-# ================================ Logging Configuration ================================ #
-
-# Log level for the application (DEBUG, INFO, WARNING, ERROR, CRITICAL) # Adjustable based on your logging requirements
-LOG_LEVEL=DEBUG
-
-# Log file path for storing application logs (default: 0xplorer.log)
-LOG_FILE=/Your/directory/0xplorer/0xplorer.log
 ```
 
 ### Monitored Tokens
 
-Optional
-
-Update `config/token_addresses.json` with the token addresses you want the bot to monitor:
+You can replace the default token addresses in `Utils/token_addresses.json` with your own list of tokens to monitor. The bot will track these tokens for profitable opportunities. Make sure the token addresses are valid ERC20 tokens.
 
 ```json
 [
   "0xTokenAddress1",
-  "0xTokenAddress2"
+  "0xTokenAddress2",
+  "0xTokenAddress3"
 ]
 ```
+
 
 ## Creating and Deploying the Flash Loan Contract
 
 To execute flashloan strategies, you need to create and deploy a flashloan smart contract. Below are the steps to create and deploy a flashloan contract using Aave V3 on the Ethereum network.
 
-It's recommended to follow this guide: [Flashloan Guide](https://www.quicknode.com/guides/defi/lending-protocols/how-to-make-a-flash-loan-using-aave)
+[Quicknode Flashloan Guide](https://www.quicknode.com/guides/defi/lending-protocols/how-to-make-a-flash-loan-using-aave)
+
+In this guide, we will use the Remix IDE to create and deploy the flashloan contract. Aave V3 is used for the flashloan operations.
+Its recommended to read the guide provided above for the latest implementation of flashloans.
 
 ### Step 1: Create the Flash Loan Contract
 
@@ -395,8 +399,7 @@ It's recommended to follow this guide: [Flashloan Guide](https://www.quicknode.c
 
 ### Step 4: Execute Flashloan Function
 
-The flashloan execution is handled automatically by the Python bot. There is no need to manually interact with the contract through Remix or MetaMask.
-
+The flashloan execution is handled within the `fn_RequestFlashLoan`. 0xplorer is automatically configured to interact with the flashloan contract using the provided ABI and address.
 ## Usage
 
 ### Running the Bot
@@ -419,6 +422,12 @@ Press `Ctrl+C` to safely stop the bot. It will finish the current operation and 
 - **Back-Running**: Executes a transaction immediately after a profitable one.
 - **Sandwich Attacks**: Combines front-running and back-running around a target transaction.
 - **Flashloans**: Utilizes borrowed assets for arbitrage without initial capital.
+- **Nonce Management**: Ensures nonces are correctly ordered to avoid collisions.
+- **Dynamic Gas Pricing**: Adjusts gas prices based on real-time network conditions.
+- **Market Analysis**: Analyzes market data for profitable opportunities.
+- **Safety Checks**: Validates transactions and ensures they meet predefined criteria.
+- **Transaction Bundling**: Groups multiple transactions into a single block for efficiency.
+
 
 ## Logging
 
@@ -427,8 +436,20 @@ Logs are stored in `logs/0xplorer.log`. They include:
 - Detected profitable transactions
 - Strategy execution details
 - Errors and exceptions
+- Transaction details and results
+
+###
 
 Configure logging in `core/0xplorer.py` within the `setup_logging()` function.
+
+### Warning
+
+0xplorer is a work in progress and should be used with caution. It is recommended to test the bot on a testnet before running it on the mainnet. Its nowhere near production ready and should be used with caution.
+
+We love to see contributions to this project. Feel free to fork and submit a pull request.
+Together we can make this project better. Open an issue if you have any questions or suggestions.
+
+#
 
 ## License
 

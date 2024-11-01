@@ -31,7 +31,7 @@ async def loading_bar(message: str, total_time: int):
     bar_length = 20
     try:
         for i in range(101):
-            time.sleep(total_time / 100)
+            await asyncio.sleep(total_time / 100)
             percent = i / 100
             bar = '█' * int(percent * bar_length) + '-' * (bar_length - int(percent * bar_length))
             print(f"\r{message} [{bar}] {i}%", end='', flush=True)

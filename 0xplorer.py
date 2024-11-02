@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import dotenv
 import time
@@ -7,7 +8,6 @@ import json
 import asyncio
 import aiofiles
 import aiohttp
-import joblib
 import numpy as np
 import tracemalloc
 import hexbytes
@@ -16,7 +16,7 @@ from cachetools import TTLCache, cached
 from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
-from typing import Set, List, Dict, Any, Optional
+from typing import Set, List, Dict, Any, Optional, Tuple, Union
 from eth_account.messages import encode_defunct
 from web3.exceptions import TransactionNotFound, ContractLogicError
 from web3 import AsyncWeb3, AsyncIPCProvider, AsyncHTTPProvider, Web3
@@ -1873,12 +1873,8 @@ class MarketAnalyzer:
     def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
         return self.symbol_mapping.get(token_id.lower())
 
+
 class StrategyManager:
-    """
-    Manages and executes various trading strategies such as ETH transactions, front-running,
-    back-running, and sandwich attacks. It tracks strategy performance, predicts market movements,
-    and selects the best strategy based on historical performance and reinforcement learning.
-    """
     def __init__(
         self,
         transaction_array: TransactionArray,
@@ -1888,194 +1884,181 @@ class StrategyManager:
         self.transaction_array = transaction_array
         self.market_analyzer = market_analyzer
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.logger.info("StrategyManager initialized successfully. ✅")
-        # Track strategy performance and profitability
-        self.strategy_performance: Dict[str, Dict[str, Any]] = {
-            "eth_transaction": {"successes": 0, "failures": 0, "profit": Decimal("0")},
-            "front_run": {"successes": 0, "failures": 0, "profit": Decimal("0")},
-            "back_run": {"successes": 0, "failures": 0, "profit": Decimal("0")},
-            "sandwich_attack": {"successes": 0, "failures": 0, "profit": Decimal("0")},
+        
+        # Enhanced performance tracking with more metrics
+        self.strategy_performance = {
+            strategy_type: {
+                "successes": 0,
+                "failures": 0,
+                "profit": Decimal("0"),
+                "avg_execution_time": 0.0,
+                "success_rate": 0.0,
+                "total_executions": 0
+            }
+            for strategy_type in ["eth_transaction", "front_run", "back_run", "sandwich_attack"]
         }
-        # Maintain historical data to identify trends and optimize strategy
-        self.history_data: List[Dict[str, Any]] = []
+        
+        # Initialize ML components and performance tracking
         self.price_model = LinearRegression()
-        # Reinforcement weights with decaying factors for continuous learning
-        self.reinforcement_weights: Dict[str, np.ndarray] = {
-            "eth_transaction": np.ones(1),
-            "front_run": np.ones(4),
-            "back_run": np.ones(4),
-            "sandwich_attack": np.ones(4),
-        }
-        self.decay_factor: float = 0.9  # Decay factor for past performances
-        self.min_profit_threshold: Decimal = Decimal("0.01")  # Minimum profit margin in ETH
+        self.model_last_updated = 0
+        self.MODEL_UPDATE_INTERVAL = 3600  # Update model hourly
 
-    async def execute_best_strategy(
-        self, target_tx: Dict[str, Any], strategy_type: str
-    ) -> bool:
+        # Dynamic reinforcement learning weights
+        self.reinforcement_weights = {
+            strategy_type: np.ones(len(self.get_strategies(strategy_type)))
+            for strategy_type in ["eth_transaction", "front_run", "back_run", "sandwich_attack"]
+        }
+
+        # Configuration parameters with adaptive thresholds
+        self.config = {
+            "decay_factor": 0.95,
+            "min_profit_threshold": Decimal("0.01"),
+            "learning_rate": 0.01,
+            "exploration_rate": 0.1
+        }
+
+        self.history_data = []
+        self.logger.info("StrategyManager initialized with enhanced configuration ✅")
+
+    async def execute_best_strategy(self, target_tx: Dict[str, Any], strategy_type: str) -> bool:
         strategies = self.get_strategies(strategy_type)
         if not strategies:
-            self.logger.warning(f"No strategies available for type: {strategy_type} ❗")
+            self.logger.warning(f"No strategies available for type: {strategy_type}")
             return False
-        selected_strategy = self._select_strategy(strategies, strategy_type)
-        self.logger.info(f"Executing strategy: {selected_strategy.__name__} ⚔️🏃")
+
         try:
-            profit_before = await self.transaction_array.get_current_profit()  # Track profit before execution
+            # Track execution time and performance
+            start_time = time.time()
+            selected_strategy = await self._select_best_strategy(strategies, strategy_type)
+            
+            # Execute strategy with detailed profit tracking
+            profit_before = await self.transaction_array.get_current_profit()
             success = await selected_strategy(target_tx)
-            profit_after = await self.transaction_array.get_current_profit()  # Profit after execution
-            # Calculate profit/loss from the strategy execution
-            profit_made = Decimal(profit_after) - Decimal(profit_before)
-            await self.update_history(
-                selected_strategy.__name__, success, strategy_type, profit_made
+            profit_after = await self.transaction_array.get_current_profit()
+            
+            # Calculate performance metrics
+            execution_time = time.time() - start_time
+            profit_made = profit_after - profit_before
+
+            # Update performance metrics
+            await self._update_strategy_metrics(
+                selected_strategy.__name__,
+                strategy_type,
+                success,
+                profit_made,
+                execution_time
             )
+
             return success
+
         except Exception as e:
-            self.logger.error(
-                f"Error executing strategy {selected_strategy.__name__}: {e} ❌"
-            )
+            self.logger.error(f"Strategy execution failed: {str(e)}", exc_info=True)
             return False
 
-    def get_strategies(self, strategy_type: str) -> List[Any]:
-        strategies = {
-            "eth_transaction": [self.high_value_eth_transfer],
-            "front_run": [
-                self.aggressive_front_run,
-                self.predictive_front_run,
-                self.volatility_front_run,
-                self.advanced_front_run,
-            ],
-            "back_run": [
-                self.price_dip_back_run,
-                self.flashloan_back_run,
-                self.high_volume_back_run,
-                self.advanced_back_run,
-            ],
-            "sandwich_attack": [
-                self.flash_profit_sandwich,
-                self.price_boost_sandwich,
-                self.arbitrage_sandwich,
-                self.advanced_sandwich_attack,
-            ],
-        }
-        if strategy_type not in strategies:
-            self.logger.error(f"Invalid strategy type provided: {strategy_type} ❌")
-            return []
-        return strategies[strategy_type]
-
-    def _select_strategy(self, strategies: List[Any], strategy_type: str) -> Any:
-        weights = self.reinforcement_weights[strategy_type]
-        # Apply decay to focus on recent performance
-        weights *= self.decay_factor
-        # Ensure weights are not below a threshold to maintain exploration
-        weights = np.maximum(weights, 0.1)
-        strategy_indices = np.arange(len(strategies))
+    async def _select_best_strategy(self, strategies: List[Any], strategy_type: str) -> Any:
+        """Enhanced strategy selection using performance metrics and exploration"""
         try:
-            selected_strategy_index = np.random.choice(
-                strategy_indices, p=weights / weights.sum()
-            )
-            self.logger.debug(
-                f"Selected strategy index {selected_strategy_index} for type {strategy_type}."
-            )
-            return strategies[selected_strategy_index]
-        except ValueError as e:
-            self.logger.error(
-                f"Error selecting strategy: {e}. Falling back to random selection."
-            )
-            return np.random.choice(strategies)
+            weights = self.reinforcement_weights[strategy_type]
+            
+            # Apply exploration vs exploitation
+            if random.random() < self.config["exploration_rate"]:
+                self.logger.debug("Using exploration for strategy selection")
+                return random.choice(strategies)
+            
+            # Use softmax for better weight normalization
+            exp_weights = np.exp(weights - np.max(weights))
+            probabilities = exp_weights / exp_weights.sum()
+            
+            return strategies[np.random.choice(len(strategies), p=probabilities)]
 
-    async def update_history(
-        self, strategy_name: str, success: bool, strategy_type: str, profit: Decimal
+        except Exception as e:
+            self.logger.error(f"Strategy selection failed: {str(e)}", exc_info=True)
+            return random.choice(strategies)
+
+    async def _update_strategy_metrics(
+        self,
+        strategy_name: str,
+        strategy_type: str,
+        success: bool,
+        profit: Decimal,
+        execution_time: float
     ) -> None:
-        self.logger.info(
-            f"Updating history for strategy: {strategy_name}, Success: {success}, Profit: {profit} ✅"
-        )
-        # Update performance metrics
-        if success:
-            self.strategy_performance[strategy_type]["successes"] += 1
-            self.strategy_performance[strategy_type]["profit"] += profit
-        else:
-            self.strategy_performance[strategy_type]["failures"] += 1
-            self.strategy_performance[strategy_type][
-                "profit"
-            ] += profit  # Note: profit may be negative
-        # Append to history data
-        self.history_data.append(
-            {
+        """Enhanced performance metrics tracking"""
+        try:
+            metrics = self.strategy_performance[strategy_type]
+            metrics["total_executions"] += 1
+            
+            if success:
+                metrics["successes"] += 1
+                metrics["profit"] += profit
+            else:
+                metrics["failures"] += 1
+
+            # Update moving averages
+            metrics["avg_execution_time"] = (
+                metrics["avg_execution_time"] * 0.95 + execution_time * 0.05
+            )
+            metrics["success_rate"] = metrics["successes"] / metrics["total_executions"]
+
+            # Update reinforcement weights with more sophisticated approach
+            strategy_index = self.get_strategy_index(strategy_name, strategy_type)
+            if strategy_index >= 0:
+                reward = self._calculate_reward(success, profit, execution_time)
+                self._update_reinforcement_weight(strategy_type, strategy_index, reward)
+
+            # Store historical data
+            self.history_data.append({
+                "timestamp": time.time(),
                 "strategy_name": strategy_name,
                 "success": success,
-                "profit": profit,
-                "strategy_type": strategy_type,
-                "total_profit": self.strategy_performance[strategy_type]["profit"],
-            }
-        )
-        # Update reinforcement weights based on profit and success
-        strategy_index = self.get_strategy_index(strategy_name, strategy_type)
-        if strategy_index >= 0:
-            reward_factor = (
-                float(profit) if profit > Decimal("0") else -1
-            )  # Reward based on profit
-            self.reinforcement_weights[strategy_type][strategy_index] += reward_factor
-            # Ensure weights remain positive
-            self.reinforcement_weights[strategy_type][strategy_index] = max(
-                self.reinforcement_weights[strategy_type][strategy_index], 0.1
-            )
-            self.logger.debug(
-                f"Updated reinforcement weight for {strategy_name}: {self.reinforcement_weights[strategy_type][strategy_index]}"
-            )
+                "profit": float(profit),
+                "execution_time": execution_time,
+                "total_profit": float(metrics["profit"])
+            })
 
-    def get_strategy_index(self, strategy_name: str, strategy_type: str) -> int:
-        strategy_mapping = {
-            "eth_transaction": {
-                "high_value_eth_transfer": 0,
-            },
-            "front_run": {
-                "aggressive_front_run": 0,
-                "predictive_front_run": 1,
-                "volatility_front_run": 2,
-                "advanced_front_run": 3,
-            },
-            "back_run": {
-                "price_dip_back_run": 0,
-                "flashloan_back_run": 1,
-                "high_volume_back_run": 2,
-                "advanced_back_run": 3,
-            },
-            "sandwich_attack": {
-                "flash_profit_sandwich": 0,
-                "price_boost_sandwich": 1,
-                "arbitrage_sandwich": 2,
-                "advanced_sandwich_attack": 3,
-            },
-        }
-        return strategy_mapping.get(strategy_type, {}).get(strategy_name, -1)
+        except Exception as e:
+            self.logger.error(f"Error updating metrics: {str(e)}", exc_info=True)
+
+    def _calculate_reward(self, success: bool, profit: Decimal, execution_time: float) -> float:
+        """Sophisticated reward calculation considering multiple factors"""
+        base_reward = float(profit) if success else -0.1
+        time_penalty = -0.01 * execution_time  # Penalize long execution times
+        return base_reward + time_penalty
+
+    def _update_reinforcement_weight(self, strategy_type: str, index: int, reward: float) -> None:
+        """Update weights using exponential moving average"""
+        current_weight = self.reinforcement_weights[strategy_type][index]
+        new_weight = current_weight * (1 - self.config["learning_rate"]) + reward * self.config["learning_rate"]
+        self.reinforcement_weights[strategy_type][index] = max(0.1, new_weight)
 
     async def predict_price_movement(self, token_symbol: str) -> float:
-        self.logger.info(f"Predicting price movement for {token_symbol} 🔮")
+        """Enhanced price prediction with model updates and validation"""
         try:
-            prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
-            if not prices:
-                self.logger.warning(
-                    f"No historical prices available for {token_symbol}. Cannot predict movement."
-                )
-                return 0.0
-            X = np.arange(len(prices)).reshape(-1, 1)
-            y = np.array(prices)
-            self.price_model.fit(X, y)
+            current_time = time.time()
+            
+            # Update model periodically
+            if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
+                prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
+                if len(prices) > 10:  # Ensure sufficient data
+                    X = np.arange(len(prices)).reshape(-1, 1)
+                    y = np.array(prices)
+                    self.price_model.fit(X, y)
+                    self.model_last_updated = current_time
+                    
+            # Make prediction
             next_time = np.array([[len(prices)]])
             predicted_price = self.price_model.predict(next_time)[0]
-            self.logger.info(
-                f"Predicted price for {token_symbol}: {predicted_price} ETH 📈"
-            )
+            
+            self.logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
             return float(predicted_price)
-        except NotFittedError:
-            self.logger.error(
-                "Price model is not fitted yet. Cannot predict price movement. ❌"
-            )
-            return 0.0
+
         except Exception as e:
-            self.logger.exception(
-                f"Error predicting price movement for {token_symbol}: {e} ❌"
-            )
+            self.logger.error(f"Price prediction failed: {str(e)}", exc_info=True)
             return 0.0
+
+        except Exception as e:
+            self.logger.error(f"Strategy type determination failed: {str(e)}", exc_info=True)
+            return None
 
     async def high_value_eth_transfer(self, target_tx: Dict[str, Any]) -> bool:
         self.logger.info("Initiating High-Value ETH Transfer Strategy... 🏃💨")
@@ -2447,37 +2430,29 @@ class StrategyManager:
             return False
 
     async def _determine_strategy_type(self, target_tx: Dict[str, Any]) -> Optional[str]:
+        """Enhanced strategy type determination with market analysis"""
         try:
-            # Check for high-value ETH transactions
-            if target_tx.get("value", 0) > self.transaction_array.web3.to_wei(
-                10, "ether"
-            ):
+            # Analyze transaction value
+            tx_value = target_tx.get("value", 0)
+            if tx_value > self.transaction_array.web3.to_wei(10, "ether"):
                 return "eth_transaction"
-            # Analyze market conditions
-            market_conditions = await self.market_analyzer.check_market_conditions(
-                target_tx["to"]
-            )
-            self.logger.debug(
-                f"Market conditions for {target_tx['to']}: {market_conditions}"
-            )
-            # Determine strategy based on market conditions and transaction details
-            if market_conditions.get("high_volatility", False):
+
+            # Get market conditions and metrics
+            market_conditions = await self.market_analyzer.check_market_conditions(target_tx["to"])
+            is_arbitrage = await self.market_analyzer.is_arbitrage_opportunity(target_tx)
+
+            # Make decision based on multiple factors
+            if market_conditions.get("high_volatility", False) and tx_value > self.transaction_array.web3.to_wei(1, "ether"):
                 return "sandwich_attack"
-            elif target_tx.get("value", 0) > self.transaction_array.web3.to_wei(
-                1, "ether"
-            ):
+            elif is_arbitrage:
+                return "front_run" if market_conditions.get("bullish_trend", False) else "back_run"
+            elif tx_value > self.transaction_array.web3.to_wei(1, "ether"):
                 return "front_run"
-            elif await self.market_analyzer.is_arbitrage_opportunity(target_tx):
-                return "back_run"
-            else:
-                self.logger.debug(
-                    "No suitable strategy type determined for the transaction."
-                )
-                return None
+
+            return None
+
         except Exception as e:
-            self.logger.error(
-                f"Failed to determine strategy type for transaction {target_tx.get('tx_hash', '')}: {e} ❌"
-            )
+            self.logger.error(f"Strategy type determination failed: {str(e)}", exc_info=True)
             return None
         
     async def execute_strategy_for_transaction(self, target_tx: Dict[str, Any]) -> bool:
@@ -2502,239 +2477,252 @@ class StrategyManager:
 
 class Xplorer:
     """
-    Builds and manages the entire bot, initializing all components,
+    Builds and manages the entire MEV bot, initializing all components,
     managing connections, and orchestrating the main execution loop.
     """
     def __init__(self, config: Config, logger: Optional[logging.Logger] = None) -> None:
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.config = config
-        self.web3: Optional[AsyncWeb3] = None  # Will be initialized asynchronously
-        self.account: Optional[Account] = None  # Will be initialized asynchronously
-        # Initialize core components (will be set after async initialization)
-        self.nonce_manager: Optional[NonceManager] = None
-        self.safety_net: Optional[SafetyNet] = None
-        self.market_analyzer: Optional[MarketAnalyzer] = None
-        self.monitor_array: Optional[MonitorArray] = None
-        self.transaction_array: Optional[TransactionArray] = None
-        self.strategy_manager: Optional[StrategyManager] = None
-        self.logger.debug("Xplorer initialized successfully. 🌐✅")
+        self.web3: Optional[AsyncWeb3] = None
+        self.account: Optional[Account] = None
+        self.components: Dict[str, Any] = {
+            'nonce_manager': None,
+            'safety_net': None,
+            'market_analyzer': None,
+            'monitor_array': None,
+            'transaction_array': None,
+            'strategy_manager': None
+        }
+        self.logger.debug("Xplorer core initialized successfully. 🌐✅")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
+        """Initialize all components with proper error handling."""
         try:
             self.web3 = await self._initialize_web3()
-            self.account = await self._initialize_account()
-            await self._initialize_components()
-            self.logger.debug("All components initialized successfully. 🌐✅")
-        except Exception as e:
-            self.logger.exception(f"Error during initialization: {e} ❌")
-            sys.exit(1)
+            if not self.web3:
+                raise RuntimeError("Failed to initialize Web3 connection")
 
-    async def _initialize_web3(self) -> AsyncWeb3:
+            self.account = await self._initialize_account()
+            if not self.account:
+                raise RuntimeError("Failed to initialize account")
+
+            await self._initialize_components()
+            self.logger.info("All components initialized successfully. 🌐✅")
+        except Exception as e:
+            self.logger.critical(f"Fatal error during initialization: {e} ❌")
+            await self.stop()
+
+    async def _initialize_web3(self) -> Optional[AsyncWeb3]:
+        """Initialize Web3 connection with multiple provider fallback."""
         providers = self._get_providers()
         if not providers:
-            self.logger.error("No valid endpoints provided in configuration. Exiting... ❌")
-            sys.exit(1)
-        for name, provider in providers:
-            self.logger.info(f"Connecting to Ethereum Network with {name}...")
-            web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)}, middleware=[])
-            if await self._test_connection(web3, name):
-                await self._add_middleware(web3)
-                return web3
-        self.logger.error("Failed to connect on all providers. Exiting... ❌")
-        sys.exit(1)
+            self.logger.critical("No valid endpoints provided. ❌")
+            return None
 
-    def _get_providers(self):
+        for provider_name, provider in providers:
+            try:
+                self.logger.info(f"Attempting connection with {provider_name}...")
+                web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)})
+                
+                if await self._test_connection(web3, provider_name):
+                    await self._add_middleware(web3)
+                    return web3
+
+            except Exception as e:
+                self.logger.error(f"{provider_name} connection failed: {e}")
+                continue
+
+        return None
+
+    def _get_providers(self) -> List[Tuple[str, Union[AsyncIPCProvider, AsyncHTTPProvider]]]:
+        """Get list of available providers with validation."""
         providers = []
-        if self.config.IPC_ENDPOINT:
+        if self.config.IPC_ENDPOINT and os.path.exists(self.config.IPC_ENDPOINT):
             providers.append(("IPC", AsyncIPCProvider(self.config.IPC_ENDPOINT)))
         if self.config.HTTP_ENDPOINT:
             providers.append(("HTTP", AsyncHTTPProvider(self.config.HTTP_ENDPOINT)))
         return providers
 
     async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
-        try:
-            if await web3.is_connected():
-                client_version = await web3.client_version
-                self.logger.debug(f"{name} Provider connected: {client_version} ✅")
-                return True
-            else:
-                self.logger.warning(f"Connection failed with {name}. Retrying...")
-                await loading_bar(f"Connection failed. Retrying with {name}...", 3)
-        except Exception as e:
-            self.logger.error(f"Error connecting with {name} provider: {e} ❌")
+        """Test Web3 connection with retries."""
+        for attempt in range(3):
+            try:
+                if await web3.is_connected():
+                    chain_id = await web3.eth.chain_id
+                    self.logger.info(f"Connected to network {name} (Chain ID: {chain_id}) ✅")
+                    return True
+            except Exception as e:
+                self.logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+                await asyncio.sleep(1)
         return False
 
     async def _add_middleware(self, web3: AsyncWeb3) -> None:
+        """Add appropriate middleware based on network."""
         try:
             chain_id = await web3.eth.chain_id
-            if chain_id in (99, 100, 77, 7766, 56):
+            if chain_id in {99, 100, 77, 7766, 56}:  # POA networks
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-                self.logger.debug(f"POA Middleware added for POA Network at chain {chain_id} ✅")
-            elif chain_id in (1, 3, 4, 5, 42, 420):
-                web3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(Account.from_key(self.config.WALLET_KEY)))
-                self.logger.debug(f"SignAndSendRawMiddleware added for Mainnet at chain {chain_id} ✅")
-            else:
-                self.logger.warning(f"Unsupported chain ID: {chain_id}. No middleware added.")
+            elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
+                web3.middleware_onion.add(
+                    SignAndSendRawMiddlewareBuilder.build(self.account)
+                )
         except Exception as e:
-            self.logger.error(f"Error adding middleware: {e} ❌")
+            self.logger.error(f"Middleware configuration failed: {e}")
             raise
 
-    async def _initialize_account(self) -> Account:
+    async def _initialize_account(self) -> Optional[Account]:
+        """Initialize Ethereum account with balance check."""
         try:
             account = Account.from_key(self.config.WALLET_KEY)
-            self.web3.eth.default_account = account.address
             balance = await self.web3.eth.get_balance(account.address)
-            self.logger.debug(f"Ethereum account initialized: {account.address} with balance {self.web3.from_wei(balance, 'ether')} ETH ✅")
+            balance_eth = self.web3.from_wei(balance, 'ether')
+            
+            self.logger.info(f"Account {account.address[:10]}... initialized")
+            self.logger.info(f"Balance: {balance_eth:.4f} ETH")
+            
+            if balance_eth < 0.1:
+                self.logger.warning("Low account balance! (<0.1 ETH)")
+            
             return account
-        except ValueError as e:
-            self.logger.error(f"Invalid private key: {e} ❌")
-            sys.exit(1)
+
         except Exception as e:
-            self.logger.error(f"Failed to initialize Ethereum account: {e} ❌")
-            sys.exit(1)
+            self.logger.error(f"Account initialization failed: {e}")
+            return None
 
-    async def _initialize_components(self):
-        self.nonce_manager = NonceManager(self.web3, self.account.address, self.logger)
-        await self.nonce_manager.initialize()
-        self.safety_net = SafetyNet(self.web3, self.config, self.account, self.logger)
-        erc20_ABI = await self._load_contract_ABI(self.config.ERC20_ABI)
-        self.market_analyzer = MarketAnalyzer(self.web3, erc20_ABI, self.config, self.logger)
-        monitored_tokens = await self.config.get_token_addresses()
-        self.monitor_array = MonitorArray(
-            web3=self.web3,
-            safety_net=self.safety_net,
-            nonce_manager=self.nonce_manager,
-            logger=self.logger,
-            monitored_tokens=monitored_tokens,
-            erc20_ABI=erc20_ABI,
-            config=self.config,
-        )
-        flashloan_ABI = await self._load_contract_ABI(self.config.AAVE_V3_FLASHLOAN_ABI)
-        lending_pool_ABI = await self._load_contract_ABI(self.config.AAVE_V3_LENDING_POOL_ABI)
-        self.transaction_array = TransactionArray(
-            web3=self.web3,
-            account=self.account,
-            flashloan_contract_address=self.config.AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS,
-            flashloan_contract_ABI=flashloan_ABI,
-            lending_pool_contract_address=self.config.AAVE_V3_LENDING_POOL_ADDRESS,
-            lending_pool_contract_ABI=lending_pool_ABI,
-            monitor=self.monitor_array,
-            nonce_manager=self.nonce_manager,
-            safety_net=self.safety_net,
-            config=self.config,
-            logger=self.logger,
-            erc20_ABI=erc20_ABI,
-        )
-        await self.transaction_array.initialize()
-        self.strategy_manager = StrategyManager(
-            transaction_array=self.transaction_array,
-            market_analyzer=self.market_analyzer,
-            logger=self.logger,
-        )
-
-    async def _load_contract_ABI(self, abi_path: str) -> List[Dict[str, Any]]:
+    async def _initialize_components(self) -> None:
+        """Initialize all bot components with proper error handling."""
         try:
-            async with aiofiles.open(abi_path, "r") as abi_file:
-                content = await abi_file.read()
-                abi = json.loads(content)
-                self.logger.debug(f"Loaded ABI from {abi_path} successfully. ✅")
-                return abi
+            # Initialize core components
+            self.components['nonce_manager'] = NonceManager(
+                self.web3, self.account.address, self.logger
+            )
+            await self.components['nonce_manager'].initialize()
+
+            self.components['safety_net'] = SafetyNet(
+                self.web3, self.config, self.account, self.logger
+            )
+
+            # Load contract ABIs
+            erc20_abi = await self._load_contract_ABI(self.config.ERC20_ABI)
+            flashloan_abi = await self._load_contract_ABI(self.config.AAVE_V3_FLASHLOAN_ABI)
+            lending_pool_abi = await self._load_contract_ABI(self.config.AAVE_V3_LENDING_POOL_ABI)
+
+            # Initialize analysis components
+            self.components['market_analyzer'] = MarketAnalyzer(
+                self.web3, erc20_abi, self.config, self.logger
+            )
+
+            # Initialize monitoring components
+            self.components['monitor_array'] = MonitorArray(
+                web3=self.web3,
+                safety_net=self.components['safety_net'],
+                nonce_manager=self.components['nonce_manager'],
+                logger=self.logger,
+                monitored_tokens=await self.config.get_token_addresses(),
+                erc20_ABI=erc20_abi,
+                config=self.config
+            )
+
+            # Initialize transaction components
+            self.components['transaction_array'] = TransactionArray(
+                web3=self.web3,
+                account=self.account,
+                flashloan_contract_address=self.config.AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS,
+                flashloan_contract_ABI=flashloan_abi,
+                lending_pool_contract_address=self.config.AAVE_V3_LENDING_POOL_ADDRESS,
+                lending_pool_contract_ABI=lending_pool_abi,
+                monitor=self.components['monitor_array'],
+                nonce_manager=self.components['nonce_manager'],
+                safety_net=self.components['safety_net'],
+                config=self.config,
+                logger=self.logger,
+                erc20_ABI=erc20_abi
+            )
+            await self.components['transaction_array'].initialize()
+
+            # Initialize strategy components
+            self.components['strategy_manager'] = StrategyManager(
+                transaction_array=self.components['transaction_array'],
+                market_analyzer=self.components['market_analyzer'],
+                logger=self.logger
+            )
+
         except Exception as e:
-            self.logger.error(f"Failed to load ABI from {abi_path}: {e} ❌")
-            sys.exit(1)
+            self.logger.error(f"Component initialization failed: {e}")
+            raise
 
     async def run(self) -> None:
-        self.logger.info(f"Starting 0xplorer on {Web3.client_version}.. 🚀")
-        await self.monitor_array.start_monitoring()
+        """Main execution loop with improved error handling."""
+        self.logger.info("Starting 0xplorer... 🚀")
+        
         try:
+            await self.components['monitor_array'].start_monitoring()
+            
             while True:
-                await self._process_profitable_transactions()
-                await asyncio.sleep(1)
+                try:
+                    await self._process_profitable_transactions()
+                    await asyncio.sleep(1)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    self.logger.error(f"Error in main loop: {e}")
+                    await asyncio.sleep(5)  # Back off on error
+                    
         except KeyboardInterrupt:
-            self.logger.warning("0xplorer interrupted by user. Stopping monitoring... 🛑⏳")
-            await self.monitor_array.stop_monitoring()
-            self.logger.debug("Goodbye! 👋")
-            sys.exit(0)
-        except Exception as e:
-            self.logger.exception(f"Unexpected error in 0xplorer's main loop: {e} ❌")
-            await self.monitor_array.stop_monitoring()
-            sys.exit(1)
-
-    async def _process_profitable_transactions(self):
-        while not self.monitor_array.profitable_transactions.empty():
-            target_tx = await self.monitor_array.profitable_transactions.get()
-            success = await self.strategy_manager.execute_strategy_for_transaction(target_tx)
-            tx_hash = target_tx.get("tx_hash", "Unknown")
-            if success:
-                self.logger.info(f"Successfully executed strategy for transaction {tx_hash} -> etherscan.io/tx/{tx_hash}. ✅")
-            else:
-                self.logger.warning(f"Failed to execute strategy for transaction {tx_hash}. ⚠️")
-
-    async def save_linearregression_session_data(self, token_symbol: str, model: LinearRegression) -> None:
-        try:
-            model_path = os.path.join(self.config.MODEL_DIR, f"{token_symbol}_linear_regression.joblib")
-            os.makedirs(os.path.dirname(model_path), exist_ok=True)
-            joblib.dump(model, model_path)
-            self.logger.debug(f"Saved Linear Regression model for {token_symbol} to {model_path} ✅")
-        except Exception as e:
-            self.logger.error(f"Failed to save Linear Regression model for {token_symbol}: {e} ❌")
-
-    async def load_linearregression_session_data(self, token_symbol: str) -> Optional[LinearRegression]:
-        try:
-            model_path = os.path.join(self.config.MODEL_DIR, f"{token_symbol}_linear_regression.joblib")
-            if os.path.exists(model_path):
-                model = joblib.load(model_path)
-                self.logger.debug(f"Loaded Linear Regression model for {token_symbol} from {model_path} ✅")
-                return model
-            else:
-                self.logger.warning(f"Model file not found for {token_symbol}. Returning None. ⚠️")
-                return None
-        except Exception as e:
-            self.logger.error(f"Failed to load Linear Regression model for {token_symbol}: {e} ❌")
-            return None
-
-    async def linearregression_save_market_data(self, token_symbol: str, prices: List[float], volumes: List[float]) -> None:
-        try:
-            data = pd.DataFrame({"Price": prices, "Volume": volumes})
-            data_path = os.path.join(self.config.DATA_DIR, f"{token_symbol}_market_data.csv")
-            os.makedirs(os.path.dirname(data_path), exist_ok=True)
-            data.to_csv(data_path, index=False)
-            self.logger.debug(f"Saved market data for {token_symbol} to {data_path} ✅")
-        except Exception as e:
-            self.logger.error(f"Failed to save market data for {token_symbol}: {e} ❌")
-
-    async def linearregression_load_market_data(self, token_symbol: str) -> Optional[pd.DataFrame]:
-        try:
-            data_path = os.path.join(self.config.DATA_DIR, f"{token_symbol}_market_data.csv")
-            if os.path.exists(data_path):
-                data = pd.read_csv(data_path)
-                self.logger.debug(f"Loaded market data for {token_symbol} from {data_path} ✅")
-                return data
-            else:
-                self.logger.warning(f"Market data file not found for {token_symbol}. Returning None. ⚠️")
-                return None
-        except Exception as e:
-            self.logger.error(f"Failed to load market data for {token_symbol}: {e} ❌")
-            return None
+            self.logger.info("Received shutdown signal...")
+        finally:
+            await self.stop()
 
     async def stop(self) -> None:
-        self.logger.debug("Stopping 0xplorer... 🛑⏳")
-        await self.monitor_array.stop_monitoring()
-        self.logger.debug("0xplorer wishes you a great day! 👋")
-        sys.exit(0)
+        """Graceful shutdown of all components."""
+        self.logger.info("Shutting down 0xplorer...")
+        
+        try:
+            if self.components['monitor_array']:
+                await self.components['monitor_array'].stop_monitoring()
+            
+            # Additional cleanup if needed
+            
+            self.logger.info("Shutdown complete 👋")
+        except Exception as e:
+            self.logger.error(f"Error during shutdown: {e}")
+        finally:
+            sys.exit(0)
+
+    async def _process_profitable_transactions(self) -> None:
+        """Process profitable transactions from the queue."""
+        monitor = self.components['monitor_array']
+        strategy = self.components['strategy_manager']
+        
+        while not monitor.profitable_transactions.empty():
+            try:
+                tx = await monitor.profitable_transactions.get()
+                success = await strategy.execute_strategy_for_transaction(tx)
+                
+                if success:
+                    self.logger.info(f"Strategy execution successful for tx: {tx['hash'][:10]}...")
+                else:
+                    self.logger.warning(f"Strategy execution failed for tx: {tx['hash'][:10]}...")
+                    
+            except Exception as e:
+                self.logger.error(f"Error processing transaction: {e}")
 
 async def main():
-    # Set up logging
-    await setup_logging() 
-    # Create a logger instance for the "Xplorer" module
-    logger = logging.getLogger("0xplorer")
-    # Load configuration
-    config = Config(logger)
-    await config.load()
-    # Initialize and run the bot
-    bot = Xplorer(config, logger)
-    await bot.initialize()
-    await bot.run()
+    """Main entry point with proper setup and error handling."""
+    try:
+        await setup_logging()
+        logger = logging.getLogger("0xplorer")
+        
+        config = Config(logger)
+        await config.load()
+        
+        bot = Xplorer(config, logger)
+        await bot.initialize()
+        await bot.run()
+        
+    except Exception as e:
+        logger.critical(f"Fatal error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())

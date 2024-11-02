@@ -1,208 +1,188 @@
 class StrategyManager:
-    """
-    Manages and executes various trading strategies such as ETH transactions, front-running,
-    back-running, and sandwich attacks. It tracks strategy performance, predicts market movements,
-    and selects the best strategy based on historical performance and reinforcement learning.
-    """
     def __init__(
         self,
         transaction_array: TransactionArray,
-        market_analyzer: "MarketAnalyzer",
+        market_analyzer: MarketAnalyzer,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.transaction_array = transaction_array
         self.market_analyzer = market_analyzer
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.logger.info("StrategyManager initialized successfully. ✅")
-        # Track strategy performance and profitability
-        self.strategy_performance: Dict[str, Dict[str, Any]] = {
-            "eth_transaction": {"successes": 0, "failures": 0, "profit": Decimal("0")},
-            "front_run": {"successes": 0, "failures": 0, "profit": Decimal("0")},
-            "back_run": {"successes": 0, "failures": 0, "profit": Decimal("0")},
-            "sandwich_attack": {"successes": 0, "failures": 0, "profit": Decimal("0")},
+        
+        # Enhanced performance tracking with more metrics
+        self.strategy_performance = {
+            strategy_type: {
+                "successes": 0,
+                "failures": 0,
+                "profit": Decimal("0"),
+                "avg_execution_time": 0.0,
+                "success_rate": 0.0,
+                "total_executions": 0
+            }
+            for strategy_type in ["eth_transaction", "front_run", "back_run", "sandwich_attack"]
         }
-        # Maintain historical data to identify trends and optimize strategy
-        self.history_data: List[Dict[str, Any]] = []
+        
+        # Initialize ML components and performance tracking
         self.price_model = LinearRegression()
-        # Reinforcement weights with decaying factors for continuous learning
-        self.reinforcement_weights: Dict[str, np.ndarray] = {
-            "eth_transaction": np.ones(1),
-            "front_run": np.ones(4),
-            "back_run": np.ones(4),
-            "sandwich_attack": np.ones(4),
-        }
-        self.decay_factor: float = 0.9  # Decay factor for past performances
-        self.min_profit_threshold: Decimal = Decimal(
-            "0.01"
-        )  # Minimum profit margin in ETH
+        self.model_last_updated = 0
+        self.MODEL_UPDATE_INTERVAL = 3600  # Update model hourly
 
-    async def execute_best_strategy(
-        self, target_tx: Dict[str, Any], strategy_type: str
-    ) -> bool:
+        # Dynamic reinforcement learning weights
+        self.reinforcement_weights = {
+            strategy_type: np.ones(len(self.get_strategies(strategy_type)))
+            for strategy_type in ["eth_transaction", "front_run", "back_run", "sandwich_attack"]
+        }
+
+        # Configuration parameters with adaptive thresholds
+        self.config = {
+            "decay_factor": 0.95,
+            "min_profit_threshold": Decimal("0.01"),
+            "learning_rate": 0.01,
+            "exploration_rate": 0.1
+        }
+
+        self.history_data = []
+        self.logger.info("StrategyManager initialized with enhanced configuration ✅")
+
+    async def execute_best_strategy(self, target_tx: Dict[str, Any], strategy_type: str) -> bool:
         strategies = self.get_strategies(strategy_type)
         if not strategies:
-            self.logger.warning(f"No strategies available for type: {strategy_type} ❗")
+            self.logger.warning(f"No strategies available for type: {strategy_type}")
             return False
-        selected_strategy = self._select_strategy(strategies, strategy_type)
-        self.logger.info(f"Executing strategy: {selected_strategy.__name__} ⚔️🏃")
+
         try:
-            profit_before = await self.transaction_array.get_current_profit()  # Track profit before execution
+            # Track execution time and performance
+            start_time = time.time()
+            selected_strategy = await self._select_best_strategy(strategies, strategy_type)
+            
+            # Execute strategy with detailed profit tracking
+            profit_before = await self.transaction_array.get_current_profit()
             success = await selected_strategy(target_tx)
-            profit_after = await self.transaction_array.get_current_profit()  # Profit after execution
-            # Calculate profit/loss from the strategy execution
-            profit_made = Decimal(profit_after) - Decimal(profit_before)
-            await self.update_history(
-                selected_strategy.__name__, success, strategy_type, profit_made
+            profit_after = await self.transaction_array.get_current_profit()
+            
+            # Calculate performance metrics
+            execution_time = time.time() - start_time
+            profit_made = profit_after - profit_before
+
+            # Update performance metrics
+            await self._update_strategy_metrics(
+                selected_strategy.__name__,
+                strategy_type,
+                success,
+                profit_made,
+                execution_time
             )
+
             return success
+
         except Exception as e:
-            self.logger.error(
-                f"Error executing strategy {selected_strategy.__name__}: {e} ❌"
-            )
+            self.logger.error(f"Strategy execution failed: {str(e)}", exc_info=True)
             return False
 
-    def get_strategies(self, strategy_type: str) -> List[Any]:
-        strategies = {
-            "eth_transaction": [self.high_value_eth_transfer],
-            "front_run": [
-                self.aggressive_front_run,
-                self.predictive_front_run,
-                self.volatility_front_run,
-                self.advanced_front_run,
-            ],
-            "back_run": [
-                self.price_dip_back_run,
-                self.flashloan_back_run,
-                self.high_volume_back_run,
-                self.advanced_back_run,
-            ],
-            "sandwich_attack": [
-                self.flash_profit_sandwich,
-                self.price_boost_sandwich,
-                self.arbitrage_sandwich,
-                self.advanced_sandwich_attack,
-            ],
-        }
-        if strategy_type not in strategies:
-            self.logger.error(f"Invalid strategy type provided: {strategy_type} ❌")
-            return []
-        return strategies[strategy_type]
-
-    def _select_strategy(self, strategies: List[Any], strategy_type: str) -> Any:
-        weights = self.reinforcement_weights[strategy_type]
-        # Apply decay to focus on recent performance
-        weights *= self.decay_factor
-        # Ensure weights are not below a threshold to maintain exploration
-        weights = np.maximum(weights, 0.1)
-        strategy_indices = np.arange(len(strategies))
+    async def _select_best_strategy(self, strategies: List[Any], strategy_type: str) -> Any:
+        """Enhanced strategy selection using performance metrics and exploration"""
         try:
-            selected_strategy_index = np.random.choice(
-                strategy_indices, p=weights / weights.sum()
-            )
-            self.logger.debug(
-                f"Selected strategy index {selected_strategy_index} for type {strategy_type}."
-            )
-            return strategies[selected_strategy_index]
-        except ValueError as e:
-            self.logger.error(
-                f"Error selecting strategy: {e}. Falling back to random selection."
-            )
-            return np.random.choice(strategies)
-    async def update_history(
-        self, strategy_name: str, success: bool, strategy_type: str, profit: Decimal
-    ) -> None:
+            weights = self.reinforcement_weights[strategy_type]
+            
+            # Apply exploration vs exploitation
+            if random.random() < self.config["exploration_rate"]:
+                self.logger.debug("Using exploration for strategy selection")
+                return random.choice(strategies)
+            
+            # Use softmax for better weight normalization
+            exp_weights = np.exp(weights - np.max(weights))
+            probabilities = exp_weights / exp_weights.sum()
+            
+            return strategies[np.random.choice(len(strategies), p=probabilities)]
 
-        self.logger.info(
-            f"Updating history for strategy: {strategy_name}, Success: {success}, Profit: {profit} ✅"
-        )
-        # Update performance metrics
-        if success:
-            self.strategy_performance[strategy_type]["successes"] += 1
-            self.strategy_performance[strategy_type]["profit"] += profit
-        else:
-            self.strategy_performance[strategy_type]["failures"] += 1
-            self.strategy_performance[strategy_type][
-                "profit"
-            ] += profit  # Note: profit may be negative
-        # Append to history data
-        self.history_data.append(
-            {
+        except Exception as e:
+            self.logger.error(f"Strategy selection failed: {str(e)}", exc_info=True)
+            return random.choice(strategies)
+
+    async def _update_strategy_metrics(
+        self,
+        strategy_name: str,
+        strategy_type: str,
+        success: bool,
+        profit: Decimal,
+        execution_time: float
+    ) -> None:
+        """Enhanced performance metrics tracking"""
+        try:
+            metrics = self.strategy_performance[strategy_type]
+            metrics["total_executions"] += 1
+            
+            if success:
+                metrics["successes"] += 1
+                metrics["profit"] += profit
+            else:
+                metrics["failures"] += 1
+
+            # Update moving averages
+            metrics["avg_execution_time"] = (
+                metrics["avg_execution_time"] * 0.95 + execution_time * 0.05
+            )
+            metrics["success_rate"] = metrics["successes"] / metrics["total_executions"]
+
+            # Update reinforcement weights with more sophisticated approach
+            strategy_index = self.get_strategy_index(strategy_name, strategy_type)
+            if strategy_index >= 0:
+                reward = self._calculate_reward(success, profit, execution_time)
+                self._update_reinforcement_weight(strategy_type, strategy_index, reward)
+
+            # Store historical data
+            self.history_data.append({
+                "timestamp": time.time(),
                 "strategy_name": strategy_name,
                 "success": success,
-                "profit": profit,
-                "strategy_type": strategy_type,
-                "total_profit": self.strategy_performance[strategy_type]["profit"],
-            }
-        )
-        # Update reinforcement weights based on profit and success
-        strategy_index = self.get_strategy_index(strategy_name, strategy_type)
-        if strategy_index >= 0:
-            reward_factor = (
-                float(profit) if profit > Decimal("0") else -1
-            )  # Reward based on profit
-            self.reinforcement_weights[strategy_type][strategy_index] += reward_factor
-            # Ensure weights remain positive
-            self.reinforcement_weights[strategy_type][strategy_index] = max(
-                self.reinforcement_weights[strategy_type][strategy_index], 0.1
-            )
-            self.logger.debug(
-                f"Updated reinforcement weight for {strategy_name}: {self.reinforcement_weights[strategy_type][strategy_index]}"
-            )
+                "profit": float(profit),
+                "execution_time": execution_time,
+                "total_profit": float(metrics["profit"])
+            })
 
-    def get_strategy_index(self, strategy_name: str, strategy_type: str) -> int:
-        strategy_mapping = {
-            "eth_transaction": {
-                "high_value_eth_transfer": 0,
-            },
-            "front_run": {
-                "aggressive_front_run": 0,
-                "predictive_front_run": 1,
-                "volatility_front_run": 2,
-                "advanced_front_run": 3,
-            },
-            "back_run": {
-                "price_dip_back_run": 0,
-                "flashloan_back_run": 1,
-                "high_volume_back_run": 2,
-                "advanced_back_run": 3,
-            },
-            "sandwich_attack": {
-                "flash_profit_sandwich": 0,
-                "price_boost_sandwich": 1,
-                "arbitrage_sandwich": 2,
-                "advanced_sandwich_attack": 3,
-            },
-        }
-        return strategy_mapping.get(strategy_type, {}).get(strategy_name, -1)
+        except Exception as e:
+            self.logger.error(f"Error updating metrics: {str(e)}", exc_info=True)
+
+    def _calculate_reward(self, success: bool, profit: Decimal, execution_time: float) -> float:
+        """Sophisticated reward calculation considering multiple factors"""
+        base_reward = float(profit) if success else -0.1
+        time_penalty = -0.01 * execution_time  # Penalize long execution times
+        return base_reward + time_penalty
+
+    def _update_reinforcement_weight(self, strategy_type: str, index: int, reward: float) -> None:
+        """Update weights using exponential moving average"""
+        current_weight = self.reinforcement_weights[strategy_type][index]
+        new_weight = current_weight * (1 - self.config["learning_rate"]) + reward * self.config["learning_rate"]
+        self.reinforcement_weights[strategy_type][index] = max(0.1, new_weight)
 
     async def predict_price_movement(self, token_symbol: str) -> float:
-        self.logger.info(f"Predicting price movement for {token_symbol} 🔮")
+        """Enhanced price prediction with model updates and validation"""
         try:
-            prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
-            if not prices:
-                self.logger.warning(
-                    f"No historical prices available for {token_symbol}. Cannot predict movement."
-                )
-                return 0.0
-            X = np.arange(len(prices)).reshape(-1, 1)
-            y = np.array(prices)
-            self.price_model.fit(X, y)
+            current_time = time.time()
+            
+            # Update model periodically
+            if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
+                prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
+                if len(prices) > 10:  # Ensure sufficient data
+                    X = np.arange(len(prices)).reshape(-1, 1)
+                    y = np.array(prices)
+                    self.price_model.fit(X, y)
+                    self.model_last_updated = current_time
+                    
+            # Make prediction
             next_time = np.array([[len(prices)]])
             predicted_price = self.price_model.predict(next_time)[0]
-            self.logger.info(
-                f"Predicted price for {token_symbol}: {predicted_price} ETH 📈"
-            )
+            
+            self.logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
             return float(predicted_price)
-        except NotFittedError:
-            self.logger.error(
-                "Price model is not fitted yet. Cannot predict price movement. ❌"
-            )
-            return 0.0
+
         except Exception as e:
-            self.logger.exception(
-                f"Error predicting price movement for {token_symbol}: {e} ❌"
-            )
+            self.logger.error(f"Price prediction failed: {str(e)}", exc_info=True)
             return 0.0
+
+        except Exception as e:
+            self.logger.error(f"Strategy type determination failed: {str(e)}", exc_info=True)
+            return None
 
     async def high_value_eth_transfer(self, target_tx: Dict[str, Any]) -> bool:
         self.logger.info("Initiating High-Value ETH Transfer Strategy... 🏃💨")
@@ -574,37 +554,29 @@ class StrategyManager:
             return False
 
     async def _determine_strategy_type(self, target_tx: Dict[str, Any]) -> Optional[str]:
+        """Enhanced strategy type determination with market analysis"""
         try:
-            # Check for high-value ETH transactions
-            if target_tx.get("value", 0) > self.transaction_array.web3.to_wei(
-                10, "ether"
-            ):
+            # Analyze transaction value
+            tx_value = target_tx.get("value", 0)
+            if tx_value > self.transaction_array.web3.to_wei(10, "ether"):
                 return "eth_transaction"
-            # Analyze market conditions
-            market_conditions = await self.market_analyzer.check_market_conditions(
-                target_tx["to"]
-            )
-            self.logger.debug(
-                f"Market conditions for {target_tx['to']}: {market_conditions}"
-            )
-            # Determine strategy based on market conditions and transaction details
-            if market_conditions.get("high_volatility", False):
+
+            # Get market conditions and metrics
+            market_conditions = await self.market_analyzer.check_market_conditions(target_tx["to"])
+            is_arbitrage = await self.market_analyzer.is_arbitrage_opportunity(target_tx)
+
+            # Make decision based on multiple factors
+            if market_conditions.get("high_volatility", False) and tx_value > self.transaction_array.web3.to_wei(1, "ether"):
                 return "sandwich_attack"
-            elif target_tx.get("value", 0) > self.transaction_array.web3.to_wei(
-                1, "ether"
-            ):
+            elif is_arbitrage:
+                return "front_run" if market_conditions.get("bullish_trend", False) else "back_run"
+            elif tx_value > self.transaction_array.web3.to_wei(1, "ether"):
                 return "front_run"
-            elif await self.market_analyzer.is_arbitrage_opportunity(target_tx):
-                return "back_run"
-            else:
-                self.logger.debug(
-                    "No suitable strategy type determined for the transaction."
-                )
-                return None
+
+            return None
+
         except Exception as e:
-            self.logger.error(
-                f"Failed to determine strategy type for transaction {target_tx.get('tx_hash', '')}: {e} ❌"
-            )
+            self.logger.error(f"Strategy type determination failed: {str(e)}", exc_info=True)
             return None
         
     async def execute_strategy_for_transaction(self, target_tx: Dict[str, Any]) -> bool:

@@ -23,8 +23,7 @@ class NonceManager:
 
     async def _fetch_current_nonce_with_retries(self) -> int:
         await loading_bar("Fetching Current Nonce", 0)
-        attempt = 0
-        while attempt < self.max_retries:
+        for attempt in range(1, self.max_retries + 1):
             try:
                 nonce = await self.web3.eth.get_transaction_count(
                     self.address, block_identifier="pending"
@@ -34,7 +33,6 @@ class NonceManager:
                 )
                 return nonce
             except Exception as e:
-                attempt += 1
                 self.logger.error(
                     f"Attempt {attempt} - Failed to fetch nonce for {self.address}: {e}. Retrying... ⚠️🔄"
                 )
@@ -71,14 +69,10 @@ class NonceManager:
     async def sync_nonce_with_chain(self):
         async with self.lock:
             await loading_bar("Synchronizing Nonce", 0)
-            try:
-                self.current_nonce = await self._fetch_current_nonce_with_retries()
-                self.logger.debug(
-                    f"Nonce synchronized successfully to {self.current_nonce}. ✨"
-                )
-            except Exception as e:
-                self.logger.error(f"Failed to sync nonce for {self.address}: {e} ❌")
-                raise RuntimeError(f"Failed to synchronize nonce: {e} ❌")
+            self.current_nonce = await self._fetch_current_nonce_with_retries()
+            self.logger.debug(
+                f"Nonce synchronized successfully to {self.current_nonce}. ✨"
+            )
 
     async def handle_nonce_discrepancy(self, external_nonce: int):
         async with self.lock:
@@ -98,11 +92,7 @@ class NonceManager:
     async def reset_nonce(self):
         async with self.lock:
             await loading_bar("Resetting Nonce", 0)
-            try:
-                self.current_nonce = await self._fetch_current_nonce_with_retries()
-                self.logger.debug(
-                    f"Nonce reset successfully to {self.current_nonce}. ✨"
-                )
-            except Exception as e:
-                self.logger.error(f"Failed to reset nonce for {self.address}: {e} ❌")
-                raise RuntimeError(f"Failed to reset nonce: {e} ❌")
+            self.current_nonce = await self._fetch_current_nonce_with_retries()
+            self.logger.debug(
+                f"Nonce reset successfully to {self.current_nonce}. ✨"
+            )

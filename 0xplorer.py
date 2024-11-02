@@ -21,7 +21,6 @@ from eth_account.messages import encode_defunct
 from web3.exceptions import TransactionNotFound, ContractLogicError
 from web3 import AsyncWeb3, AsyncIPCProvider, AsyncHTTPProvider, Web3
 from web3.middleware import SignAndSendRawMiddlewareBuilder, ExtraDataToPOAMiddleware
-from web3.geth import isinstance
 from web3.eth import AsyncEth, Contract
 from eth_account import Account
 
@@ -79,7 +78,7 @@ class Config:
             await loading_bar("Loading Environment Variables", 2)
             self._load_api_keys()
             self._load_providers_and_account()
-            self._load_json_elements()
+            await self._load_json_elements()
             self.logger.info("Configuration loaded successfully. ✅")
         except EnvironmentError as e:
             self.logger.error(f"Environment variable error: {e} ❌")

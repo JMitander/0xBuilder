@@ -1,6 +1,6 @@
 # 0xplorer MEV Bot
+![0xplorer Logo][logoImage]
 
-![0xplorer Logo](https://your-image-link.com/logo.png)
 
 [![License](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-white.svg)](CONTRIBUTING.md)
@@ -20,6 +20,7 @@
 [![CoinMarketCap](https://img.shields.io/badge/CoinMarketcap-API-red.svg)](https://coinmarketcap.com/api/)
 [![CryptoCompare](https://img.shields.io/badge/Cryptocompare-API-red.svg)](https://min-api.cryptocompare.com/)
 [![Etherscan](https://img.shields.io/badge/Etherscan-API-red.svg)](https://etherscan.io/apis)
+
 
 ## Table of Contents
 
@@ -461,7 +462,10 @@ This project is licensed under the [MIT License](LICENSE). You are free to use, 
 **Warning**: This software is provided "as is" and is intended for educational and research purposes only. Use it at your own risk. The developers are not responsible for any financial losses or legal issues that may arise from using this software.
 
 - **Ethical Considerations**: strategies used by this bot may be considered unethical. Use at your own discretion.
-- **Security**: Safeguard your keys and do not share them, especially with your girlfriend. Sharing with your dog might be fine, but not your cat. cats are sneaky and can't be trusted 🐱
+- **Security**: Safeguard your keys and do not share them, especially with your girlfriend. Sharing with your dog might be fine, but not your cat.cats are sneaky and can't be trusted 🐱
 
-
+   ![cat](https://cdn.comic.studio/avatars/20110.0331859230d895fadf990ef9e6909c76.png)
 - **Risk of Loss**: Trading cryptocurrencies involves significant risk. Only trade with funds you can afford to lose.
+
+
+[logoImage]: 0xplorer.png

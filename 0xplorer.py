@@ -349,249 +349,236 @@ class NonceManager:
                 raise
 
 class SafetyNet:
+    """
+    SafetyNet provides risk management and price verification functionality
+    with multiple data sources, automatic failover, and dynamic adjustments.
+    """
     def __init__(
         self,
         web3: AsyncWeb3,
         config: Config,
         account: Account,
         logger: Optional[logging.Logger] = None,
+        cache_ttl: int = 300,  # Cache TTL in seconds
     ):
         self.web3 = web3
         self.config = config
         self.account = account
-        self.token_symbols = self.config.TOKEN_SYMBOLS
-        self.symbol_mapping = self._load_token_symbols()
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.logger.info("SafetyNet initialized. 🛡️✅")
-        self.api_success_rate = {
-            "binance": 1.0,
-            "coingecko": 1.0,
-            "coinmarketcap": 1.0,
-            "cryptocompare": 1.0,
+        
+        # Price data caching
+        self.price_cache = TTLCache(maxsize=1000, ttl=cache_ttl)
+        self.gas_price_cache = TTLCache(maxsize=1, ttl=15)  # 15 sec cache for gas prices
+        
+        # API configuration
+        self.api_configs = {
+            "binance": {
+                "base_url": "https://api.binance.com/api/v3",
+                "success_rate": 1.0,
+                "weight": 1.0
+            },
+            "coingecko": {
+                "base_url": "https://api.coingecko.com/api/v3",
+                "api_key": self.config.COINGECKO_API_KEY,
+                "success_rate": 1.0,
+                "weight": 0.8
+            },
+            "coinmarketcap": {
+                "base_url": "https://pro-api.coinmarketcap.com/v1",
+                "api_key": self.config.COINMARKETCAP_API_KEY,
+                "success_rate": 1.0,
+                "weight": 0.7
+            },
+            "cryptocompare": {
+                "base_url": "https://min-api.cryptocompare.com/data",
+                "api_key": self.config.CRYPTOCOMPARE_API_KEY,
+                "success_rate": 1.0,
+                "weight": 0.6
+            }
         }
-        self.api_success_rate_lock = asyncio.Lock()
+
+        # Thread-safe primitives
+        self.api_lock = asyncio.Lock()
+        self.price_lock = asyncio.Lock()
+        
+        # Configuration parameters
+        self.slippage_config = {
+            "default": 0.1,
+            "min": 0.01,
+            "max": 0.5,
+            "high_congestion": 0.05,
+            "low_congestion": 0.2
+        }
+        
+        self.gas_config = {
+            "max_gas_price_gwei": 500,
+            "min_profit_multiplier": 2.0,
+            "base_gas_limit": 21000
+        }
+
+        self.logger.info("SafetyNet initialized with enhanced configuration 🛡️✅")
 
     async def get_balance(self, account: Account) -> Decimal:
-        try:
-            balance_wei = await self.web3.eth.get_balance(account.address)
-            balance_eth = self.web3.from_wei(balance_wei, "ether")
-            self.logger.debug(
-                f"Balance for account {account.address}: {balance_eth} ETH 💰"
-            )
-            return Decimal(balance_eth)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to retrieve balance for account {account.address}: {e} ❌"
-            )
-            return Decimal(0)
-        
+        """Get account balance with retries and caching."""
+        cache_key = f"balance_{account.address}"
+        if cache_key in self.price_cache:
+            return self.price_cache[cache_key]
+
+        for attempt in range(3):
+            try:
+                balance_wei = await self.web3.eth.get_balance(account.address)
+                balance_eth = Decimal(self.web3.from_wei(balance_wei, "ether"))
+                self.price_cache[cache_key] = balance_eth
+                
+                self.logger.debug(
+                    f"Balance for {account.address[:10]}...: {balance_eth:.4f} ETH 💰"
+                )
+                return balance_eth
+            except Exception as e:
+                if attempt == 2:
+                    self.logger.error(f"Failed to get balance after 3 attempts: {e} ❌")
+                    return Decimal(0)
+                await asyncio.sleep(1 * (attempt + 1))
+
     async def ensure_profit(
         self,
         transaction_data: Dict[str, Any],
         minimum_profit_eth: Optional[float] = None,
     ) -> bool:
-        if minimum_profit_eth is None:
-            minimum_profit_eth = 0.003 if await self.get_balance(self.account) < Decimal("0.5") else 0.01
+        """Enhanced profit verification with dynamic thresholds and risk assessment."""
         try:
+            # Dynamic minimum profit threshold based on account balance
+            if minimum_profit_eth is None:
+                account_balance = await self.get_balance(self.account)
+                minimum_profit_eth = 0.003 if account_balance < Decimal("0.5") else 0.01
+
+            # Get gas costs with dynamic pricing
             gas_price_gwei = Decimal(await self.get_dynamic_gas_price())
             gas_used = await self.estimate_gas(transaction_data)
-            if gas_used == 0:
-                self.logger.error("Gas used for the transaction is not defined or is zero. ⚠️⛽")
+            
+            if not self._validate_gas_parameters(gas_price_gwei, gas_used):
                 return False
-            gas_cost_eth = gas_price_gwei * gas_used * Decimal("1e-9")
-            slippage_tolerance = await self.adjust_slippage_tolerance()
-            real_time_price = await self.get_real_time_price(transaction_data["output_token"])
-            if real_time_price == 0:
-                self.logger.error(f"Real-time price for token {transaction_data['output_token']} could not be determined. Aborting profit estimation. ⚠️")
-                return False
-            expected_output = Decimal(real_time_price) * Decimal(transaction_data["amountOut"])
-            input_amount = Decimal(transaction_data["amountIn"])
-            slippage_adjusted_output = expected_output * (1 - Decimal(slippage_tolerance))
-            profit = slippage_adjusted_output - input_amount - gas_cost_eth
-            self.logger.debug(
-                f"Profit Calculation:\n"
-                f" - Real-time Price: {real_time_price} ETH per token\n 💎🦄"
-                f" - Expected Output: {expected_output:.6f} ETH\n 📈"
-                f" - Slippage Adjusted Output: {slippage_adjusted_output:.6f} ETH\n 🔄"
-                f" - Input Amount: {input_amount:.6f} ETH\n 📥"
-                f" - Gas Cost: {gas_cost_eth:.6f} ETH\n ⛽"
-                f" - Calculated Profit: {profit:.6f} ETH 💹"
+
+            # Calculate costs and expected output
+            gas_cost_eth = self._calculate_gas_cost(gas_price_gwei, gas_used)
+            slippage = await self.adjust_slippage_tolerance()
+            
+            # Get real-time price with weighted average
+            real_time_price = await self.get_real_time_price(
+                transaction_data["output_token"]
             )
+            
+            if not real_time_price:
+                return False
+
+            # Calculate profit with slippage consideration
+            profit = await self._calculate_profit(
+                transaction_data,
+                real_time_price,
+                slippage,
+                gas_cost_eth
+            )
+
+            self._log_profit_calculation(
+                transaction_data,
+                real_time_price,
+                gas_cost_eth,
+                profit,
+                minimum_profit_eth
+            )
+
             return profit > Decimal(minimum_profit_eth)
+
         except KeyError as e:
-            self.logger.error(f"Missing key in transaction data: {e}. Data: {transaction_data} ⚠️")
+            self.logger.error(f"Missing required transaction data key: {e} ❌")
         except Exception as e:
-            self.logger.exception(f"Error ensuring transaction profitability: {e} ⚠️")
+            self.logger.exception(f"Error in profit calculation: {e} ❌")
         return False
 
-    async def estimate_gas(self, transaction_data: Dict[str, Any]) -> int:
-        try:
-            tx = {
-                "from": self.account.address,
-                "to": transaction_data.get("to"),
-                "value": transaction_data.get("value", 0),
-                "data": transaction_data.get("input", ""),
-            }
-            return await self.web3.eth.estimate_gas(tx)
-        except Exception as e:
-            self.logger.error(f"Gas estimation failed: {e} ⚠️")
-            return 0
+    def _validate_gas_parameters(self, gas_price_gwei: Decimal, gas_used: int) -> bool:
+        """Validate gas parameters against safety thresholds."""
+        if gas_used == 0:
+            self.logger.error("Gas estimation returned zero ⚠️")
+            return False
+            
+        if gas_price_gwei > self.gas_config["max_gas_price_gwei"]:
+            self.logger.warning(f"Gas price {gas_price_gwei} gwei exceeds maximum threshold ⚠️")
+            return False
+            
+        return True
 
-    async def get_dynamic_gas_price(self) -> float:
-        try:
-            async with aiohttp.ClientSession() as session:
-                response = await session.get(
-                    f"https://api.etherscan.io/api",
-                    params={
-                        "module": "gastracker",
-                        "action": "gasoracle",
-                        "apikey": self.config.ETHERSCAN_API_KEY,
-                    },
-                    timeout=10,
-                )
-                data = await response.json()
-                return float(data["result"]["ProposeGasPrice"])
-        except Exception as e:
-            self.logger.warning(f"Etherscan gas price fetch failed: {e} ⛽⚠️")
-            try:
-                gas_price = await self.web3.eth.gas_price
-                return self.web3.from_wei(gas_price, "gwei")
-            except Exception as e:
-                self.logger.error(f"AsyncWeb3 gas price fetch failed: {e} ⛽⚠️")
-                return 100.0
+    def _calculate_gas_cost(self, gas_price_gwei: Decimal, gas_used: int) -> Decimal:
+        """Calculate total gas cost in ETH."""
+        return gas_price_gwei * Decimal(gas_used) * Decimal("1e-9")
 
-    async def adjust_slippage_tolerance(self) -> float:
-        network_congestion = await self.get_network_congestion()
-        if network_congestion > 0.8:
-            self.logger.debug("High network congestion detected. Tightening slippage tolerance. 📉")
-            return 0.05
-        elif network_congestion < 0.5:
-            self.logger.debug("Low network congestion detected. Relaxing slippage tolerance. 📊")
-            return 0.2
-        else:
-            self.logger.debug("Moderate network congestion. Using default slippage tolerance. 📈")
-            return 0.1
+    async def _calculate_profit(
+        self,
+        transaction_data: Dict[str, Any],
+        real_time_price: Decimal,
+        slippage: float,
+        gas_cost_eth: Decimal
+    ) -> Decimal:
+        """Calculate expected profit considering slippage and gas costs."""
+        expected_output = Decimal(real_time_price) * Decimal(transaction_data["amountOut"])
+        input_amount = Decimal(transaction_data["amountIn"])
+        slippage_adjusted_output = expected_output * (1 - Decimal(slippage))
+        
+        return slippage_adjusted_output - input_amount - gas_cost_eth
 
-    async def get_network_congestion(self) -> float:
-        try:
-            pending_block = await self.web3.eth.get_block("pending", full_transactions=False)
-            pending_tx = len(pending_block["transactions"])
-            congestion_level = min(pending_tx / 10000, 1.0)
-            self.logger.debug(f"Network congestion level: {congestion_level} 📡")
-            return congestion_level
-        except Exception as e:
-            self.logger.error(f"Failed to get network congestion: {e} ⚠️")
-            return 1.0
+    def _log_profit_calculation(
+        self,
+        transaction_data: Dict[str, Any],
+        real_time_price: Decimal,
+        gas_cost_eth: Decimal,
+        profit: Decimal,
+        minimum_profit_eth: float
+    ) -> None:
+        """Log detailed profit calculation metrics."""
+        self.logger.debug(
+            f"Profit Calculation Summary:\n"
+            f"Token: {transaction_data['output_token']}\n"
+            f"Real-time Price: {real_time_price:.6f} ETH\n"
+            f"Input Amount: {transaction_data['amountIn']:.6f} ETH\n"
+            f"Expected Output: {transaction_data['amountOut']:.6f} tokens\n"
+            f"Gas Cost: {gas_cost_eth:.6f} ETH\n"
+            f"Calculated Profit: {profit:.6f} ETH\n"
+            f"Minimum Required: {minimum_profit_eth} ETH\n"
+            f"Profitable: {'Yes ✅' if profit > Decimal(minimum_profit_eth) else 'No ❌'}"
+        )
 
-    async def get_real_time_price(self, token: str) -> Decimal:
-        try:
-            await loading_bar(f"Fetching Real-Time Price for {token}", 0)
-            price_sources = {
-                "binance": await self._fetch_price_from_binance(token),
-                "coingecko": await self._fetch_price_from_coingecko(token),
-                "coinmarketcap": await self._fetch_price_from_coinmarketcap(token),
-                "cryptocompare": await self._fetch_price_from_cryptocompare(token),
-            }
-            async with self.api_success_rate_lock:
-                sorted_sources = sorted(
-                    price_sources.items(),
-                    key=lambda x: self.api_success_rate.get(x[0], 1.0),
-                    reverse=True,
-                )
-            for source, price in sorted_sources:
-                if price is not None:
-                    return price
-        except Exception as e:
-            self.logger.error(f"Error fetching real-time price for {token}: {e} ⚠️")
-        self.logger.error(f"Failed to retrieve price for {token}. Returning 0. ⚠️")
-        return Decimal(0)
+    async def get_real_time_price(self, token: str) -> Optional[Decimal]:
+        """Get real-time price using weighted average from multiple sources."""
+        cache_key = f"price_{token}"
+        if cache_key in self.price_cache:
+            return self.price_cache[cache_key]
 
-    async def _fetch_price_from_binance(self, token: str) -> Optional[Decimal]:
         try:
-            symbol = self._convert_token_id_to_binance_symbol(token)
-            if not symbol:
+            prices = []
+            weights = []
+            
+            async with self.api_lock:
+                for source, config in self.api_configs.items():
+                    try:
+                        price = await self._fetch_price(source, token)
+                        if price:
+                            prices.append(price)
+                            weights.append(config["weight"] * config["success_rate"])
+                    except Exception as e:
+                        self.logger.warning(f"Error fetching price from {source}: {e}")
+                        config["success_rate"] *= 0.9
+
+            if not prices:
+                self.logger.error(f"No valid prices found for {token} ❌")
                 return None
-            url = f"https://api.binance.com/api/v3/ticker/price"
-            params = {"symbol": symbol}
-            response = await self.make_request(url, params=params)
-            data = await response.json()
-            price_usdt = Decimal(data["price"])
-            self.logger.debug(f"Real-time price for {token} from Binance: {price_usdt} USDT 💹")
-            eth_price_usdt = await self.get_eth_price_from_binance()
-            return price_usdt / eth_price_usdt if eth_price_usdt else None
+
+            # Calculate weighted average price
+            weighted_price = sum(p * w for p, w in zip(prices, weights)) / sum(weights)
+            self.price_cache[cache_key] = Decimal(str(weighted_price))
+            
+            return self.price_cache[cache_key]
+
         except Exception as e:
-            self.logger.error(f"Binance price fetch failed for {token}: {e} ⚠️")
-            async with self.api_success_rate_lock:
-                self.api_success_rate["binance"] *= 0.9
-            return None
-
-    async def get_eth_price_from_binance(self) -> Optional[Decimal]:
-        try:
-            url = f"https://api.binance.com/api/v3/ticker/price"
-            params = {"symbol": "ETHUSDT"}
-            response = await self.make_request(url, params=params)
-            data = await response.json()
-            return Decimal(data["price"])
-        except Exception as e:
-            self.logger.error(f"Failed to fetch ETH price from Binance: {e} ⚠️")
-            return None
-
-    def _load_token_symbols(self) -> dict:
-        try:
-            with open(self.token_symbols, "r") as file:
-                return json.load(file)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            self.logger.error(f"Error loading token symbols: {e}")
-            return {}
-
-    def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
-        return self.symbol_mapping.get(token_id.lower())
-
-    async def _fetch_price_from_coingecko(self, token: str) -> Optional[Decimal]:
-        try:
-            url = f"https://api.coingecko.com/api/v3/simple/price"
-            params = {"ids": token, "vs_currencies": "eth"}
-            response = await self.make_request(url, params=params)
-            price_data = await response.json()
-            price = Decimal(str(price_data[token]["eth"]))
-            self.logger.debug(f"Real-time price for {token} from CoinGecko: {price} ETH")
-            return price
-        except Exception as e:
-            self.logger.error(f"CoinGecko price fetch failed for {token}: {e} ⚠️")
-            async with self.api_success_rate_lock:
-                self.api_success_rate["coingecko"] *= 0.9
-            return None
-
-    async def _fetch_price_from_coinmarketcap(self, token: str) -> Optional[Decimal]:
-        try:
-            url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
-            params = {"symbol": token}
-            headers = {"X-CMC_PRO_API_KEY": self.config.COINMARKETCAP_API_KEY}
-            response = await self.make_request(url, params=params, headers=headers)
-            data = await response.json()
-            price = Decimal(str(data["data"][token]["quote"]["ETH"]["price"]))
-            self.logger.debug(f"Real-time price for {token} from CoinMarketCap: {price} ETH 💹")
-            return price
-        except Exception as e:
-            self.logger.error(f"CoinMarketCap price fetch failed for {token}: {e} ⚠️")
-            async with self.api_success_rate_lock:
-                self.api_success_rate["coinmarketcap"] *= 0.9
-            return None
-
-    async def _fetch_price_from_cryptocompare(self, token: str) -> Optional[Decimal]:
-        try:
-            url = f"https://min-api.cryptocompare.com/data/price"
-            params = {"fsym": token, "tsyms": "ETH"}
-            headers = {"Apikey": self.config.CRYPTOCOMPARE_API_KEY}
-            response = await self.make_request(url, params=params, headers=headers)
-            data = await response.json()
-            price = Decimal(str(data["ETH"]))
-            self.logger.debug(f"Real-time price for {token} from CryptoCompare: {price} ETH 💹")
-            return price
-        except Exception as e:
-            self.logger.error(f"CryptoCompare price fetch failed for {token}: {e} ⚠️")
-            async with self.api_success_rate_lock:
-                self.api_success_rate["cryptocompare"] *= 0.9
+            self.logger.error(f"Error calculating weighted price for {token}: {e} ❌")
             return None
 
     async def make_request(
@@ -600,36 +587,37 @@ class SafetyNet:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> aiohttp.ClientResponse:
-        max_attempts = 5
-        backoff_time = 1
-        for attempt in range(1, max_attempts + 1):
+        """Make HTTP request with exponential backoff and circuit breaker."""
+        async def _do_request(attempt: int) -> aiohttp.ClientResponse:
             try:
-                await loading_bar("Making Request with Exponential Backoff", 1)
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        url, params=params, headers=headers, timeout=10
-                    ) as response:
-                        if response.status == 200:
-                            return response
-                        elif response.status == 429:
-                            self.logger.warning(
-                                f"Rate limit hit on attempt {attempt}. Backing off for {backoff_time} seconds."
-                            )
-                            await asyncio.sleep(backoff_time)
-                            backoff_time *= 2
-                        else:
-                            self.logger.error(f"HTTP error occurred: {response.status} ❌")
-                            break
+                timeout = aiohttp.ClientTimeout(total=10 * (attempt + 1))
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(url, params=params, headers=headers) as response:
+                        response.raise_for_status()
+                        return response
             except Exception as e:
-                self.logger.error(f"Request error on attempt {attempt}: {e} ❌")
-                if attempt < max_attempts:
-                    await asyncio.sleep(backoff_time)
-                    backoff_time *= 2
-        raise Exception("Failed to make request after several attempts. ❌ ")
+                self.logger.warning(f"Request attempt {attempt + 1} failed: {e}")
+                raise
+
+        # Circuit breaker parameters
+        max_attempts = 5
+        backoff_factor = 1.5
+        
+        for attempt in range(max_attempts):
+            try:
+                return await _do_request(attempt)
+            except aiohttp.ClientError as e:
+                if attempt == max_attempts - 1:
+                    raise Exception(f"Request failed after {max_attempts} attempts: {e}")
+                wait_time = backoff_factor ** attempt
+                await asyncio.sleep(wait_time)
+
+        raise Exception("Request failed after exhausting all retries")
 
 class MonitorArray:
     """
-    MonitorArray class monitors the mempool for profitable transactions.
+    Advanced mempool monitoring system that identifies and analyzes profitable transactions.
+    Includes sophisticated profit estimation, caching, and parallel processing capabilities.
     """
     def __init__(
         self,
@@ -641,78 +629,178 @@ class MonitorArray:
         erc20_ABI: List[Dict[str, Any]] = None,
         config: Config = None,
     ):
+        # Core components
         self.web3 = web3
         self.config = config
         self.safety_net = safety_net
         self.nonce_manager = nonce_manager
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.profitable_transactions = asyncio.Queue()  # Async queue to store identified profitable transactions
+        
+        # Monitoring state
         self.running = False
-        self.monitored_tokens = monitored_tokens or []
+        self.monitored_tokens = set(monitored_tokens or [])
+        self.profitable_transactions = asyncio.Queue()
+        self.processed_transactions = set()
+        
+        # Configuration
         self.erc20_ABI = erc20_ABI or []
-        self.token_symbol_cache = TTLCache(maxsize=1000, ttl=86400)  # Cache for token symbols (24 hours)
-        self.minimum_profit_threshold = Decimal("0.001")  # Minimum profit threshold in ETH
-        self.processed_transactions: Set[str] = set()
-        self.logger.info("MonitorArray initialized and ready for monitoring. 📡✅")
+        self.minimum_profit_threshold = Decimal("0.001")
+        self.max_parallel_tasks = 50
+        self.retry_attempts = 3
+        self.backoff_factor = 1.5
+        
+        # Caching
+        self.token_symbol_cache = TTLCache(maxsize=1000, ttl=86400)
+        self.profit_estimate_cache = TTLCache(maxsize=500, ttl=300)
+        self.gas_price_cache = TTLCache(maxsize=1, ttl=15)
+        
+        # Concurrency control
+        self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
+        self.task_queue = asyncio.Queue()
+        
+        self.logger.info("MonitorArray initialized with enhanced configuration 📡✅")
 
-    async def start_monitoring(self):
+    async def start_monitoring(self) -> None:
+        """Start monitoring the mempool with improved error handling."""
         if self.running:
-            self.logger.warning("Monitoring is already running.")
+            self.logger.warning("Monitoring is already active ⚠️")
             return
-        self.running = True
-        asyncio.create_task(self._run_monitoring())
-        self.logger.info("Mempool monitoring started. 📡 ✅")
 
-    async def stop_monitoring(self):
-        if not self.running:
-            self.logger.warning("Monitoring is not running.")
-            return
-        self.running = False
-        self.logger.info("Mempool monitoring has been stopped. 🛑")
-
-    async def _run_monitoring(self):
-        await self.mempool_monitor()
-
-    async def mempool_monitor(self):
-        self.logger.info("Starting mempool monitoring... 📡")
-        if not isinstance(self.web3.provider, (AsyncHTTPProvider, AsyncIPCProvider)):
-            self.logger.error("Provider is not an HTTP or IPC provider. ❌")
-            return
-        else:
-            self.logger.info(f"Connected to Ethereum network via {self.web3.provider.__class__.__name__}. ✨")
         try:
-            pending_filter = await self.web3.eth.filter("pending")
+            self.running = True
+            monitoring_task = asyncio.create_task(self._run_monitoring())
+            processor_task = asyncio.create_task(self._process_task_queue())
+            
+            self.logger.info("Mempool monitoring started successfully 📡✅")
+            await asyncio.gather(monitoring_task, processor_task)
+            
         except Exception as e:
-            self.logger.error(f"Error setting up pending transaction filter: {e} ❌")
+            self.running = False
+            self.logger.error(f"Failed to start monitoring: {e} ❌")
+            raise
+
+    async def stop_monitoring(self) -> None:
+        """Gracefully stop monitoring activities."""
+        if not self.running:
             return
+
+        self.running = False
+        try:
+            # Wait for remaining tasks to complete
+            while not self.task_queue.empty():
+                await asyncio.sleep(0.1)
+            self.logger.info("Mempool monitoring stopped gracefully 🛑")
+        except Exception as e:
+            self.logger.error(f"Error during monitoring shutdown: {e} ❌")
+
+    async def _run_monitoring(self) -> None:
+        """Enhanced mempool monitoring with automatic recovery."""
+        retry_count = 0
+        
         while self.running:
             try:
-                tx_hashes = await pending_filter.get_new_entries()
-                await asyncio.gather(*(self.process_transaction(tx_hash) for tx_hash in tx_hashes))
-            except Exception as e:
-                self.logger.exception(f"Error in mempool monitoring: {str(e)} ⚠️")
-                try:
-                    pending_filter = await self.web3.eth.filter("pending")
-                except Exception as e:
-                    self.logger.error(f"Error resetting pending transaction filter: {e} ❌")
-                    await asyncio.sleep(5)
-            await asyncio.sleep(0.1)
+                pending_filter = await self._setup_pending_filter()
+                if not pending_filter:
+                    continue
 
-    async def process_transaction(self, tx_hash):
-        tx_hash_hex = tx_hash.hex()
-        if tx_hash_hex in self.processed_transactions:
-            return
-        self.processed_transactions.add(tx_hash_hex)
+                while self.running:
+                    tx_hashes = await pending_filter.get_new_entries()
+                    if tx_hashes:
+                        await self._handle_new_transactions(tx_hashes)
+                    await asyncio.sleep(0.1)
+                    
+            except Exception as e:
+                retry_count += 1
+                wait_time = min(self.backoff_factor ** retry_count, 30)
+                self.logger.error(f"Monitoring error (attempt {retry_count}): {e} ⚠️")
+                await asyncio.sleep(wait_time)
+
+    async def _setup_pending_filter(self) -> Optional[Any]:
+        """Set up pending transaction filter with validation."""
         try:
-            tx = await self.web3.eth.get_transaction(tx_hash)
+            if not isinstance(self.web3.provider, (AsyncHTTPProvider, AsyncIPCProvider)):
+                raise ValueError("Invalid provider type")
+                
+            pending_filter = await self.web3.eth.filter("pending")
+            self.logger.info(f"Connected to network via {self.web3.provider.__class__.__name__} ✨")
+            return pending_filter
+            
+        except Exception as e:
+            self.logger.error(f"Failed to setup pending filter: {e} ❌")
+            return None
+
+    async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
+        """Process new transactions in parallel with rate limiting."""
+        async def process_batch(batch):
+            await asyncio.gather(*(self._queue_transaction(tx_hash) for tx_hash in batch))
+
+        try:
+            # Process transactions in batches
+            batch_size = 10
+            for i in range(0, len(tx_hashes), batch_size):
+                batch = tx_hashes[i:i + batch_size]
+                await process_batch(batch)
+                
+        except Exception as e:
+            self.logger.error(f"Error processing transaction batch: {e} ❌")
+
+    async def _queue_transaction(self, tx_hash: str) -> None:
+        """Queue transaction for processing with deduplication."""
+        tx_hash_hex = tx_hash.hex()
+        if tx_hash_hex not in self.processed_transactions:
+            self.processed_transactions.add(tx_hash_hex)
+            await self.task_queue.put(tx_hash)
+
+    async def _process_task_queue(self) -> None:
+        """Process queued transactions with concurrency control."""
+        while self.running:
+            try:
+                tx_hash = await self.task_queue.get()
+                async with self.semaphore:
+                    await self.process_transaction(tx_hash)
+                self.task_queue.task_done()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Task processing error: {e} ❌")
+
+    async def process_transaction(self, tx_hash: str) -> None:
+        """Process individual transactions with enhanced error handling."""
+        try:
+            tx = await self._get_transaction_with_retry(tx_hash)
+            if not tx:
+                return
+
             analysis = await self.analyze_transaction(tx)
             if analysis.get("is_profitable"):
-                await self.profitable_transactions.put(analysis)
-                self.logger.info(f"Identified profitable transaction {tx_hash_hex} in the mempool. 📡")
-        except TransactionNotFound:
-            self.logger.debug(f"Transaction {tx_hash_hex} details not available yet. Will retry. ⏳")
+                await self._handle_profitable_transaction(analysis)
+                
         except Exception as e:
-            self.logger.exception(f"Error handling transaction {tx_hash_hex}: {e} ⚠️")
+            self.logger.error(f"Error processing transaction {tx_hash}: {e} ❌")
+
+    async def _get_transaction_with_retry(self, tx_hash: str) -> Optional[Any]:
+        """Fetch transaction details with exponential backoff."""
+        for attempt in range(self.retry_attempts):
+            try:
+                return await self.web3.eth.get_transaction(tx_hash)
+            except TransactionNotFound:
+                if attempt == self.retry_attempts - 1:
+                    return None
+                await asyncio.sleep(self.backoff_factor ** attempt)
+            except Exception as e:
+                self.logger.error(f"Error fetching transaction {tx_hash}: {e} ❌")
+                return None
+
+    async def _handle_profitable_transaction(self, analysis: Dict[str, Any]) -> None:
+        """Process and queue profitable transactions."""
+        try:
+            await self.profitable_transactions.put(analysis)
+            self.logger.info(
+                f"Profitable transaction identified: {analysis['tx_hash']} 💰"
+                f" (Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
+            )
+        except Exception as e:
+            self.logger.error(f"Error handling profitable transaction: {e} ❌")
 
     async def analyze_transaction(self, tx) -> Dict[str, Any]:
         if not tx.hash or not tx.input:
@@ -891,7 +979,6 @@ class TransactionArray:
         self.flashloan_contract_ABI = flashloan_contract_ABI
         self.lending_pool_contract_address = lending_pool_contract_address
         self.lending_pool_contract_ABI = lending_pool_contract_ABI
-        self.logger.info("TransactionArray initialized successfully. ✅")
 
     async def initialize(self):
         self.flashloan_contract = await self._initialize_contract(

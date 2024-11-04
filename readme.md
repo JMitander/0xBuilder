@@ -1,4 +1,4 @@
-# 0xplorer MEV Bot
+# 0xplorer
 
 
 [![License](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)

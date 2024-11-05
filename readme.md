@@ -1,4 +1,4 @@
-# 0xplorer
+# 0xplorer MEV Bot
 
 
 [![License](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)
@@ -47,6 +47,8 @@
 - [License](#license)
 - [Disclaimer](#disclaimer)
 
+
+
 ## Introduction
 
 **0xplorer** is an advanced Ethereum trading bot designed for high-frequency trading and MEV (Maximal Extractable Value) opportunities. It implements strategies like front-running, back-running, sandwich attacks, and flashloan executions using Python, Geth, Remix, and AsyncWeb3.py. The bot continuously monitors the Ethereum mempool for profitable transactions and executes trades automatically.
@@ -69,6 +71,8 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 - **Configurable Parameters**: Allows users to adjust parameters, strategies, and risk levels based on preferences.
 - **Detailed Logging**: Provides detailed logs of bot activities, transactions, and strategies for analysis and debugging.
 - **Customizable**: Supports multiple wallets, tokens, and trading pairs, with the ability to add new strategies and features.
+
+![alt text](image.png)
 
 ## Project Structure
 

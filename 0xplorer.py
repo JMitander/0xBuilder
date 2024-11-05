@@ -13,13 +13,12 @@ import tracemalloc
 import hexbytes
 import pandas as pd
 from cachetools import TTLCache, cached
-from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
-from typing import Set, List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple, Union
 from eth_account.messages import encode_defunct
 from web3.exceptions import TransactionNotFound, ContractLogicError
-from web3 import AsyncWeb3, AsyncIPCProvider, AsyncHTTPProvider, Web3
+from web3 import AsyncWeb3, AsyncIPCProvider, AsyncHTTPProvider
 from web3.middleware import SignAndSendRawMiddlewareBuilder, ExtraDataToPOAMiddleware
 from web3.eth import AsyncEth, Contract
 from eth_account import Account
@@ -65,7 +64,7 @@ async def setup_logging():
 
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
-    logger.info("Logging setup completed. 📝✅")
+    logger.info("Warming up peripherals... 🚀")
 
 class Config:
     """
@@ -939,7 +938,49 @@ class MonitorArray:
         except Exception as e:
             self.logger.exception(f"Error logging transaction details for {tx.hash.hex()}: {e} ⚠️")
 
+
+    
+
 class TransactionArray:
+    """
+    TransactionArray class builds and executes transactions, including front-run,
+    back-run, and sandwich attack strategies. It interacts with smart contracts,
+    manages transaction signing, gas price estimation, and handles flashloans.
+    """
+    def __init__(
+        self,
+        web3: AsyncWeb3,
+        account: Account,
+        flashloan_contract_address: str,
+        flashloan_contract_ABI: List[Dict[str, Any]],
+        lending_pool_contract_address: str,
+        lending_pool_contract_ABI: List[Dict[str, Any]],
+        monitor: MonitorArray,
+        nonce_manager: NonceManager,
+        safety_net: SafetyNet,
+        config: Config,
+        logger: Optional[logging.Logger] = None,
+        gas_price_multiplier: float = 1.1,
+        retry_attempts: int = 3,
+        retry_delay: float = 1.0,
+        erc20_ABI: Optional[List[Dict[str, Any]]] = None,
+    ):
+        self.web3 = web3
+        self.account = account
+        self.config = config
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.monitor = monitor
+        self.nonce_manager = nonce_manager
+        self.safety_net = safety_net
+        self.gas_price_multiplier = gas_price_multiplier
+        self.retry_attempts = retry_attempts
+        self.retry_delay = retry_delay
+        self.erc20_ABI = erc20_ABI or []
+        self.current_profit = Decimal("0")
+        self.flashloan_contract_address = flashloan_contract_address
+        self.flashloan_contract_ABI = flashloan_contract_ABI
+        self.lending_pool_contract_address = lending_pool_contract_address
+        self.lending_pool_contract_ABI = lending_pool_contract_ABI
     """
     TransactionArray class builds and executes transactions, including front-run,
     back-run, and sandwich attack strategies. It interacts with smart contracts,
@@ -1036,13 +1077,22 @@ class TransactionArray:
                 f"Contract initialization failed for {contract_name}"
             ) from e
 
+    async def _load_erc20_ABI(self) -> List[Dict[str, Any]]:
+        try:
+            erc20_ABI = await self._fetch_erc20_ABI()
+            self.logger.info("ERC20 ABI loaded successfully. ✅")
+            return erc20_ABI
+        except Exception as e:
+            self.logger.error(f"Failed to load ERC20 ABI: {e} ❌")
+            raise ValueError("ERC20 ABI loading failed") from e
+        
     async def build_transaction(
         self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         additional_params = additional_params or {}
         try:
             tx_details = {
-                "data": function_call.encode_ABI(),
+                "data": function_call.encodeABI(),
                 "to": function_call.address,
                 "chainId": await self.web3.eth.chain_id,
                 "nonce": await self.nonce_manager.get_nonce(),
@@ -1112,7 +1162,7 @@ class TransactionArray:
 
     async def sign_transaction(self, transaction: Dict[str, Any]) -> bytes:
         try:
-            signed_tx = self.web3.eth.account.sign_transaction(
+            signed_tx = await self.web3.eth.account.sign_transaction(
                 transaction,
                 private_key=self.account.key,
             )
@@ -1224,8 +1274,8 @@ class TransactionArray:
                     }
                 ],
             }
-            message = encode_defunct(text=json.dumps(bundle_payload["params"][0]))
-            signed_message = self.web3.eth.account.sign_message(
+            message = json.dumps(bundle_payload["params"][0])
+            signed_message = await self.web3.eth.account.sign_message(
                 message, private_key=self.account.key
             )
             headers = {
@@ -1323,7 +1373,6 @@ class TransactionArray:
             self.logger.exception(f"Error executing front-run: {e} ⚠️")
             return False
 
-
     async def back_run(self, target_tx: Dict[str, Any]) -> bool:
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(f"Attempting back-run on target transaction: {tx_hash} 🔙🏃📉")
@@ -1337,7 +1386,11 @@ class TransactionArray:
             return False
         try:
             # Get the parameters for the back-run
-            flashloan_asset = decoded_tx["params"].get("path", [])[-1]
+            path = decoded_tx["params"].get("path", [])
+            if not path:
+                self.logger.error("No path found in transaction parameters for back-run. ❌")
+                return False
+            flashloan_asset = path[-1]
             flashloan_amount = self.calculate_flashloan_amount(target_tx)
             # Prepare the flashloan transaction
             flashloan_tx = await self.prepare_flashloan_transaction(
@@ -1378,7 +1431,7 @@ class TransactionArray:
         except Exception as e:
             self.logger.exception(f"Error executing back-run: {e} ⚠️")
             return False
-        
+
     async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
         tx_hash = target_tx.get("tx_hash", "Unknown")
         self.logger.info(
@@ -1394,7 +1447,11 @@ class TransactionArray:
             return False
         try:
             # Get the parameters for the sandwich attack
-            flashloan_asset = decoded_tx["params"].get("path", [])[0]
+            path = decoded_tx["params"].get("path", [])
+            if not path:
+                self.logger.error("No path found in transaction parameters for sandwich attack. ❌")
+                return False
+            flashloan_asset = path[0]
             flashloan_amount = self.calculate_flashloan_amount(target_tx)
             # Prepare the flashloan transaction
             flashloan_tx = await self.prepare_flashloan_transaction(
@@ -1640,7 +1697,7 @@ class TransactionArray:
 
     async def withdraw_eth(self) -> bool:
         try:
-            withdraw_function = self.flashloan_contract.functions.withdrawETH()
+            withdraw_function = self.flashloan_contract.find_functions_by_name
             tx = await self.build_transaction(withdraw_function)
             tx_hash = await self.execute_transaction(tx)
             if tx_hash:
@@ -1657,7 +1714,7 @@ class TransactionArray:
 
     async def withdraw_token(self, token_address: str) -> bool:
         try:
-            withdraw_function = self.flashloan_contract.functions.withdrawToken(
+            withdraw_function = self.flashloan_contract.find_functions_by_name(
                 self.web3.to_checksum_address(token_address)
             )
             tx = await self.build_transaction(withdraw_function)
@@ -1673,7 +1730,7 @@ class TransactionArray:
         except Exception as e:
             self.logger.exception(f"Error withdrawing token: {e} ❌")
             return False
-        
+
 class MarketAnalyzer:
     def __init__(
         self,
@@ -1958,7 +2015,7 @@ class MarketAnalyzer:
                     params = {"symbol": token_id}
                     headers = {"X-CMC_PRO_API_KEY": self.api_keys[service]}
                 elif service == "CRYPTOCOMPARE":
-                    url = f"https://min-api.ryptocompare.com/data/price"
+                    url = f"https://min-api.cryptocompare.com/data/price"
                     params = {"fsym": token_id, "tsyms": "USD"}
                     headers = {"Apikey": self.api_keys[service]}
                 else:
@@ -1999,7 +2056,6 @@ class MarketAnalyzer:
 
         for attempt in range(1, max_attempts + 1):
             try:
-                await asyncio.sleep(1)
                 async with aiohttp.ClientSession() as session:
                     async with session.get(url, params=params, headers=headers) as response:
                         response.raise_for_status()
@@ -2028,7 +2084,6 @@ class MarketAnalyzer:
     def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
         return self.symbol_mapping.get(token_id.lower())
 
-
 class StrategyManager:
     def __init__(
         self,
@@ -2039,7 +2094,7 @@ class StrategyManager:
         self.transaction_array = transaction_array
         self.market_analyzer = market_analyzer
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        
+
         # Enhanced performance tracking with more metrics
         self.strategy_performance = {
             strategy_type: {
@@ -2052,7 +2107,7 @@ class StrategyManager:
             }
             for strategy_type in ["eth_transaction", "front_run", "back_run", "sandwich_attack"]
         }
-        
+
         # Initialize ML components and performance tracking
         self.price_model = LinearRegression()
         self.model_last_updated = 0
@@ -2060,7 +2115,7 @@ class StrategyManager:
 
         # Dynamic reinforcement learning weights
         self.reinforcement_weights = {
-            strategy_type: np.ones(len(self.get_strategies(strategy_type)))
+            strategy_type: np.ones(1)  # Assuming one strategy per type initially
             for strategy_type in ["eth_transaction", "front_run", "back_run", "sandwich_attack"]
         }
 
@@ -2085,12 +2140,12 @@ class StrategyManager:
             # Track execution time and performance
             start_time = time.time()
             selected_strategy = await self._select_best_strategy(strategies, strategy_type)
-            
+
             # Execute strategy with detailed profit tracking
             profit_before = await self.transaction_array.get_current_profit()
             success = await selected_strategy(target_tx)
             profit_after = await self.transaction_array.get_current_profit()
-            
+
             # Calculate performance metrics
             execution_time = time.time() - start_time
             profit_made = profit_after - profit_before
@@ -2110,21 +2165,47 @@ class StrategyManager:
             self.logger.error(f"Strategy execution failed: {str(e)}", exc_info=True)
             return False
 
+    def get_strategies(self, strategy_type: str) -> List[Any]:
+        """Retrieve available strategies based on the strategy type."""
+        strategies_mapping = {
+            "eth_transaction": [self.high_value_eth_transfer],
+            "front_run": [
+                self.aggressive_front_run,
+                self.predictive_front_run,
+                self.volatility_front_run,
+                self.advanced_front_run
+            ],
+            "back_run": [
+                self.price_dip_back_run,
+                self.flashloan_back_run,
+                self.high_volume_back_run,
+                self.advanced_back_run
+            ],
+            "sandwich_attack": [
+                self.flash_profit_sandwich,
+                self.price_boost_sandwich,
+                self.arbitrage_sandwich,
+                self.advanced_sandwich_attack
+            ]
+        }
+        return strategies_mapping.get(strategy_type, [])
+
     async def _select_best_strategy(self, strategies: List[Any], strategy_type: str) -> Any:
         """Enhanced strategy selection using performance metrics and exploration"""
         try:
             weights = self.reinforcement_weights[strategy_type]
-            
+
             # Apply exploration vs exploitation
             if random.random() < self.config["exploration_rate"]:
                 self.logger.debug("Using exploration for strategy selection")
                 return random.choice(strategies)
-            
+
             # Use softmax for better weight normalization
             exp_weights = np.exp(weights - np.max(weights))
             probabilities = exp_weights / exp_weights.sum()
-            
-            return strategies[np.random.choice(len(strategies), p=probabilities)]
+
+            selected_index = np.random.choice(len(strategies), p=probabilities)
+            return strategies[selected_index]
 
         except Exception as e:
             self.logger.error(f"Strategy selection failed: {str(e)}", exc_info=True)
@@ -2142,7 +2223,7 @@ class StrategyManager:
         try:
             metrics = self.strategy_performance[strategy_type]
             metrics["total_executions"] += 1
-            
+
             if success:
                 metrics["successes"] += 1
                 metrics["profit"] += profit
@@ -2151,7 +2232,7 @@ class StrategyManager:
 
             # Update moving averages
             metrics["avg_execution_time"] = (
-                metrics["avg_execution_time"] * 0.95 + execution_time * 0.05
+                metrics["avg_execution_time"] * self.config["decay_factor"] + execution_time * (1 - self.config["decay_factor"])
             )
             metrics["success_rate"] = metrics["successes"] / metrics["total_executions"]
 
@@ -2174,6 +2255,14 @@ class StrategyManager:
         except Exception as e:
             self.logger.error(f"Error updating metrics: {str(e)}", exc_info=True)
 
+    def get_strategy_index(self, strategy_name: str, strategy_type: str) -> int:
+        """Retrieve the index of a strategy within its type."""
+        strategies = self.get_strategies(strategy_type)
+        for index, strategy in enumerate(strategies):
+            if strategy.__name__ == strategy_name:
+                return index
+        return -1
+
     def _calculate_reward(self, success: bool, profit: Decimal, execution_time: float) -> float:
         """Sophisticated reward calculation considering multiple factors"""
         base_reward = float(profit) if success else -0.1
@@ -2190,7 +2279,7 @@ class StrategyManager:
         """Enhanced price prediction with model updates and validation"""
         try:
             current_time = time.time()
-            
+
             # Update model periodically
             if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
                 prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
@@ -2199,21 +2288,18 @@ class StrategyManager:
                     y = np.array(prices)
                     self.price_model.fit(X, y)
                     self.model_last_updated = current_time
-                    
+
             # Make prediction
+            prices = await self.market_analyzer.fetch_historical_prices(token_symbol, days=1)
             next_time = np.array([[len(prices)]])
             predicted_price = self.price_model.predict(next_time)[0]
-            
+
             self.logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
             return float(predicted_price)
 
         except Exception as e:
             self.logger.error(f"Price prediction failed: {str(e)}", exc_info=True)
             return 0.0
-
-        except Exception as e:
-            self.logger.error(f"Strategy type determination failed: {str(e)}", exc_info=True)
-            return None
 
     async def high_value_eth_transfer(self, target_tx: Dict[str, Any]) -> bool:
         self.logger.info("Initiating High-Value ETH Transfer Strategy... 🏃💨")
@@ -2423,7 +2509,7 @@ class StrategyManager:
             ) * Decimal(
                 "0.02"
             )  # Assume 2% profit margin
-            if estimated_profit > self.min_profit_threshold:
+            if estimated_profit > self.config["min_profit_threshold"]:
                 self.logger.info(
                     "Estimated profit meets threshold, proceeding with flashloan back-run."
                 )
@@ -2505,7 +2591,7 @@ class StrategyManager:
             potential_profit = self.transaction_array.calculate_flashloan_amount(
                 target_tx
             )
-            if potential_profit > self.min_profit_threshold:
+            if potential_profit > self.config["min_profit_threshold"]:
                 self.logger.info(
                     "Potential profit meets threshold, proceeding with flash profit sandwich attack."
                 )
@@ -2609,7 +2695,7 @@ class StrategyManager:
         except Exception as e:
             self.logger.error(f"Strategy type determination failed: {str(e)}", exc_info=True)
             return None
-        
+
     async def execute_strategy_for_transaction(self, target_tx: Dict[str, Any]) -> bool:
         strategy_type = await self._determine_strategy_type(target_tx)
         if strategy_type:
@@ -2628,7 +2714,6 @@ class StrategyManager:
             f"No suitable strategy found for transaction {target_tx.get('tx_hash', '')}."
         )
         return False
-    
 
 class Xplorer:
     """
@@ -2710,7 +2795,7 @@ class Xplorer:
                 self.logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(1)
         return False
-
+    
     async def _add_middleware(self, web3: AsyncWeb3) -> None:
         """Add appropriate middleware based on network."""
         try:
@@ -2718,9 +2803,8 @@ class Xplorer:
             if chain_id in {99, 100, 77, 7766, 56}:  # POA networks
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
             elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
-                web3.middleware_onion.add(
-                    SignAndSendRawMiddlewareBuilder.build(self.account)
-                )
+                web3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(self.account))
+                pass
         except Exception as e:
             self.logger.error(f"Middleware configuration failed: {e}")
             raise
@@ -2728,18 +2812,24 @@ class Xplorer:
     async def _initialize_account(self) -> Optional[Account]:
         """Initialize Ethereum account with balance check."""
         try:
+            if not self.config.WALLET_KEY:
+                raise ValueError("WALLET_KEY not found in configuration")
+
             account = Account.from_key(self.config.WALLET_KEY)
             balance = await self.web3.eth.get_balance(account.address)
             balance_eth = self.web3.from_wei(balance, 'ether')
-            
+
             self.logger.info(f"Account {account.address[:10]}... initialized")
             self.logger.info(f"Balance: {balance_eth:.4f} ETH")
-            
+
             if balance_eth < 0.1:
                 self.logger.warning("Low account balance! (<0.1 ETH)")
-            
+
             return account
 
+        except ValueError as e:
+            self.logger.error(f"Invalid wallet key configuration: {e}")
+            return None
         except Exception as e:
             self.logger.error(f"Account initialization failed: {e}")
             return None
@@ -2808,11 +2898,11 @@ class Xplorer:
 
     async def run(self) -> None:
         """Main execution loop with improved error handling."""
-        self.logger.info("Starting 0xplorer... 🚀")
-        
+        self.logger.info("Starting Xplorer... 🚀")
+
         try:
             await self.components['monitor_array'].start_monitoring()
-            
+
             while True:
                 try:
                     await self._process_profitable_transactions()
@@ -2822,7 +2912,7 @@ class Xplorer:
                 except Exception as e:
                     self.logger.error(f"Error in main loop: {e}")
                     await asyncio.sleep(5)  # Back off on error
-                    
+
         except KeyboardInterrupt:
             self.logger.info("Received shutdown signal...")
         finally:
@@ -2830,14 +2920,14 @@ class Xplorer:
 
     async def stop(self) -> None:
         """Graceful shutdown of all components."""
-        self.logger.info("Shutting down 0xplorer...")
-        
+        self.logger.info("Shutting down Xplorer...")
+
         try:
             if self.components['monitor_array']:
                 await self.components['monitor_array'].stop_monitoring()
-            
+
             # Additional cleanup if needed
-            
+
             self.logger.info("Shutdown complete 👋")
         except Exception as e:
             self.logger.error(f"Error during shutdown: {e}")
@@ -2848,19 +2938,48 @@ class Xplorer:
         """Process profitable transactions from the queue."""
         monitor = self.components['monitor_array']
         strategy = self.components['strategy_manager']
-        
+
         while not monitor.profitable_transactions.empty():
             try:
                 tx = await monitor.profitable_transactions.get()
                 success = await strategy.execute_strategy_for_transaction(tx)
-                
+
                 if success:
-                    self.logger.info(f"Strategy execution successful for tx: {tx['hash'][:10]}...")
+                    self.logger.info(f"Strategy execution successful for tx: {tx.get('tx_hash', 'Unknown')[:10]}...")
                 else:
-                    self.logger.warning(f"Strategy execution failed for tx: {tx['hash'][:10]}...")
-                    
+                    self.logger.warning(f"Strategy execution failed for tx: {tx.get('tx_hash', 'Unknown')[:10]}...")
+
             except Exception as e:
                 self.logger.error(f"Error processing transaction: {e}")
+
+    async def _load_contract_ABI(self, abi_path: str) -> List[Dict[str, Any]]:
+        """Load contract ABI from a file."""
+        try:
+            with open(abi_path, 'r') as file:
+                abi = json.load(file)
+            self.logger.info(f"Loaded ABI from {abi_path} successfully. ✅")
+            return abi
+        except Exception as e:
+            self.logger.error(f"Failed to load ABI from {abi_path}: {e} ❌")
+            raise
+
+async def setup_logging():
+    """Setup logging configuration."""
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    # Console handler
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    # File handler
+    fh = logging.FileHandler('xplorer.log')
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
 
 async def main():
     """Main entry point with proper setup and error handling."""
@@ -2868,18 +2987,18 @@ async def main():
     try:
         # Setup logging
         await setup_logging()
-        logger = logging.getLogger("0xplorer")
-        logger.info("Starting 0xplorer initialization...")
+        logger = logging.getLogger("Xplorer")
+        logger.info("Starting Xplorer initialization...")
 
         # Initialize configuration
         config = Config(logger)
         await config.load()
-        
+
         # Initialize and run the bot
         xplorer = Xplorer(config, logger)
         await xplorer.initialize()
         await xplorer.run()
-            
+
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt, initiating shutdown...")
         if 'xplorer' in locals():
@@ -2892,7 +3011,7 @@ async def main():
         sys.exit(1)
     finally:
         if logger:
-            logger.info("0xplorer shutdown complete.")
+            logger.info("Xplorer shutdown complete.")
         sys.exit(0)
 
 if __name__ == "__main__":

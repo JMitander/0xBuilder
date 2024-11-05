@@ -1,0 +1,203 @@
+2024-11-05 22:56:19,619 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 22:56:22,691 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 22:56:24,749 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 22:56:30,947 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 22:56:30,947 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 22:56:30,948 - Xplorer - CRITICAL - Fatal error during initialization: type object 'AsyncWeb3' has no attribute 'HTTPProvider' ❌
+2024-11-05 22:56:30,948 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 22:56:30,948 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 22:56:30,948 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 22:59:45,563 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 22:59:48,642 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 22:59:50,727 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 22:59:56,980 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 22:59:56,980 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 22:59:56,980 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 22:59:56,980 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 22:59:56,981 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7cb29bb318b0>
+2024-11-05 22:59:56,982 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 22:59:56,982 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 22:59:56,982 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 22:59:56,983 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 22:59:56,984 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 22:59:56,984 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 22:59:56,984 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 22:59:56,984 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 22:59:56,984 - Xplorer - ERROR - Middleware configuration failed: SignAndSendRawMiddlewareBuilder.build() got an unexpected keyword argument 'account'
+2024-11-05 22:59:56,984 - Xplorer - ERROR - HTTP connection failed: SignAndSendRawMiddlewareBuilder.build() got an unexpected keyword argument 'account'
+2024-11-05 22:59:56,985 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize Web3 connection ❌
+2024-11-05 22:59:56,985 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 22:59:56,985 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 22:59:56,985 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 23:01:29,127 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:01:32,207 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:01:34,269 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:01:40,455 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 23:01:40,456 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 23:01:40,456 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 23:01:40,456 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 23:01:40,465 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7d8166555970>
+2024-11-05 23:01:40,467 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 23:01:40,467 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:01:40,467 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:01:40,470 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 23:01:40,470 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 23:01:40,470 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:01:40,470 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:01:40,472 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 23:01:40,476 - Xplorer - ERROR - Middleware configuration failed: Invalid private key: Unsupported type: The primitive argument must be one of: bytes,bytearray, int or bool and not str
+2024-11-05 23:01:40,476 - Xplorer - ERROR - HTTP connection failed: Invalid private key: Unsupported type: The primitive argument must be one of: bytes,bytearray, int or bool and not str
+2024-11-05 23:01:40,476 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize Web3 connection ❌
+2024-11-05 23:01:40,476 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 23:01:40,476 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 23:01:40,476 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 23:10:36,008 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:10:39,092 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:10:41,145 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:10:47,347 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 23:10:47,347 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 23:10:47,347 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 23:10:47,347 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 23:10:47,348 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x76959e395c40>
+2024-11-05 23:10:47,349 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 23:10:47,350 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:10:47,350 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:10:47,350 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 23:10:47,351 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 23:10:47,351 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:10:47,351 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:10:47,351 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 23:10:47,352 - Xplorer - ERROR - Account initialization failed: type object 'Account' has no attribute 'from_key'
+2024-11-05 23:10:47,352 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize account ❌
+2024-11-05 23:10:47,352 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 23:10:47,352 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 23:10:47,352 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 23:11:25,813 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:11:28,892 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:11:30,970 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:11:37,180 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 23:11:37,180 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 23:11:37,181 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 23:11:37,181 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 23:11:37,181 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7f581db44650>
+2024-11-05 23:11:37,182 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 23:11:37,183 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:11:37,183 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:11:37,183 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 23:11:37,184 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 23:11:37,184 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:11:37,184 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:11:37,184 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 23:11:37,184 - Xplorer - ERROR - Account initialization failed: type object 'Account' has no attribute 'from_key'
+2024-11-05 23:11:37,184 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize account ❌
+2024-11-05 23:11:37,185 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 23:11:37,185 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 23:11:37,185 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 23:12:34,522 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:12:37,600 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:12:39,664 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:12:45,859 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 23:12:45,859 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 23:12:45,859 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 23:12:45,860 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 23:12:45,860 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7ca820584bf0>
+2024-11-05 23:12:45,861 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 23:12:45,861 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:12:45,862 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:12:45,862 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 23:12:45,863 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 23:12:45,863 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:12:45,863 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:12:45,863 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 23:12:45,867 - Xplorer - ERROR - Account initialization failed: key must be one of the types: eth_keys.datatype.PrivateKey, eth_account.signers.local.LocalAccount, or raw private key as a hex string or byte string. Was of type <class 'NoneType'>
+2024-11-05 23:12:45,867 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize account ❌
+2024-11-05 23:12:45,867 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 23:12:45,868 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 23:12:45,868 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 23:13:46,580 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:13:49,660 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:13:51,742 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:13:57,961 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 23:13:57,961 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 23:13:57,961 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 23:13:57,961 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 23:13:57,962 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7472d7caab40>
+2024-11-05 23:13:57,963 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 23:13:57,963 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:13:57,963 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:13:57,963 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 23:13:57,964 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 23:13:57,964 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:13:57,964 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:13:57,964 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 23:13:57,969 - Xplorer - ERROR - Account initialization failed: key must be one of the types: eth_keys.datatype.PrivateKey, eth_account.signers.local.LocalAccount, or raw private key as a hex string or byte string. Was of type <class 'NoneType'>
+2024-11-05 23:13:57,969 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize account ❌
+2024-11-05 23:13:57,969 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 23:13:57,969 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 23:13:57,969 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 23:14:15,732 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:14:18,808 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:14:20,869 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:14:27,073 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 23:14:27,074 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 23:14:27,074 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 23:14:27,074 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 23:14:27,075 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x76cc57e6cef0>
+2024-11-05 23:14:27,076 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 23:14:27,077 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:14:27,077 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:14:27,077 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 23:14:27,078 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 23:14:27,078 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:14:27,078 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:14:27,078 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 23:14:27,083 - Xplorer - ERROR - Account initialization failed: key must be one of the types: eth_keys.datatype.PrivateKey, eth_account.signers.local.LocalAccount, or raw private key as a hex string or byte string. Was of type <class 'NoneType'>
+2024-11-05 23:14:27,083 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize account ❌
+2024-11-05 23:14:27,084 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 23:14:27,084 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 23:14:27,084 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 23:14:49,439 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:14:52,539 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:14:54,604 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:16:27,081 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:16:30,151 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:16:32,220 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:16:38,460 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 23:16:38,460 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 23:16:38,461 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 23:16:38,461 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 23:16:38,462 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x78fcd38b3a10>
+2024-11-05 23:16:38,464 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 23:16:38,464 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:16:38,464 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:16:38,465 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 23:16:38,465 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 23:16:38,466 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:16:38,466 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:16:38,467 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 23:16:38,473 - Xplorer - ERROR - Account initialization failed: key must be one of the types: eth_keys.datatype.PrivateKey, eth_account.signers.local.LocalAccount, or raw private key as a hex string or byte string. Was of type <class 'NoneType'>
+2024-11-05 23:16:38,473 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize account ❌
+2024-11-05 23:16:38,473 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 23:16:38,473 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 23:16:38,473 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-05 23:16:48,081 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-05 23:16:51,160 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:16:53,236 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:16:59,408 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-05 23:16:59,408 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-05 23:16:59,409 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-05 23:16:59,409 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-05 23:16:59,410 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x72fc6b4a5760>
+2024-11-05 23:16:59,411 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-05 23:16:59,411 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:16:59,411 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:16:59,412 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-05 23:16:59,412 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-05 23:16:59,412 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-05 23:16:59,412 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-05 23:16:59,413 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-05 23:16:59,417 - Xplorer - ERROR - Account initialization failed: key must be one of the types: eth_keys.datatype.PrivateKey, eth_account.signers.local.LocalAccount, or raw private key as a hex string or byte string. Was of type <class 'NoneType'>
+2024-11-05 23:16:59,417 - Xplorer - CRITICAL - Fatal error during initialization: Failed to initialize account ❌
+2024-11-05 23:16:59,417 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-05 23:16:59,417 - Xplorer - INFO - Shutdown complete 👋
+2024-11-05 23:16:59,418 - Xplorer - INFO - Xplorer shutdown complete.

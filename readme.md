@@ -72,7 +72,8 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 - **Detailed Logging**: Provides detailed logs of bot activities, transactions, and strategies for analysis and debugging.
 - **Customizable**: Supports multiple wallets, tokens, and trading pairs, with the ability to add new strategies and features.
 
-![alt text](image.png)
+![0xplorer-flow](https://github.com/user-attachments/assets/29e3da12-d253-4304-acb1-f2d74f407bf1)
+
 
 ## Project Structure
 

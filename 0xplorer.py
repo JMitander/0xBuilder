@@ -12,6 +12,7 @@ import numpy as np
 import tracemalloc
 import hexbytes
 import pandas as pd
+from web3 import Account
 from cachetools import TTLCache, cached
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
@@ -104,7 +105,7 @@ class Config:
         self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT")
         self.IPC_ENDPOINT = self._get_env_variable("IPC_ENDPOINT")
         self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT")
-        self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
+        self.WALLET_KEY = self._get_env_variable('WALLET_KEY')
         self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
 
     async def _load_json_elements(self):
@@ -2738,14 +2739,31 @@ class Xplorer:
     async def initialize(self) -> None:
         """Initialize all components with proper error handling."""
         try:
+            # Initialize account first
+            wallet_key = self.config.WALLET_KEY
+            if not wallet_key:
+                raise ValueError("WALLET_KEY environment variable is not set or empty")
+
+            try:
+                # Remove '0x' prefix if present and ensure the key is valid hex
+                cleaned_key = wallet_key[2:] if wallet_key.startswith('0x') else wallet_key
+                if not all(c in '0123456789abcdefABCDEF' for c in cleaned_key):
+                    raise ValueError("Invalid wallet key format - must be hexadecimal")
+                # Add '0x' prefix back if it was removed
+                full_key = f"0x{cleaned_key}" if not wallet_key.startswith('0x') else wallet_key
+                self.account = Account.from_key(full_key)
+            except Exception as e:
+                raise ValueError(f"Invalid wallet key format: {e}")
+
+            # Initialize web3 after account is set up
             self.web3 = await self._initialize_web3()
             if not self.web3:
                 raise RuntimeError("Failed to initialize Web3 connection")
 
-            self.account = await self._initialize_account()
             if not self.account:
                 raise RuntimeError("Failed to initialize account")
 
+            await self._check_account_balance()
             await self._initialize_components()
             self.logger.info("All components initialized successfully. 🌐✅")
         except Exception as e:
@@ -2809,30 +2827,31 @@ class Xplorer:
             self.logger.error(f"Middleware configuration failed: {e}")
             raise
 
-    async def _initialize_account(self) -> Optional[Account]:
-        """Initialize Ethereum account with balance check."""
-        try:
-            if not self.config.WALLET_KEY:
-                raise ValueError("WALLET_KEY not found in configuration")
+    def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
+        value = os.getenv(var_name, default)
+        if value is None:
+            self.logger.error(f"Missing environment variable: {var_name} ❌")
+            raise EnvironmentError(f"Missing environment variable: {var_name}")
+        return value
 
-            account = Account.from_key(self.config.WALLET_KEY)
-            balance = await self.web3.eth.get_balance(account.address)
+    async def _check_account_balance(self) -> None:
+        """Check the Ethereum account balance."""
+        try:
+            if not self.account:
+                raise ValueError("Account not initialized")
+
+            balance = await self.web3.eth.get_balance(self.account.address)
             balance_eth = self.web3.from_wei(balance, 'ether')
 
-            self.logger.info(f"Account {account.address[:10]}... initialized")
+            self.logger.info(f"Account {self.account.address[:10]}... initialized")
             self.logger.info(f"Balance: {balance_eth:.4f} ETH")
 
             if balance_eth < 0.1:
                 self.logger.warning("Low account balance! (<0.1 ETH)")
 
-            return account
-
-        except ValueError as e:
-            self.logger.error(f"Invalid wallet key configuration: {e}")
-            return None
         except Exception as e:
-            self.logger.error(f"Account initialization failed: {e}")
-            return None
+            self.logger.error(f"Balance check failed: {e}")
+            raise
 
     async def _initialize_components(self) -> None:
         """Initialize all bot components with proper error handling."""

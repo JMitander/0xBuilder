@@ -11,7 +11,6 @@ import aiohttp
 import numpy as np
 import tracemalloc
 import hexbytes
-import pandas as pd
 from web3 import Account
 from cachetools import TTLCache, cached
 from sklearn.linear_model import LinearRegression

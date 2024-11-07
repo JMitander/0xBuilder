@@ -1196,45 +1196,6 @@ class TransactionArray:
         self.flashloan_contract_ABI = flashloan_contract_ABI
         self.lending_pool_contract_address = lending_pool_contract_address
         self.lending_pool_contract_ABI = lending_pool_contract_ABI
-    """
-    TransactionArray class builds and executes transactions, including front-run,
-    back-run, and sandwich attack strategies. It interacts with smart contracts,
-    manages transaction signing, gas price estimation, and handles flashloans.
-    """
-    def __init__(
-        self,
-        web3: AsyncWeb3,
-        account: Account,
-        flashloan_contract_address: str,
-        flashloan_contract_ABI: List[Dict[str, Any]],
-        lending_pool_contract_address: str,
-        lending_pool_contract_ABI: List[Dict[str, Any]],
-        monitor: MonitorArray,
-        nonce_manager: NonceManager,
-        safety_net: SafetyNet,
-        config: Config,
-        logger: Optional[logging.Logger] = None,
-        gas_price_multiplier: float = 1.1,
-        retry_attempts: int = 3,
-        retry_delay: float = 1.0,
-        erc20_ABI: Optional[List[Dict[str, Any]]] = None,
-    ):
-        self.web3 = web3
-        self.account = account
-        self.config = config
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.monitor = monitor
-        self.nonce_manager = nonce_manager
-        self.safety_net = safety_net
-        self.gas_price_multiplier = gas_price_multiplier
-        self.retry_attempts = retry_attempts
-        self.retry_delay = retry_delay
-        self.erc20_ABI = erc20_ABI or []
-        self.current_profit = Decimal("0")
-        self.flashloan_contract_address = flashloan_contract_address
-        self.flashloan_contract_ABI = flashloan_contract_ABI
-        self.lending_pool_contract_address = lending_pool_contract_address
-        self.lending_pool_contract_ABI = lending_pool_contract_ABI
 
     async def initialize(self):
         self.flashloan_contract = await self._initialize_contract(

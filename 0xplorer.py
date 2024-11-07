@@ -3345,6 +3345,20 @@ class Xplorer:
         except Exception as e:
             self.logger.error(f"Failed to load ABI from {abi_path}: {e} ❌")
             raise
+    
+    async def transfer_profit_to_account(self) -> None:
+        """Transfer accumulated profit to the account."""
+        try:
+            profit = await self.transaction_array.get_current_profit()
+            if profit > 0:
+                self.logger.info(f"Transferring profit of {profit:.4f} ETH to the account... 💰")
+                await self.transaction_array.transfer_profit_to_account
+                self.logger.info("Profit transfer completed successfully. ✅")
+            else:
+                self.logger.info("No profit to transfer. Skipping... ⚠️")
+        except Exception as e:
+            self.logger.error(f"Profit transfer failed: {e} ❌")
+        
 
 async def setup_logging():
     """Setup logging configuration."""

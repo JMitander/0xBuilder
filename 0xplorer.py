@@ -1459,14 +1459,14 @@ class TransactionArray:
                     "auth_header": "X-Flashbots-Signature"
                 },
                 {
-                    "name": "BeaverBuilder", 
+                    "name": "Beaverbuild", 
                     "url": "https://rpc.beaverbuild.org",
-                    "auth_header": "X-Builder-Signature"
+                    "auth_header": "X-BeaverBuild-Signature"
                 },
                 {
-                    "name": "TitanBuilder",
+                    "name": "Titanbuilder",
                     "url": "https://rpc.titanbuilder.xyz",
-                    "auth_header": "X-Titan-Signature" 
+                    "auth_header": "X-Titanbuilder-Signature" 
                 },
                 {
                     "name": "MEVBoost",

@@ -1,6 +1,6 @@
 2024-11-05 22:56:19,619 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 22:56:22,691 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 22:56:24,749 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 22:56:22,691 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 22:56:24,749 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 22:56:30,947 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 22:56:30,947 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 22:56:30,948 - Xplorer - CRITICAL - Fatal error during initialization: type object 'AsyncWeb3' has no attribute 'HTTPProvider' ❌
@@ -8,8 +8,8 @@
 2024-11-05 22:56:30,948 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 22:56:30,948 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 22:59:45,563 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 22:59:48,642 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 22:59:50,727 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 22:59:48,642 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 22:59:50,727 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 22:59:56,980 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 22:59:56,980 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 22:59:56,980 - Xplorer - INFO - Attempting connection with HTTP...
@@ -30,8 +30,8 @@
 2024-11-05 22:59:56,985 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 22:59:56,985 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 23:01:29,127 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:01:32,207 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:01:34,269 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:01:32,207 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:01:34,269 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:01:40,455 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 23:01:40,456 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 23:01:40,456 - Xplorer - INFO - Attempting connection with HTTP...
@@ -52,8 +52,8 @@
 2024-11-05 23:01:40,476 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 23:01:40,476 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 23:10:36,008 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:10:39,092 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:10:41,145 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:10:39,092 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:10:41,145 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:10:47,347 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 23:10:47,347 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 23:10:47,347 - Xplorer - INFO - Attempting connection with HTTP...
@@ -73,8 +73,8 @@
 2024-11-05 23:10:47,352 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 23:10:47,352 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 23:11:25,813 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:11:28,892 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:11:30,970 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:11:28,892 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:11:30,970 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:11:37,180 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 23:11:37,180 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 23:11:37,181 - Xplorer - INFO - Attempting connection with HTTP...
@@ -94,8 +94,8 @@
 2024-11-05 23:11:37,185 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 23:11:37,185 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 23:12:34,522 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:12:37,600 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:12:39,664 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:12:37,600 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:12:39,664 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:12:45,859 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 23:12:45,859 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 23:12:45,859 - Xplorer - INFO - Attempting connection with HTTP...
@@ -115,8 +115,8 @@
 2024-11-05 23:12:45,868 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 23:12:45,868 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 23:13:46,580 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:13:49,660 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:13:51,742 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:13:49,660 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:13:51,742 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:13:57,961 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 23:13:57,961 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 23:13:57,961 - Xplorer - INFO - Attempting connection with HTTP...
@@ -136,8 +136,8 @@
 2024-11-05 23:13:57,969 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 23:13:57,969 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 23:14:15,732 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:14:18,808 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:14:20,869 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:14:18,808 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:14:20,869 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:14:27,073 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 23:14:27,074 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 23:14:27,074 - Xplorer - INFO - Attempting connection with HTTP...
@@ -157,11 +157,11 @@
 2024-11-05 23:14:27,084 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 23:14:27,084 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 23:14:49,439 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:14:52,539 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:14:54,604 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:14:52,539 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:14:54,604 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:16:27,081 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:16:30,151 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:16:32,220 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:16:30,151 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:16:32,220 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:16:38,460 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 23:16:38,460 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 23:16:38,461 - Xplorer - INFO - Attempting connection with HTTP...
@@ -181,8 +181,8 @@
 2024-11-05 23:16:38,473 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 23:16:38,473 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-05 23:16:48,081 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-05 23:16:51,160 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-05 23:16:53,236 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-05 23:16:51,160 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-05 23:16:53,236 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-05 23:16:59,408 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-05 23:16:59,408 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-05 23:16:59,409 - Xplorer - INFO - Attempting connection with HTTP...
@@ -202,8 +202,8 @@
 2024-11-05 23:16:59,417 - Xplorer - INFO - Shutdown complete 👋
 2024-11-05 23:16:59,418 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-06 17:19:36,447 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-06 17:19:39,503 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-06 17:19:41,546 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-06 17:19:39,503 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-06 17:19:41,546 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-06 17:19:47,671 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-06 17:19:47,671 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-06 17:19:47,671 - Xplorer - INFO - Attempting connection with HTTP...
@@ -223,8 +223,8 @@
 2024-11-06 17:19:47,691 - Xplorer - INFO - Shutdown complete 👋
 2024-11-06 17:19:47,691 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-06 17:24:19,914 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-06 17:24:22,986 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-06 17:24:25,037 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-06 17:24:22,986 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-06 17:24:25,037 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-06 17:24:31,175 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-06 17:24:31,175 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-06 17:24:31,175 - Xplorer - INFO - Attempting connection with HTTP...
@@ -243,8 +243,8 @@
 2024-11-06 17:24:31,180 - Xplorer - INFO - Shutdown complete 👋
 2024-11-06 17:24:31,180 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-06 17:24:42,416 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-06 17:24:45,480 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-06 17:24:47,530 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-06 17:24:45,480 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-06 17:24:47,530 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-06 17:24:53,682 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-06 17:24:53,682 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-06 17:24:53,682 - Xplorer - INFO - Attempting connection with HTTP...
@@ -263,8 +263,8 @@
 2024-11-06 17:24:53,687 - Xplorer - INFO - Shutdown complete 👋
 2024-11-06 17:24:53,687 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-06 17:25:09,056 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-06 17:25:12,114 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-06 17:25:14,163 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-06 17:25:12,114 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-06 17:25:14,163 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-06 17:25:20,303 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-06 17:25:20,303 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-06 17:25:20,303 - Xplorer - INFO - Attempting connection with HTTP...
@@ -283,8 +283,8 @@
 2024-11-06 17:25:20,307 - Xplorer - INFO - Shutdown complete 👋
 2024-11-06 17:25:20,308 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-06 17:26:59,800 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-06 17:27:02,862 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-06 17:27:04,908 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-06 17:27:02,862 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-06 17:27:04,908 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-06 17:27:11,043 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-06 17:27:11,043 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-06 17:27:11,044 - Xplorer - INFO - Attempting connection with HTTP...
@@ -308,8 +308,8 @@
 2024-11-06 17:27:14,058 - Xplorer - INFO - Shutdown complete 👋
 2024-11-06 17:27:14,058 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-06 17:28:05,353 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-06 17:28:08,413 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-06 17:28:10,457 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-06 17:28:08,413 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-06 17:28:10,457 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-06 17:28:16,596 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-06 17:28:16,596 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-06 17:28:16,597 - Xplorer - INFO - Attempting connection with HTTP...
@@ -333,8 +333,8 @@
 2024-11-06 17:28:19,610 - Xplorer - INFO - Shutdown complete 👋
 2024-11-06 17:28:19,610 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-06 17:30:54,272 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-06 17:30:57,332 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-06 17:30:59,378 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-06 17:30:57,332 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-06 17:30:59,378 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-06 17:31:05,508 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-06 17:31:05,508 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-06 17:31:05,508 - Xplorer - INFO - Attempting connection with HTTP...
@@ -358,8 +358,8 @@
 2024-11-06 17:31:08,522 - Xplorer - INFO - Shutdown complete 👋
 2024-11-06 17:31:08,522 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:03:54,660 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:03:57,712 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:03:59,752 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:03:57,712 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:03:59,752 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:04:05,874 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:04:05,874 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:04:05,874 - Xplorer - INFO - Attempting connection with HTTP...
@@ -383,8 +383,8 @@
 2024-11-07 19:04:08,891 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:04:08,891 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:11:21,120 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:11:24,172 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:11:26,219 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:11:24,172 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:11:26,219 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:11:32,363 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:11:32,363 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:11:32,363 - Xplorer - INFO - Attempting connection with HTTP...
@@ -408,8 +408,8 @@
 2024-11-07 19:11:35,377 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:11:35,377 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:16:30,574 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:16:33,627 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:16:35,666 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:16:33,627 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:16:35,666 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:16:41,789 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:16:41,789 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:16:41,790 - Xplorer - INFO - Attempting connection with HTTP...
@@ -433,8 +433,8 @@
 2024-11-07 19:16:44,803 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:16:44,803 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:18:40,044 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:18:43,096 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:18:45,137 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:18:43,096 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:18:45,137 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:18:51,273 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:18:51,273 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:18:51,273 - Xplorer - INFO - Attempting connection with HTTP...
@@ -458,8 +458,8 @@
 2024-11-07 19:18:54,284 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:18:54,285 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:21:09,410 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:21:12,463 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:21:14,502 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:21:12,463 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:21:14,502 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:21:20,626 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:21:20,626 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:21:20,626 - Xplorer - INFO - Attempting connection with HTTP...
@@ -483,8 +483,8 @@
 2024-11-07 19:21:23,641 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:21:23,641 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:23:37,273 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:23:40,328 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:23:42,367 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:23:40,328 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:23:42,367 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:23:48,486 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:23:48,486 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:23:48,487 - Xplorer - INFO - Attempting connection with HTTP...
@@ -508,8 +508,8 @@
 2024-11-07 19:23:51,498 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:23:51,498 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:29:06,978 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:29:10,031 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:29:12,071 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:29:10,031 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:29:12,071 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:29:18,198 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:29:18,198 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:29:18,198 - Xplorer - INFO - Attempting connection with HTTP...
@@ -533,8 +533,8 @@
 2024-11-07 19:29:21,211 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:29:21,211 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:30:54,837 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:30:57,888 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:30:59,928 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:30:57,888 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:30:59,928 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:31:06,049 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:31:06,049 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:31:06,049 - Xplorer - INFO - Attempting connection with HTTP...
@@ -558,8 +558,8 @@
 2024-11-07 19:31:09,060 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:31:09,060 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:33:00,405 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:33:03,463 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:33:05,503 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:33:03,463 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:33:05,503 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:33:11,628 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:33:11,629 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:33:11,629 - Xplorer - INFO - Attempting connection with HTTP...
@@ -583,8 +583,8 @@
 2024-11-07 19:33:14,643 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:33:14,643 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:35:54,713 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:35:57,767 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:35:59,808 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:35:57,767 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:35:59,808 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:36:05,929 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:36:05,929 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:36:05,929 - Xplorer - INFO - Attempting connection with HTTP...
@@ -604,8 +604,8 @@
 2024-11-07 19:36:05,936 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:36:05,936 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:41:24,347 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:41:27,399 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:41:29,438 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:41:27,399 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:41:29,438 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:41:35,564 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:41:35,564 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:41:35,565 - Xplorer - INFO - Attempting connection with HTTP...
@@ -625,8 +625,8 @@
 2024-11-07 19:41:35,572 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:41:35,572 - Xplorer - INFO - Xplorer shutdown complete.
 2024-11-07 19:43:02,437 - Xplorer - INFO - Starting Xplorer initialization...
-2024-11-07 19:43:05,489 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/token_addresses.json ✅
-2024-11-07 19:43:07,536 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/xplorer/Documents/0xplorer-project/0xplorer/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-07 19:43:05,489 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-07 19:43:07,536 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
 2024-11-07 19:43:13,655 - Xplorer - INFO - Configuration loaded successfully. ✅
 2024-11-07 19:43:13,655 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
 2024-11-07 19:43:13,658 - Xplorer - INFO - Attempting connection with HTTP...
@@ -650,3 +650,160 @@
 2024-11-07 19:43:13,664 - Xplorer - INFO - Shutting down Xplorer...
 2024-11-07 19:43:13,664 - Xplorer - INFO - Shutdown complete 👋
 2024-11-07 19:43:13,664 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-09 01:49:24,408 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 01:49:26,438 - Xplorer - ERROR - Missing environment variable: ETHERSCAN_API_KEY ❌
+2024-11-09 01:49:26,438 - Xplorer - ERROR - Configuration loading error: Missing environment variable: ETHERSCAN_API_KEY ❌
+Traceback (most recent call last):
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 96, in _load_config
+    self._load_api_keys()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 108, in _load_api_keys
+    self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 173, in _get_env_variable
+    raise EnvironmentError(f"Missing environment variable: {var_name}")
+OSError: Missing environment variable: ETHERSCAN_API_KEY
+2024-11-09 01:49:26,439 - Xplorer - CRITICAL - Fatal error: Missing environment variable: ETHERSCAN_API_KEY
+Traceback (most recent call last):
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 3450, in main
+    await config.load()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 91, in load
+    await self._load_config()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 96, in _load_config
+    self._load_api_keys()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 108, in _load_api_keys
+    self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 173, in _get_env_variable
+    raise EnvironmentError(f"Missing environment variable: {var_name}")
+OSError: Missing environment variable: ETHERSCAN_API_KEY
+2024-11-09 01:49:26,439 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-09 01:49:56,549 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 01:49:58,579 - Xplorer - ERROR - Missing environment variable: ETHERSCAN_API_KEY ❌
+2024-11-09 01:49:58,579 - Xplorer - ERROR - Configuration loading error: Missing environment variable: ETHERSCAN_API_KEY ❌
+Traceback (most recent call last):
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 96, in _load_config
+    self._load_api_keys()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 108, in _load_api_keys
+    self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 173, in _get_env_variable
+    raise EnvironmentError(f"Missing environment variable: {var_name}")
+OSError: Missing environment variable: ETHERSCAN_API_KEY
+2024-11-09 01:49:58,581 - Xplorer - CRITICAL - Fatal error: Missing environment variable: ETHERSCAN_API_KEY
+Traceback (most recent call last):
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 3450, in main
+    await config.load()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 91, in load
+    await self._load_config()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 96, in _load_config
+    self._load_api_keys()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 108, in _load_api_keys
+    self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 173, in _get_env_variable
+    raise EnvironmentError(f"Missing environment variable: {var_name}")
+OSError: Missing environment variable: ETHERSCAN_API_KEY
+2024-11-09 01:49:58,581 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-09 01:50:12,834 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 01:50:15,883 - Xplorer - ERROR - Monitored tokens file not found: [Errno 2] No such file or directory: '/home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json' ❌
+Traceback (most recent call last):
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 179, in _load_json_file
+    async with aiofiles.open(file_path, "r") as f:
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/base.py", line 63, in __aenter__
+    return await self
+           ^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/base.py", line 59, in __await__
+    self._obj = yield from self._coro.__await__()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/threadpool/__init__.py", line 92, in _open
+    f = await loop.run_in_executor(executor, cb)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json'
+2024-11-09 01:50:15,886 - Xplorer - ERROR - Configuration loading error: [Errno 2] No such file or directory: '/home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json' ❌
+Traceback (most recent call last):
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 98, in _load_config
+    await self._load_json_elements()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 125, in _load_json_elements
+    self.TOKEN_ADDRESSES = await self._load_json_file(
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 179, in _load_json_file
+    async with aiofiles.open(file_path, "r") as f:
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/base.py", line 63, in __aenter__
+    return await self
+           ^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/base.py", line 59, in __await__
+    self._obj = yield from self._coro.__await__()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/threadpool/__init__.py", line 92, in _open
+    f = await loop.run_in_executor(executor, cb)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json'
+2024-11-09 01:50:15,886 - Xplorer - CRITICAL - Fatal error: [Errno 2] No such file or directory: '/home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json'
+Traceback (most recent call last):
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 3450, in main
+    await config.load()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 91, in load
+    await self._load_config()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 98, in _load_config
+    await self._load_json_elements()
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 125, in _load_json_elements
+    self.TOKEN_ADDRESSES = await self._load_json_file(
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/0xplorer.py", line 179, in _load_json_file
+    async with aiofiles.open(file_path, "r") as f:
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/base.py", line 63, in __aenter__
+    return await self
+           ^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/base.py", line 59, in __await__
+    self._obj = yield from self._coro.__await__()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/system-0xbuilder/Documents/0xplorer/.venv/lib/python3.12/site-packages/aiofiles/threadpool/__init__.py", line 92, in _open
+    f = await loop.run_in_executor(executor, cb)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json'
+2024-11-09 01:50:15,887 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-09 01:52:25,142 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 01:52:28,191 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 01:52:29,210 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 01:52:31,249 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 01:52:37,363 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 01:52:37,363 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 01:52:37,366 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 01:52:37,366 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 01:52:37,367 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7f373c18d6d0>
+2024-11-09 01:52:37,368 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 01:52:37,368 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 01:52:37,368 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 01:52:37,369 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 01:52:37,369 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 01:52:37,369 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 01:52:37,369 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 01:52:37,371 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 01:52:37,371 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 01:52:37,372 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 01:52:37,372 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 01:52:37,372 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 01:52:37,372 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 01:52:37,372 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 01:52:37,373 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 01:52:37,373 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 01:52:37,373 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 01:52:37,373 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 01:52:37,373 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 01:52:37,373 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 01:52:37,373 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 01:52:37,374 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 01:52:37,374 - Xplorer - ERROR - Component initialization failed: expected str, bytes or os.PathLike object, not dict
+2024-11-09 01:52:37,374 - Xplorer - CRITICAL - Fatal error during initialization: expected str, bytes or os.PathLike object, not dict ❌
+2024-11-09 01:52:37,374 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-09 01:52:37,374 - Xplorer - INFO - Shutdown complete 👋
+2024-11-09 01:52:37,374 - Xplorer - INFO - Xplorer shutdown complete.

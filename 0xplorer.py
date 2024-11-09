@@ -2410,18 +2410,19 @@ class MarketAnalyzer:
     def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
         return self.symbol_mapping.get(token_id.lower())
 
+
 class StrategyManager:
     def __init__(
         self,
         transaction_array: TransactionArray,
         market_analyzer: MarketAnalyzer,
+        safety_net: SafetyNet,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.transaction_array = transaction_array
         self.market_analyzer = market_analyzer
         self.logger = logger or logging.getLogger(self.__class__.__name__)
 
-        # Enhanced performance tracking with more metrics
         self.strategy_performance = {
             strategy_type: {
                 "successes": 0,
@@ -2434,18 +2435,15 @@ class StrategyManager:
             for strategy_type in ["eth_transaction", "front_run", "back_run", "sandwich_attack"]
         }
 
-        # Initialize ML components and performance tracking
         self.price_model = LinearRegression()
         self.model_last_updated = 0
-        self.MODEL_UPDATE_INTERVAL = 3600  # Update model hourly
+        self.MODEL_UPDATE_INTERVAL = 3600
 
-        # Dynamic reinforcement learning weights
         self.reinforcement_weights = {
-            strategy_type: np.ones(1)  # Assuming one strategy per type initially
+            strategy_type: np.ones(len(self.get_strategies(strategy_type)))
             for strategy_type in ["eth_transaction", "front_run", "back_run", "sandwich_attack"]
         }
 
-        # Configuration parameters with adaptive thresholds
         self.config = {
             "decay_factor": 0.95,
             "min_profit_threshold": Decimal("0.01"),
@@ -2463,20 +2461,16 @@ class StrategyManager:
             return False
 
         try:
-            # Track execution time and performance
             start_time = time.time()
             selected_strategy = await self._select_best_strategy(strategies, strategy_type)
 
-            # Execute strategy with detailed profit tracking
             profit_before = await self.transaction_array.get_current_profit()
             success = await selected_strategy(target_tx)
             profit_after = await self.transaction_array.get_current_profit()
 
-            # Calculate performance metrics
             execution_time = time.time() - start_time
             profit_made = profit_after - profit_before
 
-            # Update performance metrics
             await self._update_strategy_metrics(
                 selected_strategy.__name__,
                 strategy_type,
@@ -2492,7 +2486,6 @@ class StrategyManager:
             return False
 
     def get_strategies(self, strategy_type: str) -> List[Any]:
-        """Retrieve available strategies based on the strategy type."""
         strategies_mapping = {
             "eth_transaction": [self.high_value_eth_transfer],
             "front_run": [
@@ -2517,16 +2510,13 @@ class StrategyManager:
         return strategies_mapping.get(strategy_type, [])
 
     async def _select_best_strategy(self, strategies: List[Any], strategy_type: str) -> Any:
-        """Enhanced strategy selection using performance metrics and exploration"""
         try:
             weights = self.reinforcement_weights[strategy_type]
 
-            # Apply exploration vs exploitation
             if random.random() < self.config["exploration_rate"]:
                 self.logger.debug("Using exploration for strategy selection")
                 return random.choice(strategies)
 
-            # Use softmax for better weight normalization
             exp_weights = np.exp(weights - np.max(weights))
             probabilities = exp_weights / exp_weights.sum()
 
@@ -2545,7 +2535,6 @@ class StrategyManager:
         profit: Decimal,
         execution_time: float
     ) -> None:
-        """Enhanced performance metrics tracking"""
         try:
             metrics = self.strategy_performance[strategy_type]
             metrics["total_executions"] += 1
@@ -2556,19 +2545,16 @@ class StrategyManager:
             else:
                 metrics["failures"] += 1
 
-            # Update moving averages
             metrics["avg_execution_time"] = (
                 metrics["avg_execution_time"] * self.config["decay_factor"] + execution_time * (1 - self.config["decay_factor"])
             )
             metrics["success_rate"] = metrics["successes"] / metrics["total_executions"]
 
-            # Update reinforcement weights with more sophisticated approach
             strategy_index = self.get_strategy_index(strategy_name, strategy_type)
             if strategy_index >= 0:
                 reward = self._calculate_reward(success, profit, execution_time)
                 self._update_reinforcement_weight(strategy_type, strategy_index, reward)
 
-            # Store historical data
             self.history_data.append({
                 "timestamp": time.time(),
                 "strategy_name": strategy_name,
@@ -2582,7 +2568,6 @@ class StrategyManager:
             self.logger.error(f"Error updating metrics: {str(e)}", exc_info=True)
 
     def get_strategy_index(self, strategy_name: str, strategy_type: str) -> int:
-        """Retrieve the index of a strategy within its type."""
         strategies = self.get_strategies(strategy_type)
         for index, strategy in enumerate(strategies):
             if strategy.__name__ == strategy_name:
@@ -2590,32 +2575,27 @@ class StrategyManager:
         return -1
 
     def _calculate_reward(self, success: bool, profit: Decimal, execution_time: float) -> float:
-        """Sophisticated reward calculation considering multiple factors"""
         base_reward = float(profit) if success else -0.1
-        time_penalty = -0.01 * execution_time  # Penalize long execution times
+        time_penalty = -0.01 * execution_time
         return base_reward + time_penalty
 
     def _update_reinforcement_weight(self, strategy_type: str, index: int, reward: float) -> None:
-        """Update weights using exponential moving average"""
         current_weight = self.reinforcement_weights[strategy_type][index]
         new_weight = current_weight * (1 - self.config["learning_rate"]) + reward * self.config["learning_rate"]
         self.reinforcement_weights[strategy_type][index] = max(0.1, new_weight)
 
     async def predict_price_movement(self, token_symbol: str) -> float:
-        """Enhanced price prediction with model updates and validation"""
         try:
             current_time = time.time()
 
-            # Update model periodically
             if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
                 prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
-                if len(prices) > 10:  # Ensure sufficient data
+                if len(prices) > 10:
                     X = np.arange(len(prices)).reshape(-1, 1)
                     y = np.array(prices)
                     self.price_model.fit(X, y)
                     self.model_last_updated = current_time
 
-            # Make prediction
             prices = await self.market_analyzer.fetch_historical_prices(token_symbol, days=1)
             next_time = np.array([[len(prices)]])
             predicted_price = self.price_model.predict(next_time)[0]
@@ -2630,7 +2610,6 @@ class StrategyManager:
     async def high_value_eth_transfer(self, target_tx: Dict[str, Any]) -> bool:
         self.logger.info("Initiating High-Value ETH Transfer Strategy... 🏃💨")
         try:
-            # Check if it's a high-value ETH transfer
             eth_value_in_wei = target_tx.get("value", 0)
             if eth_value_in_wei > self.transaction_array.web3.to_wei(10, "ether"):
                 eth_value_in_eth = self.transaction_array.web3.from_wei(
@@ -2639,7 +2618,6 @@ class StrategyManager:
                 self.logger.info(
                     f"High-value ETH transfer detected: {eth_value_in_eth} ETH 🏃"
                 )
-                # Proceed with handling the ETH transaction (e.g., front-running)
                 return await self.transaction_array.handle_eth_transaction(target_tx)
             self.logger.info(
                 "ETH transaction does not meet the high-value criteria. Skipping... ⚠️"
@@ -2701,7 +2679,7 @@ class StrategyManager:
                     f"Current price not available for {token_symbol} in Predictive Front-Run Strategy. ❗"
                 )
                 return False
-            if predicted_price > float(current_price) * 1.01:  # 1% profit margin
+            if predicted_price > float(current_price) * 1.01:
                 self.logger.info(
                     "Predicted price increase exceeds threshold, proceeding with predictive front-run."
                 )
@@ -2814,7 +2792,7 @@ class StrategyManager:
                 )
                 return False
             predicted_price = await self.predict_price_movement(token_symbol)
-            if predicted_price < float(current_price) * 0.99:  # 1% profit margin
+            if predicted_price < float(current_price) * 0.99:
                 self.logger.info(
                     "Predicted price decrease exceeds threshold, proceeding with price dip back-run."
                 )
@@ -2834,7 +2812,7 @@ class StrategyManager:
                 target_tx
             ) * Decimal(
                 "0.02"
-            )  # Assume 2% profit margin
+            )
             if estimated_profit > self.config["min_profit_threshold"]:
                 self.logger.info(
                     "Estimated profit meets threshold, proceeding with flashloan back-run."
@@ -2847,199 +2825,318 @@ class StrategyManager:
             return False
 
     async def high_volume_back_run(self, target_tx: Dict[str, Any]) -> bool:
+        """Execute high volume back-run strategy with enhanced volume analysis."""
         self.logger.info("Initiating High Volume Back-Run Strategy... 🔙🏃")
         try:
-            token_volume = await self.market_analyzer.get_token_volume(target_tx["to"])
-            if token_volume > 1_000_000:  # Check if volume is high
-                self.logger.info(
-                    "High volume detected, proceeding with high volume back-run."
-                )
+            # Get multiple volume metrics for better analysis
+            token_address = target_tx.get("to")
+            token_symbol = await self.market_analyzer.get_token_symbol(token_address)
+            if not token_symbol:
+                self.logger.warning(f"Could not find token symbol for {token_address}")
+                return False
+
+            # Get 24h volume data
+            volume_24h = await self.market_analyzer.get_token_volume(token_symbol)
+            
+            # Define volume thresholds based on token type
+            volume_threshold = self._get_volume_threshold(token_symbol)
+            
+            if volume_24h > volume_threshold:
+                self.logger.info(f"High volume detected ({volume_24h:,.2f} USD), proceeding with back-run")
                 return await self.transaction_array.back_run(target_tx)
-            self.logger.info("Volume not favorable for high volume back-run. Skipping.")
-            return False
-        except Exception as e:
-            self.logger.error(f"Error executing High Volume Back-Run Strategy: {e} ❌")
+                
+            self.logger.info(f"Volume ({volume_24h:,.2f} USD) below threshold ({volume_threshold:,.2f} USD)")
             return False
 
+        except Exception as e:
+            self.logger.error(f"High Volume Back-Run failed: {str(e)}", exc_info=True)
+            return False
+
+    def _get_volume_threshold(self, token_symbol: str) -> float:
+        """Get appropriate volume threshold based on token."""
+        # Default thresholds based on token type
+        thresholds = {
+            'WETH': 5_000_000,  # $5M for major tokens
+            'USDT': 10_000_000,
+            'USDC': 10_000_000,
+            'default': 1_000_000  # $1M default threshold
+        }
+        return thresholds.get(token_symbol, thresholds['default'])
+
     async def advanced_back_run(self, target_tx: Dict[str, Any]) -> bool:
+        """Execute advanced back-run strategy with comprehensive market analysis."""
         self.logger.info("Initiating Advanced Back-Run Strategy... 🔙🏃💨")
+        try:
+            # Validate and decode transaction
+            tx_data = await self._validate_and_decode_transaction(target_tx)
+            if not tx_data:
+                return False
+
+            # Enhanced market analysis
+            market_metrics = await self._analyze_market_conditions(tx_data)
+            if not market_metrics:
+                return False
+
+            # Evaluate execution conditions
+            should_execute = await self._evaluate_back_run_conditions(market_metrics)
+            
+            if should_execute:
+                self.logger.info("Market conditions favorable for advanced back-run")
+                return await self.transaction_array.back_run(target_tx)
+
+            self.logger.info("Market conditions unfavorable for advanced back-run")
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Advanced Back-Run failed: {str(e)}", exc_info=True)
+            return False
+
+    async def flash_profit_sandwich(self, target_tx: Dict[str, Any]) -> bool:
+        """Execute flash loan sandwich strategy with profit optimization."""
+        self.logger.info("Initiating Flash Profit Sandwich Strategy... 🥪🏃")
+        try:
+            # Calculate potential profit with slippage consideration
+            profit_analysis = await self._analyze_potential_profit(target_tx)
+            if not profit_analysis['profitable']:
+                self.logger.info("Insufficient profit potential for flash sandwich")
+                return False
+
+            # Check gas costs and network conditions
+            if not await self._validate_network_conditions():
+                return False
+
+            self.logger.info(f"Executing sandwich with estimated profit: {profit_analysis['estimated_profit']:.4f} ETH")
+            return await self.transaction_array.execute_sandwich_attack(target_tx)
+
+        except Exception as e:
+            self.logger.error(f"Flash Profit Sandwich failed: {str(e)}", exc_info=True)
+            return False
+    
+    async def _validate_network_conditions(self) -> bool:
+        """Validate network conditions for sandwich attack."""
+        try:
+            gas_price = await self.transaction_array.get_dynamic_gas_price()
+            if gas_price > 200:
+                self.logger.warning(f"Gas price too high for sandwich attack: {gas_price} Gwei")
+                return False # Skip if gas price is too high
+        
+            return True
+        
+        except Exception as e:
+            self.logger.error(f"Network conditions validation failed: {str(e)}", exc_info=True)
+            return False
+        
+
+    async def price_boost_sandwich(self, target_tx: Dict[str, Any]) -> bool:
+        """Execute price boost sandwich strategy with enhanced price analysis."""
+        self.logger.info("Initiating Price Boost Sandwich Strategy... 🥪🏃")
+        try:
+            # Get comprehensive price data
+            price_data = await self._get_price_analysis(target_tx)
+            if not price_data:
+                return False
+
+            # Analyze price momentum and volatility
+            momentum = await self._analyze_price_momentum(price_data)
+            if momentum > 0.02:  # 2% positive momentum threshold
+                self.logger.info(f"Strong price momentum detected: {momentum:.2%}")
+                return await self.transaction_array.execute_sandwich_attack(target_tx)
+
+            self.logger.info(f"Insufficient price momentum: {momentum:.2%}")
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Price Boost Sandwich failed: {str(e)}", exc_info=True)
+            return False
+    async def _analyze_price_momentum(self, price_data: Dict[str, Any]) -> float:
+        """Analyze price momentum based on historical price data."""
+        try:
+            prices = price_data.get("prices", [])
+            if not prices:
+                self.logger.warning("No price data found for momentum analysis")
+                return 0.0
+
+            price_changes = [prices[i] / prices[i - 1] - 1 for i in range(1, len(prices))]
+            momentum = sum(price_changes) / len(price_changes)
+
+            return momentum
+
+        except Exception as e:
+            self.logger.error(f"Price momentum analysis failed: {str(e)}", exc_info=True)
+            return 0.0
+        
+    async def _get_price_analysis(self, target_tx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Get price analysis for price boost sandwich strategy."""
         try:
             decoded_tx = await self.transaction_array.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
             if not decoded_tx:
-                self.logger.warning(
-                    "Failed to decode transaction input for Advanced Back-Run Strategy. ❗"
-                )
-                return False
+                self.logger.warning("Failed to decode transaction input for price boost sandwich")
+                return None
+
             params = decoded_tx.get("params", {})
             path = params.get("path", [])
             if not path:
-                self.logger.warning(
-                    "Transaction has no path parameter for Advanced Back-Run Strategy. ❗"
-                )
-                return False
-            token_address = path[-1]
-            token_symbol = await self.market_analyzer.get_token_symbol(token_address)
+                self.logger.warning("Transaction has no path parameter for price boost sandwich")
+                return None
+
+            token_symbol = await self.market_analyzer.get_token_symbol(path[0])
             if not token_symbol:
-                self.logger.warning(
-                    f"Token symbol not found for address {token_address} in Advanced Back-Run Strategy. ❗"
-                )
-                return False
-            current_price = await self.market_analyzer.get_current_price(token_symbol)
-            if current_price is None:
-                self.logger.warning(
-                    f"Current price not available for {token_symbol} in Advanced Back-Run Strategy. ❗"
-                )
-                return False
-            predicted_price = await self.predict_price_movement(token_symbol)
-            market_conditions = await self.market_analyzer.check_market_conditions(
-                target_tx["to"]
-            )
-            if (
-                predicted_price < float(current_price) * 0.98
-            ) and market_conditions.get("bearish_trend", False):
-                self.logger.info(
-                    "Favorable price and bearish trend detected, proceeding with advanced back-run."
-                )
-                return await self.transaction_array.back_run(target_tx)
-            self.logger.info(
-                "Conditions not favorable for advanced back-run. Skipping."
-            )
-            return False
-        except Exception as e:
-            self.logger.error(f"Error executing Advanced Back-Run Strategy: {e} ❌")
-            return False
+                self.logger.warning(f"Token symbol not found for address {path[0]}")
+                return None
 
-    async def flash_profit_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-        self.logger.info("Initiating Flash Profit Sandwich Strategy... 🥪🏃")
-        try:
-            potential_profit = self.transaction_array.calculate_flashloan_amount(
-                target_tx
-            )
-            if potential_profit > self.config["min_profit_threshold"]:
-                self.logger.info(
-                    "Potential profit meets threshold, proceeding with flash profit sandwich attack."
-                )
-                return await self.transaction_array.execute_sandwich_attack(target_tx)
-            self.logger.info(
-                "Conditions not met for flash profit sandwich attack. Skipping."
-            )
-            return False
-        except Exception as e:
-            self.logger.error(f"Error executing Flash Profit Sandwich Strategy: {e} ❌")
-            return False
+            historical_prices = await self.market_analyzer.fetch_historical_prices(token_symbol)
+            if not historical_prices:
+                self.logger.warning(f"No historical prices found for {token_symbol}")
+                return None
 
-    async def price_boost_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-        self.logger.info("Initiating Price Boost Sandwich Strategy... 🥪🏃")
-        try:
-            token_symbol = await self.market_analyzer.get_token_symbol(target_tx["to"])
-            current_price = await self.market_analyzer.get_current_price(token_symbol)
-            if current_price is None:
-                self.logger.warning(
-                    f"Current price not available for {token_symbol} in Price Boost Sandwich Strategy. ❗"
-                )
-                return False
-            predicted_price = await self.predict_price_movement(token_symbol)
-            if predicted_price > float(current_price) * 1.02:  # 2% profit margin
-                self.logger.info(
-                    "Favorable price detected, proceeding with price boost sandwich attack."
-                )
-                return await self.transaction_array.execute_sandwich_attack(target_tx)
-            self.logger.info(
-                "Price conditions not favorable for price boost sandwich attack. Skipping."
-            )
-            return False
+            return {
+                "symbol": token_symbol,
+                "prices": historical_prices
+            }
+
         except Exception as e:
-            self.logger.error(f"Error executing Price Boost Sandwich Strategy: {e} ❌")
-            return False
+            self.logger.error(f"Price analysis failed: {str(e)}", exc_info=True)
+            return None
 
     async def arbitrage_sandwich(self, target_tx: Dict[str, Any]) -> bool:
+        """Execute arbitrage sandwich strategy with cross-exchange analysis."""
         self.logger.info("Initiating Arbitrage Sandwich Strategy... 🥪🏃")
         try:
-            if await self.market_analyzer.is_arbitrage_opportunity(target_tx):
-                self.logger.info(
-                    "Arbitrage opportunity detected, proceeding with arbitrage sandwich attack."
-                )
+            # Check arbitrage opportunities across multiple exchanges
+            arb_opportunities = await self._analyze_arbitrage_opportunities(target_tx)
+            
+            if arb_opportunities['profitable']:
+                self.logger.info(f"Arbitrage opportunity found: {arb_opportunities['profit_percentage']:.2%} spread")
                 return await self.transaction_array.execute_sandwich_attack(target_tx)
-            self.logger.info(
-                "No arbitrage opportunity detected. Skipping arbitrage sandwich attack."
-            )
+
+            self.logger.info("No profitable arbitrage opportunity found")
             return False
+
         except Exception as e:
-            self.logger.error(f"Error executing Arbitrage Sandwich Strategy: {e} ❌")
+            self.logger.error(f"Arbitrage Sandwich failed: {str(e)}", exc_info=True)
             return False
 
     async def advanced_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
+        """Execute advanced sandwich attack with comprehensive risk management."""
         self.logger.info("Initiating Advanced Sandwich Attack Strategy... 🥪🏃💨")
         try:
-            potential_profit = self.transaction_array.calculate_flashloan_amount(
-                target_tx
-            )
-            market_conditions = await self.market_analyzer.check_market_conditions(
-                target_tx["to"]
-            )
-            if (potential_profit > Decimal("0.02")) and market_conditions.get(
-                "high_volatility", False
-            ):
-                self.logger.info(
-                    "Conditions favorable for advanced sandwich attack, executing."
-                )
+            # Comprehensive analysis
+            analysis_result = await self._comprehensive_sandwich_analysis(target_tx)
+            if not analysis_result['executable']:
+                self.logger.info(f"Sandwich attack not viable: {analysis_result['reason']}")
+                return False
+
+            # Execute if conditions are met
+            if analysis_result['confidence'] > 0.8:  # 80% confidence threshold
+                self.logger.info(f"Executing sandwich attack with {analysis_result['confidence']:.1%} confidence")
                 return await self.transaction_array.execute_sandwich_attack(target_tx)
-            self.logger.info(
-                "Conditions not favorable for advanced sandwich attack. Skipping."
-            )
+
             return False
+
         except Exception as e:
-            self.logger.error(
-                f"Error executing Advanced Sandwich Attack Strategy: {e} ❌"
-            )
+            self.logger.error(f"Advanced Sandwich Attack failed: {str(e)}", exc_info=True)
             return False
 
     async def _determine_strategy_type(self, target_tx: Dict[str, Any]) -> Optional[str]:
-        """Enhanced strategy type determination with market analysis"""
+        """Determine optimal strategy type based on comprehensive analysis."""
         try:
-            # Analyze transaction value
-            tx_value = target_tx.get("value", 0)
-            if tx_value > self.transaction_array.web3.to_wei(10, "ether"):
-                return "eth_transaction"
-
-            # Get market conditions and metrics
-            market_conditions = await self.market_analyzer.check_market_conditions(target_tx["to"])
-            is_arbitrage = await self.market_analyzer.is_arbitrage_opportunity(target_tx)
-
-            # Make decision based on multiple factors
-            if market_conditions.get("high_volatility", False) and tx_value > self.transaction_array.web3.to_wei(1, "ether"):
-                return "sandwich_attack"
-            elif is_arbitrage:
-                return "front_run" if market_conditions.get("bullish_trend", False) else "back_run"
-            elif tx_value > self.transaction_array.web3.to_wei(1, "ether"):
-                return "front_run"
-
-            return None
+            # Get transaction metrics
+            tx_metrics = await MonitorArray.analyze_transaction(target_tx)
+            
+            # Get market conditions
+            market_conditions = await MarketAnalyzer.check_market_conditions(tx_metrics)
+            
+            # Calculate optimal strategy
+            strategy = await self._select_best_strategy(tx_metrics, market_conditions)
+            
+            return strategy
 
         except Exception as e:
-            self.logger.error(f"Strategy type determination failed: {str(e)}", exc_info=True)
+            self.logger.error(f"Strategy determination failed: {str(e)}", exc_info=True)
             return None
 
     async def execute_strategy_for_transaction(self, target_tx: Dict[str, Any]) -> bool:
-        strategy_type = await self._determine_strategy_type(target_tx)
-        if strategy_type:
+        """Execute optimal strategy for given transaction with enhanced monitoring."""
+        try:
+            # Get strategy type
+            strategy_type = await self._determine_strategy_type(target_tx)
+            if not strategy_type:
+                return False
+
+            # Execute with monitoring
+            execution_start = time.time()
             success = await self.execute_best_strategy(target_tx, strategy_type)
-            tx_hash = target_tx.get("tx_hash", "Unknown")
-            if success:
-                self.logger.info(
-                    f"Successfully executed {strategy_type} strategy for transaction {tx_hash}. ✅"
-                )
-            else:
-                self.logger.warning(
-                    f"Failed to execute {strategy_type} strategy for transaction {tx_hash}. ⚠️"
-                )
+            execution_time = time.time() - execution_start
+
+            # Log execution metrics
+            await MonitorArray._log_transaction_details(target_tx, strategy_type, success, execution_time)
+
             return success
-        self.logger.debug(
-            f"No suitable strategy found for transaction {target_tx.get('tx_hash', '')}."
-        )
-        return False
+
+        except Exception as e:
+            self.logger.error(f"Strategy execution failed: {str(e)}", exc_info=True)
+            return False
+    
+    async def _validate_and_decode_transaction(self, target_tx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Validate and decode transaction input for advanced back-run strategy."""
+        try:
+            decoded_tx = await self.transaction_array.decode_transaction_input(
+                target_tx["input"], target_tx["to"]
+            )
+            if not decoded_tx:
+                self.logger.warning("Failed to decode transaction input for advanced back-run")
+                return None
+            return decoded_tx
+
+        except Exception as e:
+            self.logger.error(f"Transaction validation failed: {str(e)}", exc_info=True)
+            return None
+        
+    async def _analyze_market_conditions(self, tx_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Analyze market conditions for advanced back-run strategy."""
+        try:
+            market_metrics = await self.market_analyzer.check_market_conditions(
+                tx_data["to"]
+            )
+            if not market_metrics:
+                self.logger.warning("Failed to analyze market conditions for advanced back-run")
+                return None
+            return market_metrics
+
+        except Exception as e:
+            self.logger.error(f"Market analysis failed: {str(e)}", exc_info=True)
+            return None
+        
+    async def _evaluate_back_run_conditions(self, market_metrics: Dict[str, Any]) -> bool:
+        """Evaluate execution conditions for advanced back-run strategy."""
+        try:
+            if market_metrics.get("high_volatility", False) and market_metrics.get("bullish_trend", False):
+                return True
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Condition evaluation failed: {str(e)}", exc_info=True)
+            return False
+    
+    async def _analyze_potential_profit(self, target_tx: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze potential profit for flash sandwich strategy."""
+        try:
+            estimated_profit = self.transaction_array.calculate_flashloan_amount(
+                target_tx
+            ) * Decimal(
+                "0.02"
+            )
+            return {
+                "profitable": estimated_profit > self.config["min_profit_threshold"],
+                "estimated_profit": estimated_profit
+            }
+
+        except Exception as e:
+            self.logger.error(f"Profit analysis failed: {str(e)}", exc_info=True)
+            return {"profitable": False, "estimated_profit": Decimal("0")}
+    
 
 class Xplorer:
     """

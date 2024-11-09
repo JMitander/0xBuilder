@@ -66,8 +66,9 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 - **Dynamic Gas Pricing**: Adjusts gas prices based on network conditions to optimize transaction inclusion and costs.
 - **Nonce Management**: Manages nonces effectively to prevent transaction failures due to nonce collisions.
 - **Safety Mechanisms**: Includes safety checks and validations to manage risks and ensure profitability.
+- **Smart Contract Interactions**: Interacts with various DeFi protocols, including Uniswap, Aave, Sushiswap, PancakeSwap, and Balancer.
 - **Transaction Bundling**: Groups multiple transactions into a single block for efficiency.
-- **API Integration**: Connects to various APIs for blockchain data, pricing, and market information.
+- **API Integration**: Connects to various APIs for blockchain data, pricing, and market data.
 - **Configurable Parameters**: Allows users to adjust parameters, strategies, and risk levels based on preferences.
 - **Detailed Logging**: Provides detailed logs of bot activities, transactions, and strategies for analysis and debugging.
 - **Customizable**: Supports multiple wallets, tokens, and trading pairs, with the ability to add new strategies and features.
@@ -81,8 +82,9 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 /0xplorer/
 ├── Config/
 │   └── Config.py               # Configuration management
+|   └── ApiClient.py            # API client for external data sources
 ├── Core/
-│   ├── 0xplorer.py             # Main bot script
+│   ├── Xplorer.py             # Main bot script
 │   ├── NonceManager.py         # Manages Ethereum nonces
 │   ├── StrategyManager.py      # Handles trading strategies
 │   └── TransactionArray.py     # Builds and sends transaction bundles
@@ -122,79 +124,91 @@ Before running 0xplorer, ensure you have the following:
 
 ### System Requirements
 
-- **Operating System**: Ubuntu 20.04 LTS or later recommended (Windows and macOS are also supported)
-- **Python Version**: Python 3.8 or higher
-- **Node.js**: Required for deploying smart contracts via Truffle or Hardhat (optional)
-- **Geth**: Go Ethereum client for running a full Ethereum node
-- **Internet Connection**: Stable and fast internet connection
+- **Operating System**: Ubuntu 22.04 LTS or later (Windows 11 and macOS Ventura also supported)
+- **Python**: Version 3.12 or higher
+- **Node.js**: Version 18 LTS or higher (required for smart contract deployment)
+- **Geth**: Latest stable version for running a full Ethereum node
+- **Internet**: High-speed connection with minimum 50Mbps upload/download
+- **Hardware**:
+   - CPU: 4+ cores, 3.0GHz or faster
+   - RAM: 16GB minimum, 32GB recommended
+   - Storage: 2TB NVMe SSD recommended
+   - Network: Low-latency ethernet connection
 
 ### Software Dependencies
 
-- **Ethereum Node**: A fully synchronized execution client (e.g., Geth, Nethermind)
-- **Beacon Node (for Ethereum 2.0)**: Prysm or Lighthouse
-- **Python Packages**: Listed in `requirements.txt`
-- **Solidity Compiler**: For compiling smart contracts (solc)
+Primary Components:
+- **Execution Client**: Latest version of Geth, Nethermind, or Besu
+- **Consensus Client**: Latest version of Prysm or Lighthouse
+- **Development Tools**:
+   - solc v0.8.19 or higher
+   - web3.py v6.0 or higher
+   - ethers.js v6.0 or higher
+   - All Python packages from requirements.txt
+
+Additional Requirements:
+- **Git**: Latest stable version for version control
+- **Docker**: Latest stable version (optional, for containerization)
+- **Build Tools**: make, gcc, and platform-specific compilers
 
 ### Ethereum Node Setup
 
-Set up an Ethereum node using one of the following clients:
+Choose and set up an execution client (EL) compatible with the Ethereum network:
 
-| Client                                                                   | Language   | Operating Systems     | Networks                  | Sync Strategies   |
-| ------------------------------------------------------------------------ | ---------- | --------------------- | ------------------------- | ----------------- |
-| [Geth](https://geth.ethereum.org/)                                       | Go         | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Full        |
-| [Nethermind](https://www.nethermind.io/)                                 | C#, .NET   | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Fast, Full  |
-| [Besu](https://besu.hyperledger.org/en/stable/)                          | Java       | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Fast, Full  |
-| [Erigon](https://github.com/ledgerwatch/erigon)                          | Go         | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Full              |
-| [Reth](https://reth.rs/)                                                 | Rust       | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Full              |
-| [EthereumJS](https://github.com/ethereumjs/ethereumjs-monorepo) _(beta)_ | TypeScript | Linux, Windows, macOS | Sepolia, Holesky          | Full              |
+| Client | Language | OS Support | Networks | Sync Methods |
+|--------|----------|------------|----------|--------------|
+| [Geth](https://geth.ethereum.org/) | Go | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Full |
+| [Nethermind](https://www.nethermind.io/) | C#/.NET | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Fast, Full |
+| [Besu](https://besu.hyperledger.org/) | Java | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Fast, Full |
+| [Erigon](https://github.com/ledgerwatch/erigon) | Go | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Full |
+| [Reth](https://reth.rs/) | Rust | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Full |
+| [EthereumJS](https://github.com/ethereumjs/ethereumjs-monorepo) | TypeScript | Linux, Windows, macOS | Sepolia, Holesky | Full |
 
-#### Setting Up Geth
+#### Geth Configuration
 
-1. **Install Geth**:
+1. **Installation**:
+   Follow the official [Geth installation guide](https://geth.ethereum.org/docs/install-and-build/installing-geth).
 
-   For detailed instructions, refer to the [Geth installation guide](https://geth.ethereum.org/docs/install-and-build/installing-geth).
-
-2. **Start the Geth Node**:
-
+2. **Launch Node**:
    ```bash
-   geth --mainnet --syncmode "snap" --http --http.api eth,net,web3,txpool --ws --ws.api eth,net,web3,txpool --ipcpath /path/to/geth.ipc --maxpeers 100 --http.corsdomain "*" --cache 4096
+   geth --mainnet \
+     --syncmode "snap" \
+     --http \
+     --http.api "eth,net,web3,txpool" \
+     --ws \
+     --ws.api "eth,net,web3,txpool" \
+     --maxpeers 100 \
+     --cache 8192 \
+     --ipcpath "/path/to/geth.ipc"
    ```
 
-3. **Verify Synchronization**:
-
-   Attach to Geth:
-
+3. **Monitor Sync**:
    ```bash
+   # Connect to node
    geth attach ipc:/path/to/geth.ipc
+
+   # Check sync status
+   > eth.syncing
    ```
 
-   Check sync status:
+#### Beacon Node Setup
 
-   ```javascript
-   eth.syncing
-   ```
+For PoS consensus layer, install either:
 
-   Wait until synchronization is complete before running the bot.
+- [Prysm](https://docs.prylabs.network/docs/getting-started)
+- [Lighthouse](https://lighthouse-book.sigmaprime.io/installation.html)
 
-#### Setting Up a Beacon Node
+### Required API Keys
 
-For Ethereum 2.0 interactions, set up a beacon node using Prysm or Lighthouse.
+Create accounts and obtain API keys from:
 
-- **Prysm**: [Prysm Installation Guide](https://docs.prylabs.network/docs/getting-started)
-- **Lighthouse**: [Lighthouse Installation Guide](https://lighthouse-book.sigmaprime.io/installation.html)
+- [Infura](https://infura.io/) - RPC endpoints
+- [Etherscan](https://etherscan.io/) - Transaction data
+- [CoinGecko](https://www.coingecko.com/api) - Price feeds
+- [CoinMarketCap](https://coinmarketcap.com/api/) - Market data
+- [CryptoCompare](https://min-api.cryptocompare.com/) - Real-time prices
 
-### API Keys and Providers
-
-- **Wallet Address**: An Ethereum wallet with sufficient funds for trading and gas fees.
-- **Private Key**: For signing transactions and interacting with the Ethereum network.
-- **API Providers**: Register and obtain API keys from:
-
-  - [Infura](https://infura.io/register)
-  - [Etherscan](https://etherscan.io/register)
-  - [CoinGecko](https://www.coingecko.com/en/api)
-  - [CoinMarketCap](https://coinmarketcap.com/api/)
-  - [CryptoCompare](https://min-api.cryptocompare.com/)
-
+Ensure that all API keys are stored securely and not shared publicly.
 ## Installation
 
 ### Cloning the Repository
@@ -206,270 +220,300 @@ cd 0xplorer
 
 ### Setting up Virtual Environment
 
-It's recommended to use a virtual environment to manage dependencies.
+Using a virtual environment is strongly recommended to manage dependencies and avoid conflicts:
 
 For Linux/MacOS:
 
 ```bash
+# Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
+
+# Verify activation
+which python
 ```
 
 For Windows:
 
-```cmd
+```powershell
+# Create and activate virtual environment
 python -m venv venv
-venv\Scripts\activate
+.\venv\Scripts\activate
+
+# Verify activation
+where python
 ```
 
 ### Installing Dependencies
 
-```bash
-pip install -r requirements.txt
-```
+Install required packages:
 
-Ensure that all packages are installed successfully.
+```bash
+# Upgrade pip to latest version
+python -m pip install --upgrade pip
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify installations
+pip list
+```
 
 ## Configuration
 
 ### Environment Variables
 
-Create a `.env` file in the root directory of the project to store your environment variables securely.
+1. Create a `.env` file in the project root:
 
 ```bash
-cp .env-example .env
+# Linux/MacOS
+cp .env.example .env
+
+# Windows
+copy .env.example .env
 ```
 
-Edit the `.env` file and provide the required values:
+2. Configure the environment variables in `.env`:
+   - Add API keys from various services
+   - Configure node endpoints
+   - Set up wallet details
+   - Define smart contract addresses
+
+3. Validate the configuration:
+
+```bash
+# Verify .env file exists and permissions
+ls -la .env
+
+# Set secure file permissions (Linux/MacOS)
+chmod 600 .env
+```
+
+Example `.env` configuration:
 
 ```ini
-# ================================ API Configuration ================================ #
+# API Configuration
 ETHERSCAN_API_KEY=your_etherscan_api_key
 INFURA_PROJECT_ID=your_infura_project_id
 COINGECKO_API_KEY=your_coingecko_api_key
 COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
 CRYPTOCOMPARE_API_KEY=your_cryptocompare_api_key
 
-# ================================ Ethereum Node Configuration ================================ #
+# Ethereum Node Configuration
 HTTP_ENDPOINT=http://127.0.0.1:8545
-WEB3_ENDPOINT=wss://127.0.0.1:8546
-WEBSOCKET_ENDPOINT=wss://127.0.0.1:8546
+WS_ENDPOINT=wss://127.0.0.1:8546
 IPC_ENDPOINT=/path/to/geth.ipc
 
-# ================================ Wallet Configuration ================================ #
-WALLET_KEY=your_private_key
+# Wallet Configuration
+PRIVATE_KEY=your_private_key
 WALLET_ADDRESS=0xYourWalletAddress
-PROFIT_ADDRESS=0xYourProfitAddress
+PROFIT_WALLET=0xYourProfitAddress
 
-# ================================ Token Configuration ================================ #
-TOKEN_ADDRESSES=Utils/token_addresses.json
-TOKEN_SYMBOLS=Utils/token_symbols.json
+# Token Configuration
+TOKEN_LIST_PATH=Utils/token_addresses.json
+TOKEN_SYMBOLS_PATH=Utils/token_symbols.json
 
-# ============================ Uniswap V2 ============================== #
-UNISWAP_V2_ROUTER_ADDRESS=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-UNISWAP_V2_ROUTER_ABI=ABI/uniswap_v2_router_ABI.json
+# DEX Router Configurations
+UNISWAP_V2_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+SUSHISWAP_ROUTER=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
+PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
+BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
 
-# ============================ Sushiswap ============================== #
-SUSHISWAP_ROUTER_ADDRESS=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
-SUSHISWAP_ROUTER_ABI=ABI/sushiswap_router_ABI.json
-
-# ============================ PancakeSwap ============================== #
-PANCAKESWAP_ROUTER_ADDRESS=0xEfF92A263d31888d860bD50809A8D171709b7b1c
-PANCAKESWAP_ROUTER_ABI=ABI/pancakeswap_router_ABI.json
-
-# ============================ Balancer ============================== #
-BALANCER_ROUTER_ADDRESS=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
-BALANCER_ROUTER_ABI=ABI/balancer_router_ABI.json
-
-# ============================ ERC20 ================================ #
+# ABI Paths
+UNISWAP_V2_ABI=ABI/uniswap_v2_router_ABI.json
+SUSHISWAP_ABI=ABI/sushiswap_router_ABI.json
+PANCAKESWAP_ABI=ABI/pancakeswap_router_ABI.json
+BALANCER_ABI=ABI/balancer_router_ABI.json
 ERC20_ABI=ABI/erc20_ABI.json
-ERC20_SIGNATURES=Utils/erc20_signatures.json
 
-# ================================ Flashloan Configuration ================================ #
-AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS=0xYourFlashloanContractAddress
-AAVE_V3_FLASHLOAN_ABI=ABI/aave_v3_flashloan_ABI.json
-AAVE_V3_LENDING_POOL_ADDRESS=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
-AAVE_V3_LENDING_POOL_ABI=ABI/aave_v3_lending_pool_ABI.json
+# Flashloan Configuration
+AAVE_V3_FLASHLOAN_CONTRACT=0xYourFlashloanContractAddress
+AAVE_V3_LENDING_POOL=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
 ```
-
 ### Configuration Files
 
-Ensure that the following JSON configuration files are present in the `Utils` directory:
+Essential JSON configuration files must be present in the `Utils` directory:
 
-- `token_addresses.json`: List of token contract addresses to monitor.
-- `token_symbols.json`: Mapping of token addresses to their symbols.
-- `erc20_signatures.json`: List of ERC20 function signatures to monitor.
+| File | Description | Format |
+|------|-------------|--------|
+| `token_addresses.json` | Actively monitored token contracts | `{"symbol": "address"}` |
+| `token_symbols.json` | Token address to symbol mapping | `{"address": "symbol"}` |
+| `erc20_signatures.json` | Common ERC20 function signatures | `{"name": "signature"}` |
+
+Verify all configuration files are properly formatted and contain valid data before starting the bot.
 
 ## Deploying the Flashloan Contract
 
-To utilize flashloans, you need to deploy a flashloan contract compatible with Aave V3 or another protocol of your choice.
+Deploy a flashloan contract compatible with Aave V3 or your preferred protocol to enable flashloan functionality.
 
-### Steps to Deploy the Contract
+### Deployment Options
 
-#### Option 1: Using Remix IDE
+#### Using Remix IDE (Recommended)
 
-1. **Open Remix IDE**: [Remix IDE](https://remix.ethereum.org/)
-2. **Create a New File**: Name it `SimpleFlashLoan.sol`
-3. **Implement Your Flashloan Logic**: Refer to Aave's documentation and examples to implement your custom flashloan contract.
-4. **Compile the Contract**:
-   - Select the appropriate Solidity compiler version.
-   - Click on the "Compile" button.
-   - Ensure there are no errors during compilation.
-5. **Deploy the Contract**:
-   - Choose "Injected Web3" as the environment to connect via MetaMask.
-   - Provide any required constructor arguments.
-   - Deploy the contract and confirm the transaction in MetaMask.
-6. **Save Contract Address**:
-   - After deployment, note the contract address.
-   - Update the `AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS` in your `.env` file.
+1. Launch [Remix IDE](https://remix.ethereum.org/)
+2. Create `SimpleFlashLoan.sol`
+3. Implement flashloan logic following Aave's specifications
+4. Compile:
+   - Select Solidity compiler v0.8.19+
+   - Verify successful compilation
+5. Deploy:
+   - Connect MetaMask via "Injected Web3"
+   - Supply constructor arguments
+   - Confirm deployment transaction
+6. Update `.env` with contract address
 
-#### Option 2: Using Truffle or Hardhat
+#### Using Development Frameworks
 
-1. **Install Truffle or Hardhat**:
-   - Truffle: [Installation Guide](https://www.trufflesuite.com/docs/truffle/getting-started/installation)
-   - Hardhat: [Installation Guide](https://hardhat.org/getting-started/)
-2. **Compile the Smart Contract**:
-   - Place your flashloan smart contract in the `Contracts` directory.
-   - Compile the contract using `truffle compile` or `npx hardhat compile`.
-3. **Deploy the Contract**:
-   - Update the deployment script with your private key and network details.
-   - Deploy the contract using `truffle migrate` or `npx hardhat run scripts/deploy.js`.
-4. **Update Configuration**:
-   - After deployment, update the `AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS` in your `.env` file.
+1. Install framework:
+   ```bash
+   # Hardhat
+   npm install --save-dev hardhat
+   # or Truffle
+   npm install -g truffle
+   ```
+2. Compile contract:
+   ```bash
+   # Hardhat
+   npx hardhat compile
+   # or Truffle
+   truffle compile
+   ```
+3. Deploy:
+   ```bash
+   # Hardhat
+   npx hardhat run scripts/deploy.js
+   # or Truffle
+   truffle migrate
+   ```
+4. Update `.env` configuration
 
-### Integrate with 0xplorer
+## API Key Setup
 
-Ensure that the ABI files are correctly placed in the `ABI` directory and that the paths in your `.env` file are accurate.
+Register and obtain API keys from:
 
-## Obtaining API Keys
+1. [Etherscan](https://etherscan.io/apis)
+2. [Infura](https://infura.io/register)
+3. [CoinGecko](https://www.coingecko.com/en/api)
+4. [CoinMarketCap](https://pro.coinmarketcap.com/signup)
+5. [CryptoCompare](https://www.cryptocompare.com/cryptopian/api-keys)
 
-To access data from various APIs, you need to register and obtain API keys.
-
-### Etherscan API Key
-
-Register at [Etherscan](https://etherscan.io/apis) and obtain an API key.
-
-### Infura Project ID
-
-Register at [Infura](https://infura.io/register) and create a project to get the Project ID.
-
-### CoinGecko API Key
-
-Visit [CoinGecko API](https://www.coingecko.com/en/api) to obtain an API key.
-
-### CoinMarketCap API Key
-
-Register at [CoinMarketCap](https://pro.coinmarketcap.com/signup) for an API key.
-
-### CryptoCompare API Key
-
-Register at [CryptoCompare](https://www.cryptocompare.com/cryptopian/api-keys) to get an API key.
-
-### Updating the `.env` File
-
-Add all your API keys to the `.env` file:
-
+Add keys to `.env`:
 ```ini
-ETHERSCAN_API_KEY=your_etherscan_api_key
-INFURA_PROJECT_ID=your_infura_project_id
-COINGECKO_API_KEY=your_coingecko_api_key
-COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
-CRYPTOCOMPARE_API_KEY=your_cryptocompare_api_key
+ETHERSCAN_API_KEY=your_key
+INFURA_PROJECT_ID=your_id
+COINGECKO_API_KEY=your_key
+COINMARKETCAP_API_KEY=your_key
+CRYPTOCOMPARE_API_KEY=your_key
 ```
 
-## Running the Bot
+## Bot Operation
 
-### Start Your Ethereum Node
+### Prerequisites
+- Synchronized Ethereum node
+- Active beacon node
+- Configured environment variables
+- Valid API keys
 
-Ensure that your Geth node and beacon node are running and fully synchronized.
+### Launch Sequence
 
-### Activate Virtual Environment
+1. Activate environment:
+   ```bash
+   source venv/bin/activate
+   ```
 
-```bash
-source venv/bin/activate
-```
-
-### Run the Bot
-
-```bash
-python Core/0xplorer.py
-```
-
-Replace `Core/0xplorer.py` with the path to your main bot script if different.
+2. Start bot:
+   ```bash
+   python Core/0xplorer.py
+   ```
 
 ### Monitoring
 
-- **Logs**: Check `Logs/0xplorer_log.txt` for detailed logs.
-- **Console Output**: The bot will output important information and statuses to the console.
+- Check `Logs/0xplorer_log.txt` for detailed operation logs
+- Monitor console output for real-time status
+- Use `Ctrl+C` for graceful shutdown
 
-### Stopping the Bot
+### Performance Optimization
 
-Press `Ctrl+C` to safely stop the bot. It will finish the current operation and shut down gracefully.
+- Keep node fully synced
+- Monitor API rate limits
+- Maintain sufficient ETH balance
+- Regularly check log files
+- Update dependencies as needed
 
 ## Strategies
 
-0xplorer employs several advanced trading strategies to exploit profitable opportunities on the Ethereum network:
+0xplorer implements several sophisticated trading strategies to capitalize on profitable opportunities within the Ethereum network:
 
-- **Front-Running**: Places a higher-priority transaction before a detected one.
-- **Back-Running**: Executes a transaction immediately after a profitable one.
-- **Sandwich Attacks**: Combines front-running and back-running around a target transaction.
-- **Flashloans**: Utilizes borrowed assets for arbitrage without initial capital.
-- **Nonce Management**: Ensures nonces are correctly ordered to avoid collisions.
-- **Dynamic Gas Pricing**: Adjusts gas prices based on real-time network conditions.
-- **Market Analysis**: Analyzes market data for profitable opportunities.
-- **Safety Checks**: Validates transactions and ensures they meet predefined criteria.
-- **Transaction Bundling**: Groups multiple transactions into a single block for efficiency.
+### Core Strategies
+- **Front-Running**: Executes higher-priority transactions ahead of detected profitable transactions
+- **Back-Running**: Places transactions immediately after identified profitable transactions
+- **Sandwich Attacks**: Employs coordinated front-running and back-running around target transactions
+- **Flashloan Arbitrage**: Leverages borrowed assets for zero-capital arbitrage opportunities
+
+### Technical Components
+- **Nonce Management System**: Maintains precise transaction ordering while preventing nonce collisions
+- **Dynamic Gas Optimization**: Automatically adjusts gas prices based on network conditions
+- **Real-time Market Analysis**: Processes market data to identify profitable trading opportunities
+- **Multi-layer Safety Protocol**: Implements comprehensive transaction validation and risk assessment
+- **Transaction Bundling Engine**: Optimizes efficiency by grouping multiple transactions per block
 
 ## Logging
 
-Logs are stored in `Logs/0xplorer_log.txt`. They include:
+The bot maintains detailed logs in `Logs/0xplorer_log.txt`, including:
 
-- Detected profitable transactions
-- Strategy execution details
-- Errors and exceptions
-- Transaction details and results
+- Profitable transaction detection events
+- Strategy execution metrics
+- System errors and exceptions
+- Detailed transaction results
 
-Configure logging in `Core/0xplorer.py` within the `setup_logging()` function.
+Logging configuration can be customized in `Core/0xplorer.py` through the `setup_logging()` function.
 
 ## Troubleshooting
 
-### Common Issues
+### Common Issues and Solutions
 
-- **Connection Errors**: Ensure your Ethereum node is running and accessible via the endpoints specified.
-- **API Rate Limits**: Be mindful of API rate limits; consider implementing rate limiting in your code.
-- **Insufficient Funds**: Ensure your wallet has enough ETH to cover gas fees.
-- **Invalid Nonce**: If you encounter nonce errors, reset the nonce manager or synchronize nonces.
-- **Synchronization Issues**: Wait for your Ethereum node to be fully synchronized before running the bot.
+| Issue | Solution |
+|-------|----------|
+| Node Connection Failures | Verify Ethereum node status and endpoint configuration |
+| API Rate Limit Exceeded | Implement request throttling or upgrade API tier |
+| Insufficient Gas Balance | Maintain adequate ETH for transaction fees |
+| Nonce Synchronization | Reset nonce manager or manually synchronize |
+| Node Sync Status | Ensure full node synchronization before operation |
 
-### Tips
+### Debug Tips
 
-- **Verbose Logging**: Increase logging verbosity for debugging.
-- **Check Dependencies**: Ensure all Python packages are up-to-date.
-- **Smart Contract Verification**: Verify your flashloan contract on Etherscan for transparency.
-- **Testnet Testing**: Test the bot on a testnet (e.g., Ropsten, Rinkeby) before deploying to mainnet.
+1. Enable verbose logging for detailed debugging
+2. Maintain updated dependencies
+3. Verify smart contract deployment on block explorers
+4. Test thoroughly on testnets before mainnet deployment
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-- **Report Issues**: Use the GitHub issue tracker for bugs and feature requests.
-- **Pull Requests**: Submit pull requests for improvements or fixes.
-- **Code Style**: Follow PEP 8 guidelines and ensure code passes linting.
-- **Testing**: Write unit tests for new features or bug fixes.
+### Contribution Process
+1. Fork the repository
+2. Create a feature branch
+3. Follow PEP 8 style guidelines
+4. Include unit tests
+5. Submit pull request
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). You are free to use, modify, and distribute the code with proper attribution.
+Licensed under the [MIT License](LICENSE). See LICENSE file for details.
 
 ## Disclaimer
 
-**Warning**: This software is provided "as is" and is intended for educational and research purposes only. Use it at your own risk. The developers are not responsible for any financial losses or legal issues that may arise from using this software.
+**IMPORTANT**: This software is provided for educational and research purposes only. Use at your own risk.
 
-- **Ethical Considerations**: strategies used by this bot may be considered unethical. Use at your own discretion.
-- **Security**: Safeguard your keys and do not share them, especially with your girlfriend. Sharing with your dog might be fine, but not your cat.cats are sneaky and can't be trusted 🐱
+### Risk Factors
+- Trading strategies may be considered aggressive or unethical
+- Cryptocurrency trading carries significant financial risk
+- Smart contract interactions may contain unforeseen vulnerabilities
 
-   ![cat](https://cdn.comic.studio/avatars/20110.0331859230d895fadf990ef9e6909c76.png)
-- **Risk of Loss**: Trading cryptocurrencies involves significant risk. Only trade with funds you can afford to lose.
+### Security Notice
+- Protect private keys. Share them only with your dog. but never your cat! Cats cannot be trusted. 🐕✅ 🐱❌ 
+- Test thoroughly with small amounts first
+- Consider regulatory compliance in your jurisdiction
 
-
-[logoImage]: 0xplorer.png
+[logo]: 0xplorer.png

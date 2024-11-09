@@ -2072,7 +2072,7 @@ class MarketAnalyzer:
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
         self.volume_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
         self.token_symbols = self.config.TOKEN_SYMBOLS
-        self.symbol_mapping = self._load_token_symbols()
+        self.symbol_mapping = self.config.get_token_symbols()
         self.token_symbol_cache = {}
         self.cache_duration = 60 * 5  # Cache duration in seconds (5 minutes)
         # Fallback API keys and services
@@ -2083,16 +2083,6 @@ class MarketAnalyzer:
             "CRYPTOCOMPARE": self.config.CRYPTOCOMPARE_API_KEY,
         }
 
-    def _load_token_symbols(self) -> dict:
-        try:
-            if not self.token_symbols:
-                self.logger.error("TOKEN_SYMBOLS path not set in configuration. ❌")
-                return {}
-            with open(self.token_symbols, "r") as file:
-                return json.load(file)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            self.logger.error(f"Error loading token symbols: {e} ❌")
-            return {}
 
     async def check_market_conditions(self, token_address: str) -> Dict[str, Any]:
         market_conditions = {

@@ -807,3 +807,355 @@ FileNotFoundError: [Errno 2] No such file or directory: '/home/system-0xbuilder/
 2024-11-09 01:52:37,374 - Xplorer - INFO - Shutting down Xplorer...
 2024-11-09 01:52:37,374 - Xplorer - INFO - Shutdown complete 👋
 2024-11-09 01:52:37,374 - Xplorer - INFO - Xplorer shutdown complete.
+2024-11-09 01:56:55,096 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 01:56:58,146 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 01:56:59,168 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 01:57:01,208 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 01:57:07,325 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 01:57:07,325 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 01:57:07,328 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 01:57:07,329 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 01:57:07,330 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7c49b5ba8b90>
+2024-11-09 01:57:07,332 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 01:57:07,332 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 01:57:07,332 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 01:57:07,333 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 01:57:07,333 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 01:57:07,333 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 01:57:07,333 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 01:57:07,334 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 01:57:07,335 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 01:57:07,335 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 01:57:07,336 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 01:57:07,336 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 01:57:07,336 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 01:57:07,336 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 01:57:07,337 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 01:57:07,337 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 01:57:07,337 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 01:57:07,337 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 01:57:07,338 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 01:57:07,338 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 01:57:07,338 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 01:57:07,338 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:02:00,581 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:02:03,632 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:02:04,652 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:02:06,692 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:02:12,813 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:02:12,813 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:02:12,816 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:02:12,816 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:02:12,817 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7a5a9d148bf0>
+2024-11-09 02:02:12,819 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:02:12,819 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:02:12,819 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:02:12,820 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:02:12,820 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:02:12,820 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:02:12,820 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:02:12,821 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:02:12,822 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:02:12,822 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:02:12,823 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:02:12,823 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:02:12,823 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:02:12,823 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:02:12,824 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:02:12,824 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:02:12,824 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:02:12,825 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:02:12,825 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:02:12,825 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:02:12,825 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:02:12,825 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:03:00,447 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:03:03,499 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:03:04,519 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:03:06,560 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:03:12,676 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:03:12,678 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:03:12,681 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:03:12,681 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:03:12,682 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7111e45e3e30>
+2024-11-09 02:03:12,684 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:03:12,685 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:03:12,685 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:03:12,685 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:03:12,685 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:03:12,685 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:03:12,686 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:03:12,686 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:03:12,687 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:03:12,687 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:03:12,688 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:03:12,688 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:03:12,688 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:03:12,688 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:03:12,689 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:03:12,689 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:03:12,690 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:03:12,690 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:03:12,690 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:03:12,690 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:03:12,690 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:03:12,690 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:03:55,727 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:03:58,779 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:03:59,800 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:04:01,838 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:04:07,956 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:04:07,956 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:04:07,958 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:04:07,959 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:04:07,960 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7e451063be30>
+2024-11-09 02:04:07,962 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:04:07,962 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:04:07,962 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:04:07,963 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:04:07,963 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:04:07,963 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:04:07,963 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:04:07,964 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:04:07,965 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:04:07,965 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:04:07,966 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:04:07,966 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:04:07,966 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:04:07,966 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:04:07,967 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:04:07,967 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:04:07,967 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:04:07,967 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:04:07,967 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:04:07,967 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:04:07,968 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:04:07,968 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:05:49,880 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:05:52,935 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:05:53,955 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:05:55,996 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:06:02,120 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:06:02,120 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:06:02,122 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:06:02,123 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:06:02,124 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7052ae093cb0>
+2024-11-09 02:06:02,126 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:06:02,126 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:06:02,126 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:06:02,127 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:06:02,127 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:06:02,127 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:06:02,127 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:06:02,128 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:06:02,129 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:06:02,129 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:06:02,131 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:06:02,131 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:06:02,131 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:06:02,131 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:06:02,132 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:06:02,132 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:06:02,133 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:06:02,133 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:06:02,133 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:06:02,133 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:06:02,133 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:06:02,133 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:07:11,350 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:07:14,400 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:07:15,421 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:07:17,464 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:07:23,580 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:07:23,580 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:07:23,583 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:07:23,583 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:07:23,584 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7e9605787530>
+2024-11-09 02:07:23,586 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:07:23,586 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:07:23,587 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:07:23,587 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:07:23,587 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:07:23,587 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:07:23,587 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:07:23,588 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:07:23,589 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:07:23,589 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:07:23,590 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:07:23,590 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:07:23,590 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:07:23,590 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:07:23,591 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:07:23,591 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:07:23,591 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:07:23,591 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:07:23,591 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:07:23,592 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:07:23,592 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:07:23,592 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:08:24,339 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:08:27,389 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:08:28,410 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:08:30,451 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:08:36,567 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:08:36,567 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:08:36,570 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:08:36,571 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:08:36,572 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x786e1526b380>
+2024-11-09 02:08:36,574 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:08:36,574 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:08:36,574 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:08:36,574 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:08:36,575 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:08:36,575 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:08:36,575 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:08:36,575 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:08:36,577 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:08:36,577 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:08:36,578 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:08:36,578 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:08:36,578 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:08:36,578 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:08:36,578 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:08:36,579 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:08:36,579 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:08:36,580 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:08:36,580 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:08:36,580 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:08:36,580 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:08:36,580 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:09:28,614 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:09:31,667 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:09:32,687 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:09:35,409 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:09:38,460 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:09:39,480 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:09:41,523 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:09:47,640 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:09:47,640 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:09:47,643 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:09:47,644 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:09:47,645 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7db570fb3e30>
+2024-11-09 02:09:47,647 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:09:47,648 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:09:47,648 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:09:47,649 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:09:47,649 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:09:47,649 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:09:47,649 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:09:47,650 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:09:47,652 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:09:47,652 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:09:47,653 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:09:47,653 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:09:47,653 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:09:47,653 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:09:47,654 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:09:47,654 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:09:47,656 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:09:47,657 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:09:47,658 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:09:47,658 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:09:47,658 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:09:47,659 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:09:47,659 - Xplorer - INFO - MonitorArray initialized with enhanced configuration 📡✅
+2024-11-09 02:09:47,660 - Xplorer - INFO - Loaded Flashloan Contract at 0x92C177a5b5BAE890d9A27b4A17a212d05E0A7BD8 successfully. ✅
+2024-11-09 02:09:47,662 - Xplorer - INFO - Loaded Lending Pool Contract at 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2 successfully. ✅
+2024-11-09 02:19:37,597 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:19:40,649 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:19:41,670 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:19:43,713 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:19:49,832 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:19:49,832 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:19:49,835 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:19:49,835 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:19:49,836 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x79be2865b380>
+2024-11-09 02:19:49,839 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:19:49,839 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:19:49,839 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:19:49,840 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:19:49,840 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:19:49,840 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:19:49,840 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:19:49,840 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:19:49,842 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:19:49,842 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:19:49,843 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:19:49,843 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:19:49,843 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:19:49,843 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:19:49,844 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:19:49,844 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:19:49,844 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:19:49,844 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:19:49,844 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:19:49,845 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:19:49,845 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:19:49,845 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:19:49,845 - Xplorer - INFO - MonitorArray initialized with enhanced configuration 📡✅
+2024-11-09 02:21:53,173 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:21:56,224 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:21:57,245 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:21:59,283 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:22:05,401 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:22:05,401 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:22:05,405 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:22:05,406 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:22:05,406 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7b4442822a50>
+2024-11-09 02:22:05,408 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:22:05,409 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:22:05,409 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:22:05,409 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:22:05,409 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:22:05,410 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:22:05,410 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:22:05,410 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:22:05,411 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:22:05,412 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:22:05,412 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:22:05,412 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:22:05,413 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:22:05,413 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:22:05,413 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:22:05,414 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:22:05,415 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:22:05,416 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:22:05,416 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:22:05,416 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:22:05,416 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:22:05,416 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:22:05,416 - Xplorer - INFO - MonitorArray initialized with enhanced configuration 📡✅
+2024-11-09 02:23:32,909 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 02:23:35,962 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 02:23:36,982 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 02:23:39,021 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 02:23:45,143 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 02:23:45,143 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 02:23:45,146 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 02:23:45,146 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 02:23:45,147 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x764f78f6b770>
+2024-11-09 02:23:45,149 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 02:23:45,149 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:23:45,149 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:23:45,150 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 02:23:45,150 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 02:23:45,150 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 02:23:45,150 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 02:23:45,151 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 02:23:45,152 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 02:23:45,152 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 02:23:45,153 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'result': '0x0'}
+2024-11-09 02:23:45,153 - Xplorer - INFO - Account 0x966FA8e0... initialized
+2024-11-09 02:23:45,153 - Xplorer - INFO - Balance: 0.0000 ETH
+2024-11-09 02:23:45,153 - Xplorer - WARNING - Low account balance! (<0.1 ETH)
+2024-11-09 02:23:45,154 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getTransactionCount
+2024-11-09 02:23:45,154 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount
+2024-11-09 02:23:45,155 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getTransactionCount, Response: {'jsonrpc': '2.0', 'id': 4, 'result': '0x0'}
+2024-11-09 02:23:45,155 - Xplorer - INFO - NonceManager initialized for 0x966FA8e0... ✅
+2024-11-09 02:23:45,155 - Xplorer - INFO - SafetyNet initialized with enhanced configuration 🛡️✅
+2024-11-09 02:23:45,155 - Xplorer - INFO - Loaded ABI from ABI/erc20_ABI.json successfully. ✅
+2024-11-09 02:23:45,155 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_flashloan_contract_ABI.json successfully. ✅
+2024-11-09 02:23:45,155 - Xplorer - INFO - Loaded ABI from ABI/aave_v3_lending_pool_ABI.json successfully. ✅
+2024-11-09 02:23:45,155 - Xplorer - INFO - MonitorArray initialized with enhanced configuration 📡✅
+2024-11-09 02:23:45,156 - Xplorer - INFO - Loaded Flashloan Contract at 0x92C177a5b5BAE890d9A27b4A17a212d05E0A7BD8 successfully. ✅
+2024-11-09 02:23:45,158 - Xplorer - INFO - Loaded Lending Pool Contract at 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2 successfully. ✅

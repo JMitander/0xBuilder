@@ -1159,3 +1159,30 @@ FileNotFoundError: [Errno 2] No such file or directory: '/home/system-0xbuilder/
 2024-11-09 02:23:45,155 - Xplorer - INFO - MonitorArray initialized with enhanced configuration 📡✅
 2024-11-09 02:23:45,156 - Xplorer - INFO - Loaded Flashloan Contract at 0x92C177a5b5BAE890d9A27b4A17a212d05E0A7BD8 successfully. ✅
 2024-11-09 02:23:45,158 - Xplorer - INFO - Loaded Lending Pool Contract at 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2 successfully. ✅
+2024-11-09 20:24:43,472 - Xplorer - INFO - Starting Xplorer initialization...
+2024-11-09 20:24:46,557 - Xplorer - DEBUG - Loaded 25 monitored tokens from /home/system-0xbuilder/Documents/0xplorer/Utils/token_addresses.json ✅
+2024-11-09 20:24:47,593 - Xplorer - DEBUG - Loaded 32 token symbols from /home/system-0xbuilder/Documents/0xplorer/Utils/token_symbols.json ✅
+2024-11-09 20:24:49,655 - Xplorer - DEBUG - Loaded 52 ERC20 function signatures from /home/system-0xbuilder/Documents/0xplorer/Utils/erc20_signatures.json ✅
+2024-11-09 20:24:55,847 - Xplorer - INFO - Configuration loaded successfully. ✅
+2024-11-09 20:24:55,847 - Xplorer - DEBUG - Xplorer core initialized successfully. 🌐✅
+2024-11-09 20:24:55,853 - Xplorer - INFO - Attempting connection with HTTP...
+2024-11-09 20:24:55,853 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion
+2024-11-09 20:24:55,853 - web3._utils.http_session_manager.HTTPSessionManager - DEBUG - Async session cached: http://127.0.0.1:8545, <aiohttp.client.ClientSession object at 0x7bdcd17814f0>
+2024-11-09 20:24:55,855 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: web3_clientVersion, Response: {'jsonrpc': '2.0', 'id': 0, 'result': 'Geth/v1.14.11-stable-f3c696fa/linux-amd64/go1.23.1'}
+2024-11-09 20:24:55,855 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 20:24:55,855 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 20:24:55,856 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 1, 'result': '0x1'}
+2024-11-09 20:24:55,856 - Xplorer - INFO - Connected to network HTTP (Chain ID: 1) ✅
+2024-11-09 20:24:55,856 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_chainId
+2024-11-09 20:24:55,856 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId
+2024-11-09 20:24:55,857 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_chainId, Response: {'jsonrpc': '2.0', 'id': 2, 'result': '0x1'}
+2024-11-09 20:24:55,857 - web3.manager.RequestManager - DEBUG - Making request. Method: eth_getBalance
+2024-11-09 20:24:55,857 - web3.providers.AsyncHTTPProvider - DEBUG - Making request HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance
+2024-11-09 20:24:55,858 - web3.providers.AsyncHTTPProvider - DEBUG - Getting response HTTP. URI: http://127.0.0.1:8545, Method: eth_getBalance, Response: {'jsonrpc': '2.0', 'id': 3, 'error': {'code': -32000, 'message': 'missing trie node d7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544 (path ) layer stale'}}
+2024-11-09 20:24:55,858 - web3.manager.RequestManager - ERROR - An RPC error was returned by the node. Check the message provided in the error and any available logs for more information.
+2024-11-09 20:24:55,858 - web3.manager.RequestManager - DEBUG - RPC error response: {'jsonrpc': '2.0', 'id': 3, 'error': {'code': -32000, 'message': 'missing trie node d7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544 (path ) layer stale'}}
+2024-11-09 20:24:55,858 - Xplorer - ERROR - Balance check failed: {'code': -32000, 'message': 'missing trie node d7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544 (path ) layer stale'}
+2024-11-09 20:24:55,858 - Xplorer - CRITICAL - Fatal error during initialization: {'code': -32000, 'message': 'missing trie node d7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544 (path ) layer stale'} ❌
+2024-11-09 20:24:55,858 - Xplorer - INFO - Shutting down Xplorer...
+2024-11-09 20:24:55,858 - Xplorer - INFO - Shutdown complete 👋
+2024-11-09 20:24:55,858 - Xplorer - INFO - Xplorer shutdown complete.

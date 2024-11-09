@@ -2,50 +2,32 @@ class MarketAnalyzer:
     def __init__(
         self,
         web3: AsyncWeb3,
-        erc20_ABI: List[Dict[str, Any]],
         config: Config,
+        api_client: ApiClient,
         logger: Optional[logging.Logger] = None,
     ):
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.web3 = web3
-        self.erc20_ABI = erc20_ABI
         self.config = config
+        self.api_client = api_client
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.price_model = LinearRegression()
+        self.model_last_updated = 0
+        self.MODEL_UPDATE_INTERVAL = 3600  # Update model every hour
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
-        self.volume_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
-        self.token_symbols = self.config.TOKEN_SYMBOLS
-        self.symbol_mapping = self._load_token_symbols()
-        self.token_symbol_cache = {}
-        self.cache_duration = 60 * 5  # Cache duration in seconds (5 minutes)
-        # Fallback API keys and services
-        self.api_keys = {
-            "BINANCE": None,  # Binance Public API does not require an API key
-            "COINGECKO": self.config.COINGECKO_API_KEY,
-            "COINMARKETCAP": self.config.COINMARKETCAP_API_KEY,
-            "CRYPTOCOMPARE": self.config.CRYPTOCOMPARE_API_KEY,
-        }
-
-    def _load_token_symbols(self) -> dict:
-        try:
-            if not self.token_symbols:
-                self.logger.error("TOKEN_SYMBOLS path not set in configuration. ❌")
-                return {}
-            with open(self.token_symbols, "r") as file:
-                return json.load(file)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            self.logger.error(f"Error loading token symbols: {e} ❌")
-            return {}
 
     async def check_market_conditions(self, token_address: str) -> Dict[str, Any]:
+        """Check various market conditions for a given token."""
         market_conditions = {
             "high_volatility": False,
             "bullish_trend": False,
             "bearish_trend": False,
             "low_liquidity": False,
         }
-        token_symbol = await self.get_token_symbol(token_address)
+        token_symbol = await self.api_client.get_token_symbol(self.web3, token_address)
         if not token_symbol:
             self.logger.error(f"Cannot get token symbol for address {token_address} ❌")
             return market_conditions
+
         # Fetch recent price data (e.g., last 1 day)
         prices = await self.fetch_historical_prices(token_symbol, days=1)
         if len(prices) < 2:
@@ -53,6 +35,7 @@ class MarketAnalyzer:
                 f"Not enough price data to analyze market conditions for {token_symbol} 📊"
             )
             return market_conditions
+
         # Calculate volatility
         prices_array = np.array(prices)
         returns = np.diff(prices_array) / prices_array[:-1]
@@ -80,39 +63,88 @@ class MarketAnalyzer:
 
         return market_conditions
 
-    async def get_token_symbol(self, token_address: str) -> Optional[str]:
-        if token_address in self.token_symbol_cache:
-            return self.token_symbol_cache[token_address]
-        elif token_address in self.config.TOKEN_SYMBOLS:
-            return self.config.TOKEN_SYMBOLS[token_address]
-        try:
-            # Create contract instance
-            contract = self.web3.eth.contract(
-                address=token_address, abi=self.erc20_ABI
+    async def fetch_historical_prices(self, token_symbol: str, days: int = 30) -> List[float]:
+        """Fetch historical price data for a given token symbol."""
+        cache_key = f"historical_prices_{token_symbol}_{days}"
+        if cache_key in self.price_cache:
+            self.logger.debug(
+                f"Returning cached historical prices for {token_symbol}. 📊⏳"
             )
-            symbol = await contract.functions.symbol().call()
-            self.token_symbol_cache[token_address] = symbol  # Cache the result
-            return symbol
-        except Exception as e:
-            self.logger.error(
-                f"We do not have the token symbol for address {token_address}: {e}"
-            )
-            return None
+            return self.price_cache[cache_key]
 
-    async def decode_transaction_input(
-        self, input_data: str, contract_address: str
-    ) -> Optional[Dict[str, Any]]:
-        try:
-            contract = self.web3.eth.contract(
-                address=contract_address, abi=self.erc20_ABI
+        for service in self.api_client.api_configs.keys():
+            try:
+                self.logger.debug(
+                    f"Fetching historical prices for {token_symbol} using {service}... 📊⏳"
+                )
+                prices = await self.api_client.fetch_historical_prices(token_symbol, days=days)
+                if prices:
+                    self.price_cache[cache_key] = prices
+                    return prices
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to fetch historical prices using {service}: {e} ⚠️"
+                )
+
+        self.logger.error(f"Failed to fetch historical prices for {token_symbol}. ❌")
+        return []
+
+    async def get_token_volume(self, token_symbol: str) -> float:
+        """Get the 24-hour trading volume for a given token symbol."""
+        cache_key = f"token_volume_{token_symbol}"
+        if cache_key in self.price_cache:
+            self.logger.debug(
+                f"Returning cached trading volume for {token_symbol}. 📊⏳"
             )
-            function_ABI, params = contract.decode_function_input(input_data)
-            return {"function_name": function_ABI["name"], "params": params}
+            return self.price_cache[cache_key]
+
+        for service in self.api_client.api_configs.keys():
+            try:
+                self.logger.debug(
+                    f"Fetching volume for {token_symbol} using {service}. 📊⏳"
+                )
+                volume = await self.api_client.get_token_volume(token_symbol)
+                if volume:
+                    self.price_cache[cache_key] = volume
+                    return volume
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to fetch trading volume using {service}: {e} ⚠️"
+                )
+
+        self.logger.error(f"Failed to fetch trading volume for {token_symbol}. ❌")
+        return 0.0
+
+    async def predict_price_movement(self, token_symbol: str) -> float:
+        """Predict the next price movement for a given token symbol."""
+        try:
+            current_time = time.time()
+
+            if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
+                prices = await self.fetch_historical_prices(token_symbol)
+                if len(prices) > 10:
+                    X = np.arange(len(prices)).reshape(-1, 1)
+                    y = np.array(prices)
+                    self.price_model.fit(X, y)
+                    self.model_last_updated = current_time
+
+            prices = await self.fetch_historical_prices(token_symbol, days=1)
+            if not prices:
+                self.logger.warning(f"No recent prices available for {token_symbol}.")
+                return 0.0
+
+            next_time = np.array([[len(prices)]])
+            predicted_price = self.price_model.predict(next_time)[0]
+
+            self.logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
+            return float(predicted_price)
+
         except Exception as e:
-            self.logger.error(f"Failed in decoding transaction input: {e} ❌")
-            return None
+            self.logger.error(f"Price prediction failed: {str(e)}", exc_info=True)
+            return 0.0
 
     async def is_arbitrage_opportunity(self, target_tx: Dict[str, Any]) -> bool:
+        """Check if there's an arbitrage opportunity based on the target transaction."""
         try:
             # Decode transaction input
             decoded_tx = await self.decode_transaction_input(
@@ -125,12 +157,12 @@ class MarketAnalyzer:
             if len(path) < 2:
                 return False
             token_address = path[-1]  # The token being bought
-            token_symbol = await self.get_token_symbol(token_address)
+            token_symbol = await self.api_client.get_token_symbol(self.web3, token_address)
             if not token_symbol:
                 return False
             # Get prices from different services
-            price_binance = await self.get_current_price(token_symbol)
-            price_coingecko = await self.get_current_price(token_symbol)
+            price_binance = await self.api_client.get_real_time_price(token_symbol)
+            price_coingecko = await self.api_client.get_real_time_price(token_symbol)
             if price_binance is None or price_coingecko is None:
                 return False
             # Check for arbitrage opportunity
@@ -150,204 +182,17 @@ class MarketAnalyzer:
             self.logger.error(f"Failed in checking arbitrage opportunity: {e} ❌")
             return False
 
-    async def fetch_historical_prices(self, token_id: str, days: int = 30) -> List[float]:
-        cache_key = f"{token_id}_{days}"
-        if cache_key in self.price_cache:
-            self.logger.debug(
-                f"Returning cached historical prices for {token_id}. 📊⏳"
+    async def decode_transaction_input(
+        self, input_data: str, contract_address: str
+    ) -> Optional[Dict[str, Any]]:
+        """Decode the input data of a transaction."""
+        try:
+            erc20_ABI = await self.api_client._load_contract_ABI(self.config.ERC20_ABI)
+            contract = self.web3.eth.contract(
+                address=contract_address, abi=erc20_ABI
             )
-            return self.price_cache[cache_key]
-        for service in self.api_keys.keys():
-            try:
-                self.logger.debug(
-                    f"Fetching historical prices for {token_id} using {service}... 📊⏳"
-                )
-                headers = {}
-                if service == "BINANCE":
-                    symbol = self._convert_token_id_to_binance_symbol(token_id)
-                    if not symbol:
-                        continue
-                    url = f"https://api.binance.com/api/v3/klines"
-                    params = {"symbol": symbol, "interval": "1d", "limit": int(days)}
-                elif service == "COINGECKO":
-                    url = f"https://api.coingecko.com/api/v3/coins/{token_id}/market_chart"
-                    params = {"vs_currency": "usd", "days": days}
-                elif service == "COINMARKETCAP":
-                    url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/historical"
-                    params = {"symbol": token_id, "time_period": f"{days}d"}
-                    headers = {"X-CMC_PRO_API_KEY": self.api_keys[service]}
-                elif service == "CRYPTOCOMPARE":
-                    url = f"https://min-api.cryptocompare.com/data/v2/histoday"
-                    params = {"fsym": token_id, "tsym": "USD", "limit": int(days)}
-                    headers = {"Apikey": self.api_keys[service]}
-                else:
-                    continue
-                response = await self.make_request(url, params=params, headers=headers)
-                data = await response.json()
-                if service == "BINANCE":
-                    prices = [float(entry[4]) for entry in data]  # Close prices
-                elif service == "COINGECKO":
-                    prices = [price[1] for price in data["prices"]]
-                elif service == "COINMARKETCAP":
-                    prices = [quote["close"] for quote in data["data"]["quotes"]]
-                elif service == "CRYPTOCOMPARE":
-                    prices = [day["close"] for day in data["Data"]["Data"]]
-                else:
-                    continue
-                self.price_cache[cache_key] = prices
-                self.logger.debug(
-                    f"Fetched historical prices for {token_id} using {service} successfully. 📊"
-                )
-                return prices
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch historical prices using {service}: {e} ⚠️"
-                )
-        self.logger.error(f"Failed to fetch historical prices for {token_id}. ❌")
-        return []
-
-    async def get_token_volume(self, token_id: str) -> float:
-        if token_id in self.volume_cache:
-            self.logger.debug(
-                f"Returning cached trading volume for {token_id}. 📊⏳"
-            )
-            return self.volume_cache[token_id]
-        for service in self.api_keys.keys():
-            try:
-                self.logger.debug(
-                    f"Fetching volume for {token_id} using {service}. 📊⏳"
-                )
-                headers = {}
-                if service == "BINANCE":
-                    symbol = self._convert_token_id_to_binance_symbol(token_id)
-                    if not symbol:
-                        continue
-                    url = f"https://api.binance.com/api/v3/ticker/24hr"
-                    params = {"symbol": symbol}
-                elif service == "COINGECKO":
-                    url = f"https://api.coingecko.com/api/v3/coins/{token_id}"
-                    params = {}
-                elif service == "COINMARKETCAP":
-                    url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
-                    params = {"symbol": token_id}
-                    headers = {"X-CMC_PRO_API_KEY": self.api_keys[service]}
-                elif service == "CRYPTOCOMPARE":
-                    url = f"https://min-api.cryptocompare.com/data/pricemultifull"
-                    params = {"fsyms": token_id, "tsyms": "USD"}
-                    headers = {"Apikey": self.api_keys[service]}
-                else:
-                    continue
-                response = await self.make_request(url, params=params, headers=headers)
-                data = await response.json()
-                if service == "BINANCE":
-                    volume = float(data["quoteVolume"])
-                elif service == "COINGECKO":
-                    volume = data["market_data"]["total_volume"]["usd"]
-                elif service == "COINMARKETCAP":
-                    volume = data["data"][token_id]["quote"]["USD"]["volume_24h"]
-                elif service == "CRYPTOCOMPARE":
-                    volume = data["RAW"][token_id]["USD"]["VOLUME24HOUR"]
-                else:
-                    continue
-                self.volume_cache[token_id] = volume
-                self.logger.debug(
-                    f"Fetched trading volume for {token_id} using {service} successfully. 📊"
-                )
-                return volume
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch trading volume using {service}: {e} ⚠️"
-                )
-        self.logger.error(f"Failed to fetch trading volume for {token_id}. ❌")
-        return 0.0
-
-    async def get_current_price(self, token_id: str) -> Optional[float]:
-        for service in self.api_keys.keys():
-            try:
-                self.logger.debug(
-                    f"Fetching current price for {token_id} using {service}. 📊⏳"
-                )
-                headers = {}
-                if service == "BINANCE":
-                    symbol = self._convert_token_id_to_binance_symbol(token_id)
-                    if not symbol:
-                        continue
-                    url = f"https://api.binance.com/api/v3/ticker/price"
-                    params = {"symbol": symbol}
-                elif service == "COINGECKO":
-                    url = f"https://api.coingecko.com/api/v3/simple/price"
-                    params = {"ids": token_id, "vs_currencies": "usd"}
-                elif service == "COINMARKETCAP":
-                    url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
-                    params = {"symbol": token_id}
-                    headers = {"X-CMC_PRO_API_KEY": self.api_keys[service]}
-                elif service == "CRYPTOCOMPARE":
-                    url = f"https://min-api.ryptocompare.com/data/price"
-                    params = {"fsym": token_id, "tsyms": "USD"}
-                    headers = {"Apikey": self.api_keys[service]}
-                else:
-                    continue
-                response = await self.make_request(url, params=params, headers=headers)
-                data = await response.json()
-                if service == "BINANCE":
-                    price = float(data["price"])
-                elif service == "COINGECKO":
-                    price = data.get(token_id, {}).get("usd", 0.0)
-                elif service == "COINMARKETCAP":
-                    price = data["data"][token_id]["quote"]["USD"]["price"]
-                elif service == "CRYPTOCOMPARE":
-                    price = data["USD"]
-                else:
-                    continue
-                self.logger.debug(
-                    f"Fetched current price for {token_id} using {service} successfully. 📊"
-                )
-                return price
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch current price using {service}: {e} ⚠️"
-                )
-        self.logger.error(
-            f"Failed on all services to fetch current price for {token_id}. ❌"
-        )
-        return None
-
-    async def make_request(
-        self,
-        url: str,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> aiohttp.ClientResponse:
-        max_attempts = 5
-        backoff_time = 1  # Initial backoff time in seconds
-
-        for attempt in range(1, max_attempts + 1):
-            try:
-                await asyncio.sleep(1)
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, params=params, headers=headers) as response:
-                        response.raise_for_status()
-                        return response
-            except aiohttp.ClientResponseError as e:
-                if e.status == 429:  # Rate limit error
-                    self.logger.warning(
-                        f"Rate limited. Retrying in {backoff_time} seconds... ⏳"
-                    )
-                    await asyncio.sleep(backoff_time)
-                    backoff_time *= 2  # Exponential backoff
-                else:
-                    self.logger.error(f"Failed Making HTTP Request: {e} ❌")
-                    break
-            except Exception as e:
-                self.logger.error(f"Failed Making HTTP Request: {e} ❌")
-                if attempt < max_attempts:
-                    self.logger.warning(
-                        f"Retrying in {backoff_time} seconds... ⏳"
-                    )
-                    await asyncio.sleep(backoff_time)
-                    backoff_time *= 2  # Exponential backoff
-
-        raise Exception("Failed HTTP request after multiple attempts. ❌ ")
-
-    def _convert_token_id_to_binance_symbol(self, token_id: str) -> Optional[str]:
-        return self.symbol_mapping.get(token_id.lower())
+            function_ABI, params = contract.decode_function_input(input_data)
+            return {"function_name": function_ABI["name"], "params": params}
+        except Exception as e:
+            self.logger.error(f"Failed in decoding transaction input: {e} ❌")
+            return None

@@ -1,4 +1,4 @@
-class Config:
+class Configuration:
     """
     Loads configuration from environment variables and monitored tokens from a JSON file.
     """
@@ -8,18 +8,18 @@ class Config:
 
     async def load(self) -> None:
         """Loads the configuration."""
-        await self._load_config()
+        await self._load_configuration()
         
 
-    async def _load_config(self) -> None:
+    async def _load_configuration(self) -> None:
         try:
             await loading_bar("Loading Environment Variables", 2)
             self._load_api_keys()
             self._load_providers_and_account()
             await self._load_json_elements()
-            self.logger.info("Configuration loaded successfully. ✅")
+            self.logger.info("Configurationsuration loaded successfully. ✅")
         except (EnvironmentError, FileNotFoundError) as e:
-            self.logger.exception(f"Configuration loading error: {e} ❌")
+            self.logger.exception(f"Configurationsuration loading error: {e} ❌")
             raise
         except Exception as e:
             self.logger.exception(f"Unexpected error loading configuration: {e} ❌")
@@ -40,8 +40,8 @@ class Config:
         self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
 
     async def _load_json_elements(self) -> None:
-        self.AAVE_V3_LENDING_POOL_ADDRESS = self._get_env_variable(
-            "AAVE_V3_LENDING_POOL_ADDRESS"
+        self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable(
+            "AAVE_LENDING_POOL_ADDRESS"
         )
         self.TOKEN_ADDRESSES = await self._load_json_file(
             self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
@@ -49,39 +49,39 @@ class Config:
         self.TOKEN_SYMBOLS = await self._load_json_file(
             self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
         )
-        self.ERC20_ABI = await self._construct_ABI_path("ABI", "erc20_ABI.json")
+        self.ERC20_ABI = await self._construct_ABI_path("abi", "erc20_ABI.json")
         self.ERC20_SIGNATURES = await self._load_json_file(
             self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
         )
         self.SUSHISWAP_ROUTER_ABI = await self._construct_ABI_path(
-            "ABI", "sushiswap_router_ABI.json"
+            "abi", "sushiswap_router_ABI.json"
         )
         self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable(
             "SUSHISWAP_ROUTER_ADDRESS"
         )
-        self.UNISWAP_V2_ROUTER_ABI = await self._construct_ABI_path(
-            "ABI", "uniswap_v2_router_ABI.json"
+        self.UNISWAP_ROUTER_ABI = await self._construct_ABI_path(
+            "abi", "uniswap_v2_router_ABI.json"
         )
         self.UNISWAP_V2_ROUTER_ADDRESS = self._get_env_variable(
             "UNISWAP_V2_ROUTER_ADDRESS"
         )
-        self.AAVE_V3_FLASHLOAN_ABI = await self._construct_ABI_path(
-            "ABI", "aave_v3_flashloan_contract_ABI.json"
+        self.AAVE_FLASHLOAN_ABI = await self._construct_ABI_path(
+            "abi", "aave_flashloan_abi.json"
         )
-        self.AAVE_V3_LENDING_POOL_ABI = await self._construct_ABI_path(
-            "ABI", "aave_v3_lending_pool_ABI.json"
+        self.AAVE_LENDING_POOL_ABI = await self._construct_ABI_path(
+            "abi", "aave_lending_pool_abi.json"
         )
-        self.AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS = self._get_env_variable(
-            "AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS"
+        self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable(
+            "AAVE_FLASHLOAN_ADDRESS"
         )
         self.PANCAKESWAP_ROUTER_ABI = await self._construct_ABI_path(
-            "ABI", "pancakeswap_router_ABI.json"
+            "abi", "pancakeswap_router_ABI.json"
         )
         self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable(
             "PANCAKESWAP_ROUTER_ADDRESS"
         )
         self.BALANCER_ROUTER_ABI = await self._construct_ABI_path(
-            "ABI", "balancer_router_ABI.json"
+            "abi", "balancer_router_ABI.json"
         )
         self.BALANCER_ROUTER_ADDRESS = self._get_env_variable(
             "BALANCER_ROUTER_ADDRESS"
@@ -120,9 +120,9 @@ class Config:
         ABI_path = os.path.join(base_path, ABI_filename)
         await loading_bar(f"Constructing '{ABI_filename}'", 1)
         if not os.path.exists(ABI_path):
-            self.logger.error(f"ABI file not found at path: {ABI_path} ❌")
+            self.logger.error(f"abi file not found at path: {ABI_path} ❌")
             raise FileNotFoundError(
-                f"ABI file '{ABI_filename}' not found in path '{base_path}' ❌"
+                f"abi file '{ABI_filename}' not found in path '{base_path}' ❌"
             )
         return ABI_path
 
@@ -130,9 +130,9 @@ class Config:
         ABI_paths = {
             "erc20": self.ERC20_ABI,
             "sushiswap": self.SUSHISWAP_ROUTER_ABI,
-            "uniswap_v2": self.UNISWAP_V2_ROUTER_ABI,
-            "aave_v3_flashloan": self.AAVE_V3_FLASHLOAN_ABI,
-            "lending_pool": self.AAVE_V3_LENDING_POOL_ABI,
+            "uniswap_v2": self.UNISWAP_ROUTER_ABI,
+            "aave_flashloan_abi": self.AAVE_FLASHLOAN_ABI,
+            "lending_pool": self.AAVE_LENDING_POOL_ABI,
             "pancakeswap": self.PANCAKESWAP_ROUTER_ABI,
             "balancer": self.BALANCER_ROUTER_ABI,
         }

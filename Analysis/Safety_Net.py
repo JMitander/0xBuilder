@@ -1,22 +1,22 @@
-class SafetyNet:
+class Safety_Net:
     """
-    SafetyNet provides risk management and price verification functionality
+    Safety_Net provides risk management and price verification functionality
     with multiple data sources, automatic failover, and dynamic adjustments.
     """
 
     def __init__(
         self,
         web3: AsyncWeb3,
-        config: Config,
+        configuration: Configuration,
         account: Account,
-        api_client: ApiClient,
+        api_config: API_Config,
         logger: Optional[logging.Logger] = None,
         cache_ttl: int = 300,  # Cache TTL in seconds
     ):
         self.web3 = web3
-        self.config = config
+        self.configuration = configuration
         self.account = account
-        self.api_client = api_client
+        self.api_config = api_config
         self.logger = logger or logging.getLogger(self.__class__.__name__)
 
         # Price data caching
@@ -26,7 +26,7 @@ class SafetyNet:
         # Thread-safe primitives
         self.price_lock = asyncio.Lock()
 
-        # Configuration parameters
+        # Configurationsuration parameters
         self.slippage_config = {
             "default": 0.1,
             "min": 0.01,
@@ -41,7 +41,7 @@ class SafetyNet:
             "base_gas_limit": 21000,
         }
 
-        self.logger.info("SafetyNet initialized with enhanced configuration 🛡️✅")
+        self.logger.info("Safety_Net initialized with enhanced configuration 🛡️✅")
 
     async def get_balance(self, account: Account) -> Decimal:
         """Get account balance with retries and caching."""
@@ -92,7 +92,7 @@ class SafetyNet:
 
             # Get real-time price with weighted average
             output_token = transaction_data.get("output_token")
-            real_time_price = await self.api_client.get_real_time_price(output_token)
+            real_time_price = await self.api_config.get_real_time_price(output_token)
 
             if not real_time_price:
                 return False

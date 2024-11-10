@@ -1,6 +1,6 @@
-class ApiClient:
-    def __init__(self, config, logger: Optional[logging.Logger] = None):
-        self.config = config
+class API_Config:
+    def __init__(self, configuration, logger: Optional[logging.Logger] = None):
+        self.configuration = configuration
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.session = aiohttp.ClientSession()
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
@@ -15,19 +15,19 @@ class ApiClient:
             },
             "coingecko": {
                 "base_url": "https://api.coingecko.com/api/v3",
-                "api_key": self.config.COINGECKO_API_KEY,
+                "api_key": self.configuration.COINGECKO_API_KEY,
                 "success_rate": 1.0,
                 "weight": 0.8,
             },
             "coinmarketcap": {
                 "base_url": "https://pro-api.coinmarketcap.com/v1",
-                "api_key": self.config.COINMARKETCAP_API_KEY,
+                "api_key": self.configuration.COINMARKETCAP_API_KEY,
                 "success_rate": 1.0,
                 "weight": 0.7,
             },
             "cryptocompare": {
                 "base_url": "https://min-api.cryptocompare.com/data",
-                "api_key": self.config.CRYPTOCOMPARE_API_KEY,
+                "api_key": self.configuration.CRYPTOCOMPARE_API_KEY,
                 "success_rate": 1.0,
                 "weight": 0.6,
             },
@@ -39,13 +39,13 @@ class ApiClient:
     async def get_token_symbol(self, web3, token_address: str) -> Optional[str]:
         if token_address in self.token_symbol_cache:
             return self.token_symbol_cache[token_address]
-        elif token_address in self.config.TOKEN_SYMBOLS:
-            symbol = self.config.TOKEN_SYMBOLS[token_address]
+        elif token_address in self.configuration.TOKEN_SYMBOLS:
+            symbol = self.configuration.TOKEN_SYMBOLS[token_address]
             self.token_symbol_cache[token_address] = symbol
             return symbol
         try:
             # Create contract instance
-            erc20_ABI = await self._load_contract_ABI(self.config.ERC20_ABI)
+            erc20_ABI = await self._load_contract_ABI(self.configuration.ERC20_ABI)
             contract = web3.eth.contract(address=token_address, abi=erc20_ABI)
             symbol = await contract.functions.symbol().call()
             self.token_symbol_cache[token_address] = symbol  # Cache the result
@@ -65,15 +65,15 @@ class ApiClient:
             weights = []
 
             async with self.api_lock:
-                for source, config in self.api_configs.items():
+                for source, configuration in self.api_configs.items():
                     try:
                         price = await self._fetch_price(source, token, vs_currency)
                         if price:
                             prices.append(price)
-                            weights.append(config["weight"] * config["success_rate"])
+                            weights.append(configuration["weight"] * configuration["success_rate"])
                     except Exception as e:
                         self.logger.warning(f"Error fetching price from {source}: {e}")
-                        config["success_rate"] *= 0.9
+                        configuration["success_rate"] *= 0.9
 
             if not prices:
                 self.logger.error(f"No valid prices found for {token} ❌")
@@ -91,13 +91,13 @@ class ApiClient:
 
     async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
         """Fetch the price of a token from a specified source."""
-        config = self.api_configs.get(source)
-        if not config:
+        configuration = self.api_configs.get(source)
+        if not configuration:
             self.logger.error(f"API configuration for {source} not found.")
             return None
 
         if source == "coingecko":
-            url = f"{config['base_url']}/simple/price"
+            url = f"{configuration['base_url']}/simple/price"
             params = {"ids": token, "vs_currencies": vs_currency}
             try:
                 response = await self.make_request(url, params=params)
@@ -108,9 +108,9 @@ class ApiClient:
                 return None
 
         elif source == "coinmarketcap":
-            url = f"{config['base_url']}/cryptocurrency/quotes/latest"
+            url = f"{configuration['base_url']}/cryptocurrency/quotes/latest"
             params = {"symbol": token.upper(), "convert": vs_currency.upper()}
-            headers = {"X-CMC_PRO_API_KEY": config["api_key"]}
+            headers = {"X-CMC_PRO_API_KEY": configuration["api_key"]}
             try:
                 response = await self.make_request(url, params=params, headers=headers)
                 data = response["data"][token.upper()]["quote"][vs_currency.upper()]["price"]
@@ -121,8 +121,8 @@ class ApiClient:
                 return None
 
         elif source == "cryptocompare":
-            url = f"{config['base_url']}/price"
-            params = {"fsym": token.upper(), "tsyms": vs_currency.upper(), "api_key": config["api_key"]}
+            url = f"{configuration['base_url']}/price"
+            params = {"fsym": token.upper(), "tsyms": vs_currency.upper(), "api_key": configuration["api_key"]}
             try:
                 response = await self.make_request(url, params=params)
                 price = Decimal(str(response[vs_currency.upper()]))
@@ -132,7 +132,7 @@ class ApiClient:
                 return None
 
         elif source == "binance":
-            url = f"{config['base_url']}/ticker/price"
+            url = f"{configuration['base_url']}/ticker/price"
             symbol = f"{token.upper()}{vs_currency.upper()}"
             params = {"symbol": symbol}
             try:
@@ -176,14 +176,14 @@ class ApiClient:
                 await asyncio.sleep(wait_time)
 
     async def _load_contract_ABI(self, abi_path: str) -> List[Dict[str, Any]]:
-        """Load contract ABI from a file."""
+        """Load contract abi from a file."""
         try:
             async with aiofiles.open(abi_path, 'r') as file:
                 content = await file.read()
                 abi = json.loads(content)
-            self.logger.info(f"Loaded ABI from {abi_path} successfully. ✅")
+            self.logger.info(f"Loaded abi from {abi_path} successfully. ✅")
             return abi
         except Exception as e:
-            self.logger.error(f"Failed to load ABI from {abi_path}: {e} ❌")
+            self.logger.error(f"Failed to load abi from {abi_path}: {e} ❌")
             raise
     

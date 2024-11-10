@@ -1,4 +1,4 @@
-# 0xBuilder
+# 0xBuilder MEV Bot
 
 
 [![License](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)
@@ -34,9 +34,9 @@
   - [Cloning the Repository](#cloning-the-repository)
   - [Setting up Virtual Environment](#setting-up-virtual-environment)
   - [Installing Dependencies](#installing-dependencies)
-- [Configuration](#configuration)
+- [Configurationsuration](#configuration)
   - [Environment Variables](#environment-variables)
-  - [Configuration Files](#configuration-files)
+  - [Configurationsuration Files](#configuration-files)
 - [Deploying the Flashloan Contract](#deploying-the-flashloan-contract)
 - [Obtaining API Keys](#obtaining-api-keys)
 - [Running the Bot](#running-the-bot)
@@ -48,7 +48,6 @@
 - [Disclaimer](#disclaimer)
 
 
-0xBuilder = 0xplorer
 
 ## Introduction
 
@@ -70,33 +69,33 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 - **Smart Contract Interactions**: Interacts with various DeFi protocols, including Uniswap, Aave, Sushiswap, PancakeSwap, and Balancer.
 - **Transaction Bundling**: Groups multiple transactions into a single block for efficiency.
 - **API Integration**: Connects to various APIs for blockchain data, pricing, and market data.
-- **Configurable Parameters**: Allows users to adjust parameters, strategies, and risk levels based on preferences.
+- **Configurationsurable Parameters**: Allows users to adjust parameters, strategies, and risk levels based on preferences.
 - **Detailed Logging**: Provides detailed logs of bot activities, transactions, and strategies for analysis and debugging.
 - **Customizable**: Supports multiple wallets, tokens, and trading pairs, with the ability to add new strategies and features.
 
-![0xplorer-flow](https://github.com/user-attachments/assets/29e3da12-d253-4304-acb1-f2d74f407bf1)
+![0xBuilder-flow](https://github.com/user-attachments/assets/29e3da12-d253-4304-acb1-f2d74f407bf1)
 
 
 ## Project Structure
 
 ```
-/0xplorer/
-├── Config/
-│   └── Config.py               # Configuration management
-|   └── ApiClient.py            # API client for external data sources
+/0xBuilder/
+├── Configuration/
+│   └── Configuration.py               # Configurationsuration management
+|   └── DataApiClient.py            # API client for external data sources
 ├── Core/
-│   ├── Xplorer.py             # Main bot script
-│   ├── NonceManager.py         # Manages Ethereum nonces
-│   ├── StrategyManager.py      # Handles trading strategies
-│   └── TransactionArray.py     # Builds and sends transaction bundles
+│   ├── Main_Core.py             # Main bot script
+│   ├── Nonce_Core.py         # Manages Ethereum nonces
+│   ├── Strategy_Net.py      # Handles trading strategies
+│   └── Transaction_Core.py     # Builds and sends transaction bundles
 ├── Utils/
 │   ├── token_addresses.json    # List of monitored token addresses
 │   ├── token_symbols.json      # Mapping of token addresses to symbols
 │   └── erc20_signatures.json   # ERC20 function signatures
-├── ABI/
+├── abi/
 │   ├── erc20_ABI.json
-│   ├── aave_v3_flashloan_ABI.json
-│   ├── aave_v3_lending_pool_ABI.json
+│   ├── aave_flashloan_abi.json
+│   ├── aave_lending_pool_abi.json
 │   ├── uniswap_v2_router_ABI.json
 │   ├── sushiswap_router_ABI.json
 │   ├── pancakeswap_router_ABI.json
@@ -104,15 +103,15 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 ├── Contracts/
 │   └── SimpleFlashLoan.sol     # Flashloan smart contract
 ├── Analysis/
-│   ├── MarketAnalyzer.py       # Analyzes market data
-│   ├── MonitorArray.py         # Monitors mempool for transactions
-│   └── SafetyNet.py            # Safety checks and validations
+│   ├── Market_Monitor.py       # Analyzes market data
+│   ├── Mempool_Monitor.py         # Monitors mempool for transactions
+│   └── Safety_Net.py            # Safety checks and validations
 ├── Contracts/
 │   └── SimpleFlashLoan.sol     # Flashloan smart contract
 ├── Logs/
 │   └── 0xplorer_log.txt        # Logs bot activities
 ├── .env                        # Environment variables
-├── 0xplorer.py                 # All-in-one 
+├── 0xBuilder.py                 # All-in-one 
 ├── requirements.txt            # Python dependencies
 ├── LICENSE                     # License information
 ├── CONTRIBUTING.md             # Contribution guidelines
@@ -121,7 +120,7 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 
 ## Prerequisites
 
-Before running 0xplorer, ensure you have the following:
+Before running 0xBuilder, ensure you have the following:
 
 ### System Requirements
 
@@ -165,7 +164,7 @@ Choose and set up an execution client (EL) compatible with the Ethereum network:
 | [Reth](https://reth.rs/) | Rust | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Full |
 | [EthereumJS](https://github.com/ethereumjs/ethereumjs-monorepo) | TypeScript | Linux, Windows, macOS | Sepolia, Holesky | Full |
 
-#### Geth Configuration
+#### Geth Configurationsuration
 
 1. **Installation**:
    Follow the official [Geth installation guide](https://geth.ethereum.org/docs/install-and-build/installing-geth).
@@ -215,8 +214,8 @@ Ensure that all API keys are stored securely and not shared publicly.
 ### Cloning the Repository
 
 ```bash
-git clone https://github.com/yourusername/0xplorer.git
-cd 0xplorer
+git clone https://github.com/jmitander/0xbuilder.git
+cd 0xBuilder
 ```
 
 ### Setting up Virtual Environment
@@ -260,7 +259,7 @@ pip install -r requirements.txt
 pip list
 ```
 
-## Configuration
+## Configurationsuration
 
 ### Environment Variables
 
@@ -274,9 +273,9 @@ cp .env.example .env
 copy .env.example .env
 ```
 
-2. Configure the environment variables in `.env`:
+2. Configurationsure the environment variables in `.env`:
    - Add API keys from various services
-   - Configure node endpoints
+   - Configurationsure node endpoints
    - Set up wallet details
    - Define smart contract addresses
 
@@ -293,45 +292,45 @@ chmod 600 .env
 Example `.env` configuration:
 
 ```ini
-# API Configuration
+# API Configurationsuration
 ETHERSCAN_API_KEY=your_etherscan_api_key
 INFURA_PROJECT_ID=your_infura_project_id
 COINGECKO_API_KEY=your_coingecko_api_key
 COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
 CRYPTOCOMPARE_API_KEY=your_cryptocompare_api_key
 
-# Ethereum Node Configuration
+# Ethereum Node Configurationsuration
 HTTP_ENDPOINT=http://127.0.0.1:8545
 WS_ENDPOINT=wss://127.0.0.1:8546
 IPC_ENDPOINT=/path/to/geth.ipc
 
-# Wallet Configuration
+# Wallet Configurationsuration
 PRIVATE_KEY=your_private_key
 WALLET_ADDRESS=0xYourWalletAddress
 PROFIT_WALLET=0xYourProfitAddress
 
-# Token Configuration
+# Token Configurationsuration
 TOKEN_LIST_PATH=Utils/token_addresses.json
 TOKEN_SYMBOLS_PATH=Utils/token_symbols.json
 
-# DEX Router Configurations
+# DEX Router Configurationsurations
 UNISWAP_V2_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
 SUSHISWAP_ROUTER=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
 PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
 BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
 
-# ABI Paths
-UNISWAP_V2_ABI=ABI/uniswap_v2_router_ABI.json
-SUSHISWAP_ABI=ABI/sushiswap_router_ABI.json
-PANCAKESWAP_ABI=ABI/pancakeswap_router_ABI.json
-BALANCER_ABI=ABI/balancer_router_ABI.json
-ERC20_ABI=ABI/erc20_ABI.json
+# abi Paths
+UNISWAP_V2_ABI=abi/uniswap_v2_router_ABI.json
+SUSHISWAP_ABI=abi/sushiswap_router_ABI.json
+PANCAKESWAP_ABI=abi/pancakeswap_router_ABI.json
+BALANCER_ABI=abi/balancer_router_ABI.json
+ERC20_ABI=abi/erc20_ABI.json
 
-# Flashloan Configuration
-AAVE_V3_FLASHLOAN_CONTRACT=0xYourFlashloanContractAddress
-AAVE_V3_LENDING_POOL=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
+# Flashloan Configurationsuration
+AAVE_FLASHLOAN_ADDRESS=0xYourFlashloanContractAddress
+AAVE_LENDING_POOL=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
 ```
-### Configuration Files
+### Configurationsuration Files
 
 Essential JSON configuration files must be present in the `Utils` directory:
 
@@ -412,7 +411,7 @@ CRYPTOCOMPARE_API_KEY=your_key
 ### Prerequisites
 - Synchronized Ethereum node
 - Active beacon node
-- Configured environment variables
+- Configurationsured environment variables
 - Valid API keys
 
 ### Launch Sequence
@@ -424,7 +423,7 @@ CRYPTOCOMPARE_API_KEY=your_key
 
 2. Start bot:
    ```bash
-   python Core/0xplorer.py
+   python Core/0xBuilder.py
    ```
 
 ### Monitoring
@@ -443,7 +442,7 @@ CRYPTOCOMPARE_API_KEY=your_key
 
 ## Strategies
 
-0xplorer implements several sophisticated trading strategies to capitalize on profitable opportunities within the Ethereum network:
+0xBuilder implements several sophisticated trading strategies to capitalize on profitable opportunities within the Ethereum network:
 
 ### Core Strategies
 - **Front-Running**: Executes higher-priority transactions ahead of detected profitable transactions
@@ -467,7 +466,7 @@ The bot maintains detailed logs in `Logs/0xplorer_log.txt`, including:
 - System errors and exceptions
 - Detailed transaction results
 
-Logging configuration can be customized in `Core/0xplorer.py` through the `setup_logging()` function.
+Logging configuration can be customized in `Core/0xBuilder.py` through the `setup_logging()` function.
 
 ## Troubleshooting
 
@@ -517,4 +516,4 @@ Licensed under the [MIT License](LICENSE). See LICENSE file for details.
 - Test thoroughly with small amounts first
 - Consider regulatory compliance in your jurisdiction
 
-[logo]: 0xplorer.png
+[logo]: 0xBuilder.png

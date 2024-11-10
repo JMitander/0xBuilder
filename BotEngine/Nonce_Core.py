@@ -1,4 +1,4 @@
-class NonceManager:
+class Nonce_Core:
     """
     Advanced nonce management system for Ethereum transactions with caching,
     auto-recovery, and comprehensive error handling.
@@ -35,11 +35,11 @@ class NonceManager:
                     await self._init_nonce()
                     self._initialized = True
                     self.logger.info(
-                        f"NonceManager initialized for {self.address[:10]}... ✅"
+                        f"Nonce_Core initialized for {self.address[:10]}... ✅"
                     )
         except Exception as e:
             self.logger.exception(f"Initialization failed: {e} ❌")
-            raise RuntimeError("NonceManager initialization failed") from e
+            raise RuntimeError("Nonce_Core initialization failed") from e
 
     async def _init_nonce(self) -> None:
         """Initialize nonce with fallback mechanisms."""
@@ -168,7 +168,7 @@ class NonceManager:
                 self.last_sync = 0.0
                 self._initialized = False
                 await self.initialize()
-                self.logger.info("NonceManager reset complete ✨")
+                self.logger.info("Nonce_Core reset complete ✨")
             except Exception as e:
                 self.logger.exception(f"Reset failed: {e} ❌")
                 raise

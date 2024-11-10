@@ -1,14 +1,14 @@
-class MarketAnalyzer:
+class Market_Monitor:
     def __init__(
         self,
         web3: AsyncWeb3,
-        config: Config,
-        api_client: ApiClient,
+        configuration: Configuration,
+        api_config: API_Config,
         logger: Optional[logging.Logger] = None,
     ):
         self.web3 = web3
-        self.config = config
-        self.api_client = api_client
+        self.configuration = configuration
+        self.api_config = api_config
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.price_model = LinearRegression()
         self.model_last_updated = 0
@@ -23,7 +23,7 @@ class MarketAnalyzer:
             "bearish_trend": False,
             "low_liquidity": False,
         }
-        token_symbol = await self.api_client.get_token_symbol(self.web3, token_address)
+        token_symbol = await self.api_config.get_token_symbol(self.web3, token_address)
         if not token_symbol:
             self.logger.error(f"Cannot get token symbol for address {token_address} ❌")
             return market_conditions
@@ -72,12 +72,12 @@ class MarketAnalyzer:
             )
             return self.price_cache[cache_key]
 
-        for service in self.api_client.api_configs.keys():
+        for service in self.api_config.api_configs.keys():
             try:
                 self.logger.debug(
                     f"Fetching historical prices for {token_symbol} using {service}... 📊⏳"
                 )
-                prices = await self.api_client.fetch_historical_prices(token_symbol, days=days)
+                prices = await self.api_config.fetch_historical_prices(token_symbol, days=days)
                 if prices:
                     self.price_cache[cache_key] = prices
                     return prices
@@ -98,12 +98,12 @@ class MarketAnalyzer:
             )
             return self.price_cache[cache_key]
 
-        for service in self.api_client.api_configs.keys():
+        for service in self.api_config.api_configs.keys():
             try:
                 self.logger.debug(
                     f"Fetching volume for {token_symbol} using {service}. 📊⏳"
                 )
-                volume = await self.api_client.get_token_volume(token_symbol)
+                volume = await self.api_config.get_token_volume(token_symbol)
                 if volume:
                     self.price_cache[cache_key] = volume
                     return volume
@@ -157,12 +157,12 @@ class MarketAnalyzer:
             if len(path) < 2:
                 return False
             token_address = path[-1]  # The token being bought
-            token_symbol = await self.api_client.get_token_symbol(self.web3, token_address)
+            token_symbol = await self.api_config.get_token_symbol(self.web3, token_address)
             if not token_symbol:
                 return False
             # Get prices from different services
-            price_binance = await self.api_client.get_real_time_price(token_symbol)
-            price_coingecko = await self.api_client.get_real_time_price(token_symbol)
+            price_binance = await self.api_config.get_real_time_price(token_symbol)
+            price_coingecko = await self.api_config.get_real_time_price(token_symbol)
             if price_binance is None or price_coingecko is None:
                 return False
             # Check for arbitrage opportunity
@@ -187,7 +187,7 @@ class MarketAnalyzer:
     ) -> Optional[Dict[str, Any]]:
         """Decode the input data of a transaction."""
         try:
-            erc20_ABI = await self.api_client._load_contract_ABI(self.config.ERC20_ABI)
+            erc20_ABI = await self.api_config._load_contract_ABI(self.configuration.ERC20_ABI)
             contract = self.web3.eth.contract(
                 address=contract_address, abi=erc20_ABI
             )

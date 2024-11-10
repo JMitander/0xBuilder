@@ -1,6 +1,6 @@
-Contributing to 0xplorer MEV Bot
+Contributing to 0xBuilder MEV Bot
 
-Thank you for considering contributing to the 0xplorer MEV Bot project! We welcome contributions in the form of bug reports, feature suggestions, code improvements, documentation enhancements, and more.
+Thank you for considering contributing to the 0xBuilder MEV Bot project! We welcome contributions in the form of bug reports, feature suggestions, code improvements, documentation enhancements, and more.
 
 This document provides guidelines to help you contribute effectively and maintain a high-quality codebase.
 Table of Contents
@@ -45,14 +45,14 @@ Setting Up the Development Environment
 
     bash
 
-git clone https://github.com/yourusername/0xplorer.git
-cd 0xplorer
+git clone https://github.com/jmitander/0xbuilder.git
+cd 0xBuilder
 
 Set Upstream Remote
 
 bash
 
-git remote add upstream https://github.com/original_author/0xplorer.git
+git remote add upstream https://github.com/original_author/0xBuilder.git
 
 Create a Virtual Environment
 
@@ -67,7 +67,7 @@ bash
 
 pip install -r requirements.txt
 
-Configure Environment Variables
+Configurationsure Environment Variables
 
 Copy the example environment file and customize it:
 
@@ -249,4 +249,4 @@ Community and Support
 
 License
 
-By contributing to 0xplorer, you agree that your contributions will be licensed under the MIT License.
+By contributing to 0xBuilder, you agree that your contributions will be licensed under the MIT License.

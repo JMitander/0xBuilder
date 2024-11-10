@@ -1,6 +1,6 @@
-class TransactionArray:
+class Transaction_Core:
     """
-    TransactionArray class builds and executes transactions, including front-run,
+    Transaction_Core class builds and executes transactions, including front-run,
     back-run, and sandwich attack strategies. It interacts with smart contracts,
     manages transaction signing, gas price estimation, and handles flashloans.
     """
@@ -12,10 +12,10 @@ class TransactionArray:
         flashloan_contract_ABI: List[Dict[str, Any]],
         lending_pool_contract_address: str,
         lending_pool_contract_ABI: List[Dict[str, Any]],
-        monitor: MonitorArray,
-        nonce_manager: NonceManager,
-        safety_net: SafetyNet,
-        config: Config,
+        monitor: Mempool_Monitor,
+        nonce_core: Nonce_Core,
+        safety_net: Safety_Net,
+        configuration: Configuration,
         logger: Optional[logging.Logger] = None,
         gas_price_multiplier: float = 1.1,
         retry_attempts: int = 3,
@@ -24,10 +24,10 @@ class TransactionArray:
     ):
         self.web3 = web3
         self.account = account
-        self.config = config
+        self.configuration = configuration
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.monitor = monitor
-        self.nonce_manager = nonce_manager
+        self.nonce_core = nonce_core
         self.safety_net = safety_net
         self.gas_price_multiplier = gas_price_multiplier
         self.retry_attempts = retry_attempts
@@ -51,23 +51,23 @@ class TransactionArray:
             "Lending Pool Contract",
         )
         self.uniswap_router_contract = await self._initialize_contract(
-            self.config.UNISWAP_V2_ROUTER_ADDRESS,
-            self.config.UNISWAP_V2_ROUTER_ABI,
+            self.configuration.UNISWAP_ROUTER_ADDRESS,
+            self.configuration.UNISWAP_ROUTER_ABI,
             "Uniswap Router Contract",
         )
         self.sushiswap_router_contract = await self._initialize_contract(
-            self.config.SUSHISWAP_ROUTER_ADDRESS,
-            self.config.SUSHISWAP_ROUTER_ABI,
+            self.configuration.SUSHISWAP_ROUTER_ADDRESS,
+            self.configuration.SUSHISWAP_ROUTER_ABI,
             "Sushiswap Router Contract",
         )
         self.pancakeswap_router_contract = await self._initialize_contract(
-            self.config.PANCAKESWAP_ROUTER_ADDRESS,
-            self.config.PANCAKESWAP_ROUTER_ABI,
+            self.configuration.PANCAKESWAP_ROUTER_ADDRESS,
+            self.configuration.PANCAKESWAP_ROUTER_ABI,
             "Pancakeswap Router Contract",
         )
         self.balancer_router_contract = await self._initialize_contract(
-            self.config.BALANCER_ROUTER_ADDRESS,
-            self.config.BALANCER_ROUTER_ABI,
+            self.configuration.BALANCER_ROUTER_ADDRESS,
+            self.configuration.BALANCER_ROUTER_ABI,
             "Balancer Router Contract",
         )
         self.erc20_ABI = self.erc20_ABI or await self._load_erc20_ABI()
@@ -98,11 +98,11 @@ class TransactionArray:
     async def _load_erc20_ABI(self) -> List[Dict[str, Any]]:
         try:
             erc20_ABI = await self.erc20_ABI()
-            self.logger.info("ERC20 ABI loaded successfully. ✅")
+            self.logger.info("ERC20 abi loaded successfully. ✅")
             return erc20_ABI
         except Exception as e:
-            self.logger.error(f"Failed to load ERC20 ABI: {e} ❌")
-            raise ValueError("ERC20 ABI loading failed") from e
+            self.logger.error(f"Failed to load ERC20 abi: {e} ❌")
+            raise ValueError("ERC20 abi loading failed") from e
         
     async def build_transaction(
         self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None
@@ -113,7 +113,7 @@ class TransactionArray:
                 "data": function_call.encodeABI(),
                 "to": function_call.address,
                 "chainId": await self.web3.eth.chain_id,
-                "nonce": await self.nonce_manager.get_nonce(),
+                "nonce": await self.nonce_core.get_nonce(),
                 "from": self.account.address,
             }
             tx_details.update(additional_params)
@@ -165,7 +165,7 @@ class TransactionArray:
                 self.logger.info(
                     f"Transaction sent successfully with hash: {tx_hash_hex} 🚀✅"
                 )
-                await self.nonce_manager.refresh_nonce()
+                await self.nonce_core.refresh_nonce()
                 return tx_hash_hex
             except Exception as e:
                 self.logger.error(
@@ -203,7 +203,7 @@ class TransactionArray:
                 "to": target_tx.get("to", ""),
                 "value": eth_value,
                 "gas": 21_000,
-                "nonce": await self.nonce_manager.get_nonce(),
+                "nonce": await self.nonce_core.get_nonce(),
                 "from": self.account.address,
             }
             original_gas_price = int(target_tx.get("gasPrice", 0))
@@ -377,7 +377,7 @@ class TransactionArray:
 
             # Update nonce if any submissions succeeded
             if successes:
-                await self.nonce_manager.refresh_nonce()
+                await self.nonce_core.refresh_nonce()
                 self.logger.info(f"Bundle successfully sent to builders: {', '.join(successes)}")
                 return True
             else:
@@ -669,10 +669,10 @@ class TransactionArray:
 
             # Router address mapping
             routers = {
-                self.config.UNISWAP_V2_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
-                self.config.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
-                self.config.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
-                self.config.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
+                self.configuration.UNISWAP_V2_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
+                self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
+                self.configuration.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
+                self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
 
             if to_address not in routers:
@@ -695,7 +695,7 @@ class TransactionArray:
             self.logger.error(f"Invalid address format: {e} ❌")
             return None
         except AttributeError as e:
-            self.logger.error(f"Function {function_name} not found in router ABI: {e} ❌")
+            self.logger.error(f"Function {function_name} not found in router abi: {e} ❌")
             return None
         except Exception as e:
             self.logger.exception(f"Error preparing front-run transaction: {e} ❌")
@@ -744,10 +744,10 @@ class TransactionArray:
 
             # Router address mapping
             routers = {
-                self.config.UNISWAP_V2_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
-                self.config.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
-                self.config.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
-                self.config.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
+                self.configuration.UNISWAP_V2_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
+                self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
+                self.configuration.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
+                self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
 
             if to_address not in routers:
@@ -772,7 +772,7 @@ class TransactionArray:
 
         except AttributeError as e:
             self.logger.error(
-                f"Function {function_name} not found in router ABI: {str(e)} ❌"
+                f"Function {function_name} not found in router abi: {str(e)} ❌"
             )
             return None
         except Exception as e:
@@ -784,21 +784,21 @@ class TransactionArray:
     ) -> Optional[Dict[str, Any]]:
         try:
             to_address = self.web3.to_checksum_address(to_address)
-            if to_address == self.config.UNISWAP_V2_ROUTER_ADDRESS:
-                abi = self.config.UNISWAP_V2_ROUTER_ABI
+            if to_address == self.configuration.UNISWAP_V2_ROUTER_ADDRESS:
+                abi = self.configuration.UNISWAP_ROUTER_ABI
                 exchange_name = "Uniswap"
-            elif to_address == self.config.SUSHISWAP_ROUTER_ADDRESS:
-                abi = self.config.SUSHISWAP_ROUTER_ABI
+            elif to_address == self.configuration.SUSHISWAP_ROUTER_ADDRESS:
+                abi = self.configuration.SUSHISWAP_ROUTER_ABI
                 exchange_name = "Sushiswap"
-            elif to_address == self.config.PANCAKESWAP_ROUTER_ADDRESS:
-                abi = self.config.PANCAKESWAP_ROUTER_ABI
+            elif to_address == self.configuration.PANCAKESWAP_ROUTER_ADDRESS:
+                abi = self.configuration.PANCAKESWAP_ROUTER_ABI
                 exchange_name = "Pancakeswap"
-            elif to_address == self.config.BALANCER_ROUTER_ADDRESS:
-                abi = self.config.BALANCER_ROUTER_ABI
+            elif to_address == self.configuration.BALANCER_ROUTER_ADDRESS:
+                abi = self.configuration.BALANCER_ROUTER_ABI
                 exchange_name = "Balancer"
             else:
                 self.logger.error(
-                    "Unknown router address. Cannot determine ABI for decoding. ❌"
+                    "Unknown router address. Cannot determine abi for decoding. ❌"
                 )
                 return None
             contract = self.web3.eth.contract(address=to_address, abi=abi)
@@ -808,7 +808,7 @@ class TransactionArray:
                 "params": function_params,
             }
             self.logger.debug(
-                f"Decoded transaction input using {exchange_name} ABI: {decoded_data}"
+                f"Decoded transaction input using {exchange_name} abi: {decoded_data}"
             )
             return decoded_data
         except Exception as e:
@@ -918,203 +918,3 @@ class TransactionArray:
             self.logger.exception(f"Error transferring profit: {e} ❌")
             return False
 
-#//////////////////////////////////////////////////////////////////////////////
-
-class MarketAnalyzer:
-    def __init__(
-        self,
-        web3: AsyncWeb3,
-        config: Config,
-        api_client: ApiClient,
-        logger: Optional[logging.Logger] = None,
-    ):
-        self.web3 = web3
-        self.config = config
-        self.api_client = api_client
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.price_model = LinearRegression()
-        self.model_last_updated = 0
-        self.MODEL_UPDATE_INTERVAL = 3600  # Update model every hour
-        self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
-
-    async def check_market_conditions(self, token_address: str) -> Dict[str, Any]:
-        """Check various market conditions for a given token."""
-        market_conditions = {
-            "high_volatility": False,
-            "bullish_trend": False,
-            "bearish_trend": False,
-            "low_liquidity": False,
-        }
-        token_symbol = await self.api_client.get_token_symbol(self.web3, token_address)
-        if not token_symbol:
-            self.logger.error(f"Cannot get token symbol for address {token_address} ❌")
-            return market_conditions
-
-        # Fetch recent price data (e.g., last 1 day)
-        prices = await self.fetch_historical_prices(token_symbol, days=1)
-        if len(prices) < 2:
-            self.logger.error(
-                f"Not enough price data to analyze market conditions for {token_symbol} 📊"
-            )
-            return market_conditions
-
-        # Calculate volatility
-        prices_array = np.array(prices)
-        returns = np.diff(prices_array) / prices_array[:-1]
-        volatility = np.std(returns)
-        self.logger.debug(f"Calculated volatility for {token_symbol}: {volatility} 📊")
-
-        # Define thresholds
-        VOLATILITY_THRESHOLD = 0.05  # 5% standard deviation
-        LIQUIDITY_THRESHOLD = 100000  # $100,000 in 24h volume
-
-        if volatility > VOLATILITY_THRESHOLD:
-            market_conditions["high_volatility"] = True
-
-        # Calculate trend
-        moving_average = np.mean(prices_array)
-        if prices_array[-1] > moving_average:
-            market_conditions["bullish_trend"] = True
-        elif prices_array[-1] < moving_average:
-            market_conditions["bearish_trend"] = True
-
-        # Check liquidity
-        volume = await self.get_token_volume(token_symbol)
-        if volume < LIQUIDITY_THRESHOLD:
-            market_conditions["low_liquidity"] = True
-
-        return market_conditions
-
-    async def fetch_historical_prices(self, token_symbol: str, days: int = 30) -> List[float]:
-        """Fetch historical price data for a given token symbol."""
-        cache_key = f"historical_prices_{token_symbol}_{days}"
-        if cache_key in self.price_cache:
-            self.logger.debug(
-                f"Returning cached historical prices for {token_symbol}. 📊⏳"
-            )
-            return self.price_cache[cache_key]
-
-        for service in self.api_client.api_configs.keys():
-            try:
-                self.logger.debug(
-                    f"Fetching historical prices for {token_symbol} using {service}... 📊⏳"
-                )
-                prices = await self.api_client.fetch_historical_prices(token_symbol, days=days)
-                if prices:
-                    self.price_cache[cache_key] = prices
-                    return prices
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch historical prices using {service}: {e} ⚠️"
-                )
-
-        self.logger.error(f"Failed to fetch historical prices for {token_symbol}. ❌")
-        return []
-
-    async def get_token_volume(self, token_symbol: str) -> float:
-        """Get the 24-hour trading volume for a given token symbol."""
-        cache_key = f"token_volume_{token_symbol}"
-        if cache_key in self.price_cache:
-            self.logger.debug(
-                f"Returning cached trading volume for {token_symbol}. 📊⏳"
-            )
-            return self.price_cache[cache_key]
-
-        for service in self.api_client.api_configs.keys():
-            try:
-                self.logger.debug(
-                    f"Fetching volume for {token_symbol} using {service}. 📊⏳"
-                )
-                volume = await self.api_client.get_token_volume(token_symbol)
-                if volume:
-                    self.price_cache[cache_key] = volume
-                    return volume
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch trading volume using {service}: {e} ⚠️"
-                )
-
-        self.logger.error(f"Failed to fetch trading volume for {token_symbol}. ❌")
-        return 0.0
-
-    async def predict_price_movement(self, token_symbol: str) -> float:
-        """Predict the next price movement for a given token symbol."""
-        try:
-            current_time = time.time()
-
-            if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
-                prices = await self.fetch_historical_prices(token_symbol)
-                if len(prices) > 10:
-                    X = np.arange(len(prices)).reshape(-1, 1)
-                    y = np.array(prices)
-                    self.price_model.fit(X, y)
-                    self.model_last_updated = current_time
-
-            prices = await self.fetch_historical_prices(token_symbol, days=1)
-            if not prices:
-                self.logger.warning(f"No recent prices available for {token_symbol}.")
-                return 0.0
-
-            next_time = np.array([[len(prices)]])
-            predicted_price = self.price_model.predict(next_time)[0]
-
-            self.logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
-            return float(predicted_price)
-
-        except Exception as e:
-            self.logger.error(f"Price prediction failed: {str(e)}", exc_info=True)
-            return 0.0
-
-    async def is_arbitrage_opportunity(self, target_tx: Dict[str, Any]) -> bool:
-        """Check if there's an arbitrage opportunity based on the target transaction."""
-        try:
-            # Decode transaction input
-            decoded_tx = await self.decode_transaction_input(
-                target_tx["input"], target_tx["to"]
-            )
-            if not decoded_tx:
-                return False
-            function_params = decoded_tx["params"]
-            path = function_params.get("path", [])
-            if len(path) < 2:
-                return False
-            token_address = path[-1]  # The token being bought
-            token_symbol = await self.api_client.get_token_symbol(self.web3, token_address)
-            if not token_symbol:
-                return False
-            # Get prices from different services
-            price_binance = await self.api_client.get_real_time_price(token_symbol)
-            price_coingecko = await self.api_client.get_real_time_price(token_symbol)
-            if price_binance is None or price_coingecko is None:
-                return False
-            # Check for arbitrage opportunity
-            price_difference = abs(price_binance - price_coingecko)
-            average_price = (price_binance + price_coingecko) / 2
-            if average_price == 0:
-                return False
-            price_difference_percentage = price_difference / average_price
-            if price_difference_percentage > 0.01:
-                self.logger.debug(
-                    f"Arbitrage opportunity detected for {token_symbol} 📈"
-                )
-                return True
-            else:
-                return False
-        except Exception as e:
-            self.logger.error(f"Failed in checking arbitrage opportunity: {e} ❌")
-            return False
-
-    async def decode_transaction_input(
-        self, input_data: str, contract_address: str
-    ) -> Optional[Dict[str, Any]]:
-        """Decode the input data of a transaction."""
-        try:
-            erc20_ABI = await self.api_client._load_contract_ABI(self.config.ERC20_ABI)
-            contract = self.web3.eth.contract(
-                address=contract_address, abi=erc20_ABI
-            )
-            function_ABI, params = contract.decode_function_input(input_data)
-            return {"function_name": function_ABI["name"], "params": params}
-        except Exception as e:
-            self.logger.error(f"Failed in decoding transaction input: {e} ❌")
-            return None

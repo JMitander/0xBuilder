@@ -1,4 +1,4 @@
-class MonitorArray:
+class Mempool_Monitor:
     """
     Advanced mempool monitoring system that identifies and analyzes profitable transactions.
     Includes sophisticated profit estimation, caching, and parallel processing capabilities.
@@ -7,20 +7,20 @@ class MonitorArray:
     def __init__(
         self,
         web3: AsyncWeb3,
-        safety_net: SafetyNet,
-        nonce_manager: NonceManager,
-        api_client: ApiClient,
+        safety_net: Safety_Net,
+        nonce_core: Nonce_Core,
+        api_config: API_Config,
         logger: Optional[logging.Logger] = None,
         monitored_tokens: Optional[List[str]] = None,
         erc20_ABI: List[Dict[str, Any]] = None,
-        config: Config = None,
+        configuration: Configuration = None,
     ):
         # Core components
         self.web3 = web3
-        self.config = config
+        self.configuration = configuration
         self.safety_net = safety_net
-        self.nonce_manager = nonce_manager
-        self.api_client = api_client
+        self.nonce_core = nonce_core
+        self.api_config = api_config
         self.logger = logger or logging.getLogger(self.__class__.__name__)
 
         # Monitoring state
@@ -29,7 +29,7 @@ class MonitorArray:
         self.profitable_transactions = asyncio.Queue()
         self.processed_transactions = set()
 
-        # Configuration
+        # Configurationsuration
         self.erc20_ABI = erc20_ABI or []
         self.minimum_profit_threshold = Decimal("0.001")
         self.max_parallel_tasks = 50
@@ -40,7 +40,7 @@ class MonitorArray:
         self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
         self.task_queue = asyncio.Queue()
 
-        self.logger.info("MonitorArray initialized with enhanced configuration 📡✅")
+        self.logger.info("Mempool_Monitor initialized with enhanced configuration 📡✅")
 
     async def start_monitoring(self) -> None:
         """Start monitoring the mempool with improved error handling."""
@@ -234,7 +234,7 @@ class MonitorArray:
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_ABI)
             function_ABI, function_params = contract.decode_function_input(tx.input)
             function_name = function_ABI["name"]
-            if function_name in self.config.ERC20_SIGNATURES:
+            if function_name in self.configuration.ERC20_SIGNATURES:
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
                     self.logger.info(
@@ -304,13 +304,13 @@ class MonitorArray:
                 )
                 return Decimal(0)
             output_token_address = path[-1]
-            output_token_symbol = await self.api_client.get_token_symbol(self.web3, output_token_address)
+            output_token_symbol = await self.api_config.get_token_symbol(self.web3, output_token_address)
             if not output_token_symbol:
                 self.logger.debug(
                     f"Output token symbol not found for address {output_token_address}. Skipping. ⚠️"
                 )
                 return Decimal(0)
-            market_price = await self.api_client.get_real_time_price(
+            market_price = await self.api_config.get_real_time_price(
                 output_token_symbol.lower()
             )
             if market_price is None or market_price == 0:

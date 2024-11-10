@@ -1,30 +1,30 @@
-class Xplorer:
+class Main_Core:
     """
     Builds and manages the entire MEV bot, initializing all components,
     managing connections, and orchestrating the main execution loop.
     """
 
-    def __init__(self, config: Config, logger: Optional[logging.Logger] = None) -> None:
+    def __init__(self, configuration: Configuration, logger: Optional[logging.Logger] = None) -> None:
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        self.config = config
+        self.configuration = configuration
         self.web3: Optional[AsyncWeb3] = None
         self.account: Optional[Account] = None
         self.components: Dict[str, Any] = {
-            'api_client': None,
-            'nonce_manager': None,
+            'api_config': None,
+            'nonce_core': None,
             'safety_net': None,
-            'market_analyzer': None,
-            'monitor_array': None,
-            'transaction_array': None,
-            'strategy_manager': None
+            'market_monitor': None,
+            'mempool_monitor': None,
+            'transaction_core': None,
+            'strategy_net': None
         }
-        self.logger.debug("Xplorer core initialized successfully. 🌐✅")
+        self.logger.debug("Main_Core core initialized successfully. 🌐✅")
 
     async def initialize(self) -> None:
         """Initialize all components with proper error handling."""
         try:
             # Initialize account first
-            wallet_key = self.config.WALLET_KEY
+            wallet_key = self.configuration.WALLET_KEY
             if not wallet_key:
                 raise ValueError("WALLET_KEY environment variable is not set or empty")
 
@@ -79,12 +79,12 @@ class Xplorer:
     def _get_providers(self) -> List[Tuple[str, Union[AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider]]]:
         """Get list of available providers with validation."""
         providers = []
-        if self.config.IPC_ENDPOINT and os.path.exists(self.config.IPC_ENDPOINT):
-            providers.append(("IPC", AsyncIPCProvider(self.config.IPC_ENDPOINT)))
-        if self.config.HTTP_ENDPOINT:
-            providers.append(("HTTP", AsyncHTTPProvider(self.config.HTTP_ENDPOINT)))
-        if self.config.WEBSOCKET_ENDPOINT:
-            providers.append(("WebSocket", WebSocketProvider(self.config.WEBSOCKET_ENDPOINT)))
+        if self.configuration.IPC_ENDPOINT and os.path.exists(self.configuration.IPC_ENDPOINT):
+            providers.append(("IPC", AsyncIPCProvider(self.configuration.IPC_ENDPOINT)))
+        if self.configuration.HTTP_ENDPOINT:
+            providers.append(("HTTP", AsyncHTTPProvider(self.configuration.HTTP_ENDPOINT)))
+        if self.configuration.WEBSOCKET_ENDPOINT:
+            providers.append(("WebSocket", WebSocketProvider(self.configuration.WEBSOCKET_ENDPOINT)))
         return providers
 
 
@@ -140,63 +140,63 @@ class Xplorer:
         """Initialize all bot components with proper error handling."""
         try:
             # Initialize core components
-            self.components['nonce_manager'] = NonceManager(
+            self.components['nonce_core'] = Nonce_Core(
                 self.web3, self.account.address, self.logger
             )
-            await self.components['nonce_manager'].initialize()
+            await self.components['nonce_core'].initialize()
 
-            api_client = ApiClient(self.config, self.logger)
+            api_config = API_Config(self.configuration, self.logger)
 
-            self.components['safety_net'] = SafetyNet(
-                self.web3, self.config, self.account, api_client, self.logger
+            self.components['safety_net'] = Safety_Net(
+                self.web3, self.configuration, self.account, api_config, self.logger
             )
 
             # Load contract ABIs
-            erc20_abi = await self._load_contract_ABI(self.config.ERC20_ABI)
-            flashloan_abi = await self._load_contract_ABI(self.config.AAVE_V3_FLASHLOAN_ABI)
-            lending_pool_abi = await self._load_contract_ABI(self.config.AAVE_V3_LENDING_POOL_ABI)
+            erc20_abi = await self._load_contract_ABI(self.configuration.ERC20_ABI)
+            flashloan_abi = await self._load_contract_ABI(self.configuration.AAVE_FLASHLOAN_ABI)
+            lending_pool_abi = await self._load_contract_ABI(self.configuration.AAVE_LENDING_POOL_ABI)
 
             # Initialize analysis components
-            self.components['market_analyzer'] = MarketAnalyzer(
-                self.web3, self.config, api_client, self.logger
+            self.components['market_monitor'] = Market_Monitor(
+                self.web3, self.configuration, api_config, self.logger
             )
 
             # Initialize monitoring components
-            self.components['monitor_array'] = MonitorArray(
+            self.components['mempool_monitor'] = Mempool_Monitor(
                 web3=self.web3,
                 safety_net=self.components['safety_net'],
-                nonce_manager=self.components['nonce_manager'],
-                api_client=api_client,
+                nonce_core=self.components['nonce_core'],
+                api_config=api_config,
                 logger=self.logger,
-                monitored_tokens=await self.config.get_token_addresses(),
+                monitored_tokens=await self.configuration.get_token_addresses(),
                 erc20_ABI=erc20_abi,
-                config=self.config
+                configuration=self.configuration
             )
 
             # Initialize transaction components
-            self.components['transaction_array'] = TransactionArray(
+            self.components['transaction_core'] = Transaction_Core(
                 web3=self.web3,
                 account=self.account,
-                flashloan_contract_address=self.config.AAVE_V3_FLASHLOAN_CONTRACT_ADDRESS,
+                flashloan_contract_address=self.configuration.AAVE_FLASHLOAN_ADDRESS,
                 flashloan_contract_ABI=flashloan_abi,
-                lending_pool_contract_address=self.config.AAVE_V3_LENDING_POOL_ADDRESS,
+                lending_pool_contract_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
                 lending_pool_contract_ABI=lending_pool_abi,
-                monitor=self.components['monitor_array'],
-                nonce_manager=self.components['nonce_manager'],
+                monitor=self.components['mempool_monitor'],
+                nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
-                api_client=api_client,
-                config=self.config,
+                api_config=api_config,
+                configuration=self.configuration,
                 logger=self.logger,
                 erc20_ABI=erc20_abi
             )
-            await self.components['transaction_array'].initialize()
+            await self.components['transaction_core'].initialize()
 
             # Initialize strategy components
-            self.components['strategy_manager'] = StrategyManager(
-                transaction_array=self.components['transaction_array'],
-                market_analyzer=self.components['market_analyzer'],
+            self.components['strategy_net'] = Strategy_Net(
+                transaction_core=self.components['transaction_core'],
+                market_monitor=self.components['market_monitor'],
                 safety_net=self.components['safety_net'],
-                api_client=api_client,
+                api_config=api_config,
                 logger=self.logger
             )
 
@@ -206,10 +206,10 @@ class Xplorer:
 
     async def run(self) -> None:
         """Main execution loop with improved error handling."""
-        self.logger.info("Starting Xplorer... 🚀")
+        self.logger.info("Starting Main_Core... 🚀")
 
         try:
-            await self.components['monitor_array'].start_monitoring()
+            await self.components['mempool_monitor'].start_monitoring()
 
             while True:
                 try:
@@ -228,15 +228,15 @@ class Xplorer:
 
     async def stop(self) -> None:
         """Graceful shutdown of all components."""
-        self.logger.info("Shutting down Xplorer...")
+        self.logger.info("Shutting down Main_Core...")
 
         try:
-            if self.components['monitor_array']:
-                await self.components['monitor_array'].stop_monitoring()
+            if self.components['mempool_monitor']:
+                await self.components['mempool_monitor'].stop_monitoring()
 
-            # Close the aiohttp session in ApiClient
-            api_client: ApiClient = self.components['safety_net'].api_client
-            await api_client.session.close()
+            # Close the aiohttp session in API_Config
+            api_config: API_Config = self.components['safety_net'].api_config
+            await api_config.session.close()
 
             self.logger.info("Shutdown complete 👋")
         except Exception as e:
@@ -246,8 +246,8 @@ class Xplorer:
 
     async def _process_profitable_transactions(self) -> None:
         """Process profitable transactions from the queue."""
-        monitor = self.components['monitor_array']
-        strategy = self.components['strategy_manager']
+        monitor = self.components['mempool_monitor']
+        strategy = self.components['strategy_net']
 
         while not monitor.profitable_transactions.empty():
             try:
@@ -267,14 +267,14 @@ class Xplorer:
                 self.logger.error(f"Error processing transaction: {e}")
 
     async def _load_contract_ABI(self, abi_path: str) -> List[Dict[str, Any]]:
-        """Load contract ABI from a file."""
+        """Load contract abi from a file."""
         try:
             with open(abi_path, 'r') as file:
                 abi = json.load(file)
-            self.logger.info(f"Loaded ABI from {abi_path} successfully. ✅")
+            self.logger.info(f"Loaded abi from {abi_path} successfully. ✅")
             return abi
         except Exception as e:
-            self.logger.error(f"Failed to load ABI from {abi_path}: {e} ❌")
+            self.logger.error(f"Failed to load abi from {abi_path}: {e} ❌")
             raise
 
 #//////////////////////////////////////////////////////////////////////////////
@@ -285,22 +285,22 @@ async def main():
     try:
         # Setup logging
         await setup_logging()
-        logger = logging.getLogger("Xplorer")
-        logger.info("Starting Xplorer initialization...")
+        logger = logging.getLogger("Main_Core")
+        logger.info("Starting Main_Core initialization...")
 
         # Initialize configuration
-        config = Config(logger)
-        await config.load()
+        configuration = Configuration(logger)
+        await configuration.load()
 
         # Initialize and run the bot
-        xplorer = Xplorer(config, logger)
-        await xplorer.initialize()
-        await xplorer.run()
+        main_cn_cre = Main_Core(configuration, logger)
+        await main_cn_cre.initialize()
+        await main_cn_cre.run()
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt, initiating shutdown...")
-        if 'xplorer' in locals():
-            await xplorer.stop()
+        if 'main_cn_cre' in locals():
+            await main_cn_cre.stop()
     except Exception as e:
         if logger:
             logger.critical(f"Fatal error: {e}", exc_info=True)
@@ -309,7 +309,7 @@ async def main():
         sys.exit(1)
     finally:
         if logger:
-            logger.info("Xplorer shutdown complete.")
+            logger.info("Main_Core shutdown complete.")
         sys.exit(0)
 
 if __name__ == "__main__":

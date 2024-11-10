@@ -47,7 +47,7 @@ main()
 
 ---
 
-## <kbd>class</kbd> `Config`
+## <kbd>class</kbd> `Configuration`
 Loads configuration from environment variables and monitored tokens from a JSON file. 
 
 ### <kbd>function</kbd> `__init__`
@@ -71,7 +71,7 @@ __init__(logger: Optional[Logger] = None)
 get_ABI_path(ABI_name: str) → str
 ```
 
-Retrieves the ABI path for a given contract name. 
+Retrieves the abi path for a given contract name. 
 
 ---
 
@@ -108,8 +108,8 @@ load()
 
 ---
 
-## <kbd>class</kbd> `MarketAnalyzer`
-MarketAnalyzer class analyzes market conditions, fetches price data, and checks for arbitrage opportunities. 
+## <kbd>class</kbd> `Market_Monitor`
+Market_Monitor class analyzes market conditions, fetches price data, and checks for arbitrage opportunities. 
 
 ### <kbd>function</kbd> `__init__`
 
@@ -117,7 +117,7 @@ MarketAnalyzer class analyzes market conditions, fetches price data, and checks 
 __init__(
     web3: AsyncWeb3,
     erc20_ABI: List[Dict[str, Any]],
-    config: Config,
+    configuration: Configuration,
     logger: Optional[Logger] = None
 )
 ```
@@ -235,20 +235,20 @@ make_request(
 
 ---
 
-## <kbd>class</kbd> `MonitorArray`
-MonitorArray class monitors the mempool for profitable transactions. 
+## <kbd>class</kbd> `Mempool_Monitor`
+Mempool_Monitor class monitors the mempool for profitable transactions. 
 
 ### <kbd>function</kbd> `__init__`
 
 ```python
 __init__(
     web3: AsyncWeb3,
-    safety_net: SafetyNet,
-    nonce_manager: NonceManager,
+    safety_net: Safety_Net,
+    nonce_core: Nonce_Core,
     logger: Optional[Logger] = None,
     monitored_tokens: Optional[List[str]] = None,
     erc20_ABI: List[Dict[str, Any]] = None,
-    config: Config = None
+    configuration: Configuration = None
 )
 ```
 
@@ -322,7 +322,7 @@ Stop monitoring the mempool.
 
 ---
 
-## <kbd>class</kbd> `NonceManager`
+## <kbd>class</kbd> `Nonce_Core`
 Manages the nonce for an Ethereum account to prevent transaction nonce collisions. 
 
 ### <kbd>function</kbd> `__init__`
@@ -415,7 +415,7 @@ This method is a more aggressive sync that forces the nonce to synchronize with 
 
 ---
 
-## <kbd>class</kbd> `SafetyNet`
+## <kbd>class</kbd> `Safety_Net`
 
 
 
@@ -425,7 +425,7 @@ This method is a more aggressive sync that forces the nonce to synchronize with 
 ```python
 __init__(
     web3: AsyncWeb3,
-    config: Config,
+    configuration: Configuration,
     account: Account,
     logger: Optional[Logger] = None
 )
@@ -438,7 +438,7 @@ Provides safety checks and utility functions for transactions.
 **Args:**
  
  - <b>`web3`</b> (AsyncWeb3):  AsyncWeb3 instance connected to the Ethereum network. 
- - <b>`config`</b> (Config):  Configuration object containing API keys and settings. 
+ - <b>`configuration`</b> (Configuration):  Configurationsuration object containing API keys and settings. 
  - <b>`account`</b> (Account):  The Ethereum account. 
  - <b>`logger`</b> (Optional[logging.Logger]):  Logger instance. 
 
@@ -634,27 +634,27 @@ Make a request to an external API with retry mechanism and exponential backoff.
 
 ---
 
-## <kbd>class</kbd> `StrategyManager`
+## <kbd>class</kbd> `Strategy_Net`
 Manages and executes various trading strategies such as ETH transactions, front-running, back-running, and sandwich attacks. It tracks strategy performance, predicts market movements, and selects the best strategy based on historical performance and reinforcement learning. 
 
 ### <kbd>function</kbd> `__init__`
 
 ```python
 __init__(
-    transaction_array: TransactionArray,
-    market_analyzer: 'MarketAnalyzer',
+    transaction_core: Transaction_Core,
+    market_monitor: 'Market_Monitor',
     logger: Optional[Logger] = None
 ) → None
 ```
 
-Initializes the StrategyManager with necessary components. 
+Initializes the Strategy_Net with necessary components. 
 
 
 
 **Args:**
  
- - <b>`transaction_array`</b> (TransactionArray):  Instance managing transactions. 
- - <b>`market_analyzer`</b> (MarketAnalyzer):  Instance analyzing market conditions. 
+ - <b>`transaction_core`</b> (Transaction_Core):  Instance managing transactions. 
+ - <b>`market_monitor`</b> (Market_Monitor):  Instance analyzing market conditions. 
  - <b>`logger`</b> (Optional[logging.Logger]):  Logger instance for logging. 
 
 
@@ -1085,8 +1085,8 @@ Strategy: Front-runs transactions based on market volatility.
 
 ---
 
-## <kbd>class</kbd> `TransactionArray`
-TransactionArray class builds and executes transactions, including front-run, back-run, and sandwich attack strategies. It interacts with smart contracts, manages transaction signing, gas price estimation, and handles flashloans. 
+## <kbd>class</kbd> `Transaction_Core`
+Transaction_Core class builds and executes transactions, including front-run, back-run, and sandwich attack strategies. It interacts with smart contracts, manages transaction signing, gas price estimation, and handles flashloans. 
 
 ### <kbd>function</kbd> `__init__`
 
@@ -1098,10 +1098,10 @@ __init__(
     flashloan_contract_ABI: List[Dict[str, Any]],
     lending_pool_contract_address: str,
     lending_pool_contract_ABI: List[Dict[str, Any]],
-    monitor: MonitorArray,
-    nonce_manager: NonceManager,
-    safety_net: SafetyNet,
-    config: Config,
+    monitor: Mempool_Monitor,
+    nonce_core: Nonce_Core,
+    safety_net: Safety_Net,
+    configuration: Configuration,
     logger: Optional[Logger] = None,
     gas_price_multiplier: float = 1.1,
     retry_attempts: int = 3,
@@ -1110,7 +1110,7 @@ __init__(
 )
 ```
 
-Initializes the TransactionArray with necessary components. 
+Initializes the Transaction_Core with necessary components. 
 
 Note: Since __init__ cannot be async, any async initializations are moved to an async `initialize` method. 
 
@@ -1516,22 +1516,22 @@ Simulates a transaction using eth_call to ensure it will succeed.
 
 ---
 
-## <kbd>class</kbd> `Xplorer`
+## <kbd>class</kbd> `Main_Core`
 Builds and manages the entire bot, initializing all components, managing connections, and orchestrating the main execution loop. 
 
 ### <kbd>function</kbd> `__init__`
 
 ```python
-__init__(config: Config, logger: Optional[Logger] = None) → None
+__init__(configuration: Configuration, logger: Optional[Logger] = None) → None
 ```
 
-Initializes the Xplorer, setting up all necessary components. 
+Initializes the Main_Core, setting up all necessary components. 
 
 
 
 **Args:**
  
- - <b>`config`</b> (Config):  Configuration object containing settings and API keys. 
+ - <b>`configuration`</b> (Configuration):  Configurationsuration object containing settings and API keys. 
  - <b>`logger`</b> (Optional[logging.Logger]):  Logger instance for logging. 
 
 

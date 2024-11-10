@@ -37,32 +37,48 @@ from web3.eth import *
 
 dotenv.load_dotenv()
 
+_loading_bar_active = False
+
 async def loading_bar(
     message: str,
     total_time: int,
-    error_message: Optional[str] = None,
     success_message: Optional[str] = None,
+    component_name: Optional[str] = None,
 ) -> None:
-    """Displays a loading bar in the console."""
+    """Displays a loading bar in the console, ensuring no duplicate runs, with color output and specific success messages."""
+    global _loading_bar_active
+
+    # ANSI escape codes for color
+    YELLOW = "\033[93m"
+    GREEN = "\033[92m"
+    RESET = "\033[0m"
+
+    # Check if the loading bar is already active
+    if _loading_bar_active:
+        print(f"\n{YELLOW}Another loading bar is already active, skipping this request.{RESET}")
+        return
+
+    _loading_bar_active = True  # Set the flag to active
     bar_length = 20
+
     try:
         for i in range(101):
             await asyncio.sleep(total_time / 100)
             percent = i / 100
             filled_length = int(percent * bar_length)
             bar = '█' * filled_length + '-' * (bar_length - filled_length)
-            sys.stdout.write(f"\r{message} [{bar}] {i}%")
+            sys.stdout.write(f"\r{GREEN}{message} [{bar}] {i}%{RESET}")
             sys.stdout.flush()
+
         sys.stdout.write("\n")
         sys.stdout.flush()
 
-        final_message = success_message or "Success"
-        sys.stdout.write(f"{message} [{'█' * bar_length}] 100% -  {final_message}\n")
-        sys.stdout.flush()
-    except Exception as e:
-        error_msg = error_message or f"Error: {e}"
-        sys.stdout.write(f"\r{message} [{'█' * bar_length}] 100% - ! {error_msg}\n")
-        sys.stdout.flush()
+        if success_message:
+            print(f"{YELLOW}{success_message}{RESET}")
+        else:
+            print(f"{GREEN}Success!{RESET}")
+    finally:
+        _loading_bar_active = False  # Reset the flag after completion
 
 
 

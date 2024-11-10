@@ -53,7 +53,7 @@
         "name": "balanceOf",
         "outputs": [
             {
-                "name": "balance",
+                "name": "balancer_router_abi",
                 "type": "uint256"
             }
         ],

@@ -10,8 +10,8 @@
 ##
 [![AAVE](https://img.shields.io/badge/Aave-v3-orange.svg)](https://aave.com/)
 [![Uniswap](https://img.shields.io/badge/Uniswap-v2.0-orange.svg)](https://uniswap.org/)
-[![Sushiswap](https://img.shields.io/badge/Sushiswap-v2-orange.svg)](https://sushiswap.fi/)
-[![PancakeSwap](https://img.shields.io/badge/PancakeSwap-v2/v3-orange.svg)](https://pancakeswap.finance/)
+[![Sushiswap](https://img.shields.io/badge/Sushiswap-v2-orange.svg)](https://sushiswap_router_abi.fi/)
+[![PancakeSwap](https://img.shields.io/badge/PancakeSwap-v2/v3-orange.svg)](https://pancakeswap_router_abi.finance/)
 [![Balancer](https://img.shields.io/badge/Balancer-v3-orange.svg)](https://balancer.finance/)
 ##
 [![Infura](https://img.shields.io/badge/Infura-API-red.svg)](https://infura.io/)
@@ -93,13 +93,13 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   ├── token_symbols.json      # Mapping of token addresses to symbols
 │   └── erc20_signatures.json   # ERC20 function signatures
 ├── abi/
-│   ├── erc20_ABI.json
+│   ├── erc20_abi.json
 │   ├── aave_flashloan_abi.json
 │   ├── aave_lending_pool_abi.json
-│   ├── uniswap_v2_router_ABI.json
-│   ├── sushiswap_router_ABI.json
-│   ├── pancakeswap_router_ABI.json
-│   └── balancer_router_ABI.json
+│   ├── uniswap_router_abi.json
+│   ├── sushiswap_router_abi.json
+│   ├── pancakeswap_router_abi.json
+│   └── balancer_router_abi.json
 ├── Contracts/
 │   └── SimpleFlashLoan.sol     # Flashloan smart contract
 ├── Analysis/
@@ -314,17 +314,17 @@ TOKEN_LIST_PATH=Utils/token_addresses.json
 TOKEN_SYMBOLS_PATH=Utils/token_symbols.json
 
 # DEX Router Configurationsurations
-UNISWAP_V2_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+UNISWAP_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
 SUSHISWAP_ROUTER=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
 PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
 BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
 
 # abi Paths
-UNISWAP_V2_ABI=abi/uniswap_v2_router_ABI.json
-SUSHISWAP_ABI=abi/sushiswap_router_ABI.json
-PANCAKESWAP_ABI=abi/pancakeswap_router_ABI.json
-BALANCER_ABI=abi/balancer_router_ABI.json
-ERC20_ABI=abi/erc20_ABI.json
+UNISWAP_ABI=abi/uniswap_router_abi.json
+SUSHISWAP_ABI=abi/sushiswap_router_abi.json
+PANCAKESWAP_ABI=abi/pancakeswap_router_abi.json
+BALANCER_ABI=abi/balancer_router_abi.json
+ERC20_ABI=abi/erc20_abi.json
 
 # Flashloan Configurationsuration
 AAVE_FLASHLOAN_ADDRESS=0xYourFlashloanContractAddress
@@ -436,7 +436,7 @@ CRYPTOCOMPARE_API_KEY=your_key
 
 - Keep node fully synced
 - Monitor API rate limits
-- Maintain sufficient ETH balance
+- Maintain sufficient ETH balancer_router_abi
 - Regularly check log files
 - Update dependencies as needed
 
@@ -512,7 +512,7 @@ Licensed under the [MIT License](LICENSE). See LICENSE file for details.
 - Smart contract interactions may contain unforeseen vulnerabilities
 
 ### Security Notice
-- Protect private keys. Share them only with your dog. but never your cat! Cats cannot be trusted. 🐕✅ 🐱❌ 
+- Protect private keys. Share them only with your dog. but never your cat! Cats cannot be trusted. 🐕 🐱! 
 - Test thoroughly with small amounts first
 - Consider regulatory compliance in your jurisdiction
 

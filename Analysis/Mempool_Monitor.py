@@ -10,9 +10,9 @@ class Mempool_Monitor:
         safety_net: Safety_Net,
         nonce_core: Nonce_Core,
         api_config: API_Config,
-        logger: Optional[logging.Logger] = None,
+        
         monitored_tokens: Optional[List[str]] = None,
-        erc20_ABI: List[Dict[str, Any]] = None,
+        erc20_abi: List[Dict[str, Any]] = None,
         configuration: Configuration = None,
     ):
         # Core components
@@ -21,7 +21,7 @@ class Mempool_Monitor:
         self.safety_net = safety_net
         self.nonce_core = nonce_core
         self.api_config = api_config
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        
 
         # Monitoring state
         self.running = False
@@ -30,7 +30,7 @@ class Mempool_Monitor:
         self.processed_transactions = set()
 
         # Configurationsuration
-        self.erc20_ABI = erc20_ABI or []
+        self.erc20_abi = erc20_abi or []
         self.minimum_profit_threshold = Decimal("0.001")
         self.max_parallel_tasks = 50
         self.retry_attempts = 3
@@ -40,12 +40,12 @@ class Mempool_Monitor:
         self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
         self.task_queue = asyncio.Queue()
 
-        self.logger.info("Mempool_Monitor initialized with enhanced configuration 📡✅")
+        print(f"Mempool_Monitor initialized with enhanced configuration ")
 
     async def start_monitoring(self) -> None:
         """Start monitoring the mempool with improved error handling."""
         if self.running:
-            self.logger.warning("Monitoring is already active ⚠️")
+            print(f"Monitoring is already active ")
             return
 
         try:
@@ -53,12 +53,12 @@ class Mempool_Monitor:
             monitoring_task = asyncio.create_task(self._run_monitoring())
             processor_task = asyncio.create_task(self._process_task_queue())
 
-            self.logger.info("Mempool monitoring started successfully 📡✅")
+            print(f"Mempool monitoring started successfully ")
             await asyncio.gather(monitoring_task, processor_task)
 
         except Exception as e:
             self.running = False
-            self.logger.exception(f"Failed to start monitoring: {e} ❌")
+            print(f"Failed to start monitoring: {e} !")
             raise
 
     async def stop_monitoring(self) -> None:
@@ -71,9 +71,9 @@ class Mempool_Monitor:
             # Wait for remaining tasks to complete
             while not self.task_queue.empty():
                 await asyncio.sleep(0.1)
-            self.logger.info("Mempool monitoring stopped gracefully 🛑")
+            print(f"Mempool monitoring stopped gracefully ")
         except Exception as e:
-            self.logger.exception(f"Error during monitoring shutdown: {e} ❌")
+            print(f"Error during monitoring shutdown: {e} !")
 
     async def _run_monitoring(self) -> None:
         """Enhanced mempool monitoring with automatic recovery."""
@@ -94,8 +94,8 @@ class Mempool_Monitor:
             except Exception as e:
                 retry_count += 1
                 wait_time = min(self.backoff_factor ** retry_count, 30)
-                self.logger.exception(
-                    f"Monitoring error (attempt {retry_count}): {e} ⚠️"
+                print(
+                     f"Monitoring error (attempt {retry_count}): {e} "
                 )
                 await asyncio.sleep(wait_time)
 
@@ -108,13 +108,13 @@ class Mempool_Monitor:
                 raise ValueError("Invalid provider type")
 
             pending_filter = await self.web3.eth.filter("pending")
-            self.logger.info(
-                f"Connected to network via {self.web3.provider.__class__.__name__} ✨"
+            print(
+                f"Connected to network via {self.web3.provider.__class__.__name__} "
             )
             return pending_filter
 
         except Exception as e:
-            self.logger.exception(f"Failed to setup pending filter: {e} ❌")
+            print(f"Failed to setup pending filter: {e} !")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
@@ -133,7 +133,7 @@ class Mempool_Monitor:
                 await process_batch(batch)
 
         except Exception as e:
-            self.logger.exception(f"Error processing transaction batch: {e} ❌")
+            print(f"Error processing transaction batch: {e} !")
 
     async def _queue_transaction(self, tx_hash: str) -> None:
         """Queue transaction for processing with deduplication."""
@@ -153,7 +153,7 @@ class Mempool_Monitor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self.logger.exception(f"Task processing error: {e} ❌")
+                print(f"Task processing error: {e} !")
 
     async def process_transaction(self, tx_hash: str) -> None:
         """Process individual transactions with enhanced error handling."""
@@ -167,7 +167,7 @@ class Mempool_Monitor:
                 await self._handle_profitable_transaction(analysis)
 
         except Exception as e:
-            self.logger.exception(f"Error processing transaction {tx_hash}: {e} ❌")
+            print(f"Error processing transaction {tx_hash}: {e} !")
 
     async def _get_transaction_with_retry(self, tx_hash: str) -> Optional[Any]:
         """Fetch transaction details with exponential backoff."""
@@ -179,23 +179,23 @@ class Mempool_Monitor:
                     return None
                 await asyncio.sleep(self.backoff_factor ** attempt)
             except Exception as e:
-                self.logger.exception(f"Error fetching transaction {tx_hash}: {e} ❌")
+                print(f"Error fetching transaction {tx_hash}: {e} !")
                 return None
 
     async def _handle_profitable_transaction(self, analysis: Dict[str, Any]) -> None:
         """Process and queue profitable transactions."""
         try:
             await self.profitable_transactions.put(analysis)
-            self.logger.info(
-                f"Profitable transaction identified: {analysis['tx_hash']} 💰"
+            print(
+                f"Profitable transaction identified: {analysis['tx_hash']} "
                 f" (Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
             )
         except Exception as e:
-            self.logger.exception(f"Error handling profitable transaction: {e} ❌")
+            print(f"Error handling profitable transaction: {e} !")
 
     async def analyze_transaction(self, tx) -> Dict[str, Any]:
         if not tx.hash or not tx.input:
-            self.logger.debug(
+            print(
                 f"Transaction {tx.hash.hex()} is missing essential fields. Skipping."
             )
             return {"is_profitable": False}
@@ -204,8 +204,8 @@ class Mempool_Monitor:
                 return await self._analyze_eth_transaction(tx)
             return await self._analyze_token_transaction(tx)
         except Exception as e:
-            self.logger.exception(
-                f"Error analyzing transaction {tx.hash.hex()}: {e} ⚠️"
+            print(
+                f"Error analyzing transaction {tx.hash.hex()}: {e} "
             )
             return {"is_profitable": False}
 
@@ -224,21 +224,21 @@ class Mempool_Monitor:
                 }
             return {"is_profitable": False}
         except Exception as e:
-            self.logger.exception(
-                f"Error analyzing ETH transaction {tx.hash.hex()}: {e} ⚠️"
+            print(
+                f"Error analyzing ETH transaction {tx.hash.hex()}: {e} "
             )
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
         try:
-            contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_ABI)
+            contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_abi)
             function_ABI, function_params = contract.decode_function_input(tx.input)
             function_name = function_ABI["name"]
             if function_name in self.configuration.ERC20_SIGNATURES:
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
-                    self.logger.info(
-                        f"Identified profitable transaction {tx.hash.hex()} with estimated profit: {estimated_profit:.4f} ETH 💰"
+                    print(
+                        f"Identified profitable transaction {tx.hash.hex()} with estimated profit: {estimated_profit:.4f} ETH "
                     )
                     await self._log_transaction_details(tx)
                     return {
@@ -253,18 +253,18 @@ class Mempool_Monitor:
                         "gasPrice": tx.gasPrice,
                     }
                 else:
-                    self.logger.debug(
-                        f"Transaction {tx.hash.hex()} is below threshold. Skipping... ⚠️"
+                    print(
+                        f"Transaction {tx.hash.hex()} is below threshold. Skipping... "
                     )
                     return {"is_profitable": False}
             else:
-                self.logger.debug(
-                    f"Function {function_name} not in ERC20_SIGNATURES. Skipping."
+                print(
+                     f"Function {function_name} not in ERC20_SIGNATURES. Skipping."
                 )
                 return {"is_profitable": False}
         except Exception as e:
-            self.logger.exception(
-                f"Error decoding function input for transaction {tx.hash.hex()}: {e} ❌"
+            print(
+                f"Error decoding function input for transaction {tx.hash.hex()}: {e} !"
             )
             return {"is_profitable": False}
 
@@ -273,8 +273,8 @@ class Mempool_Monitor:
             potential_profit = await self._estimate_eth_transaction_profit(tx)
             return potential_profit > self.minimum_profit_threshold
         except Exception as e:
-            self.logger.exception(
-                f"Error estimating ETH transaction profit for transaction {tx.hash.hex()}: {e} ❌"
+            print(
+                f"Error estimating ETH transaction profit for transaction {tx.hash.hex()}: {e} !"
             )
             return False
 
@@ -287,7 +287,7 @@ class Mempool_Monitor:
             potential_profit = eth_value - gas_cost_eth
             return potential_profit if potential_profit > 0 else Decimal(0)
         except Exception as e:
-            self.logger.exception(f"Error estimating ETH transaction profit: {e} ❌")
+            print(f"Error estimating ETH transaction profit: {e} !")
             return Decimal(0)
 
     async def _estimate_profit(self, tx, function_params: Dict[str, Any]) -> Decimal:
@@ -299,23 +299,23 @@ class Mempool_Monitor:
             output_amount_min_wei = Decimal(function_params.get("amountOutMin", 0))
             path = function_params.get("path", [])
             if len(path) < 2:
-                self.logger.debug(
-                    f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping. ⚠️"
+                print(
+                     f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping. "
                 )
                 return Decimal(0)
             output_token_address = path[-1]
             output_token_symbol = await self.api_config.get_token_symbol(self.web3, output_token_address)
             if not output_token_symbol:
-                self.logger.debug(
-                    f"Output token symbol not found for address {output_token_address}. Skipping. ⚠️"
+                print(
+                     f"Output token symbol not found for address {output_token_address}. Skipping. "
                 )
                 return Decimal(0)
             market_price = await self.api_config.get_real_time_price(
                 output_token_symbol.lower()
             )
             if market_price is None or market_price == 0:
-                self.logger.debug(
-                    f"Market price not available for token {output_token_symbol}. Skipping. ⚠️"
+                print(
+                     f"Market price not available for token {output_token_symbol}. Skipping. "
                 )
                 return Decimal(0)
             input_amount_eth = Decimal(self.web3.from_wei(input_amount_wei, "ether"))
@@ -324,8 +324,8 @@ class Mempool_Monitor:
             profit = expected_output_value - input_amount_eth - gas_cost_eth
             return profit if profit > 0 else Decimal(0)
         except Exception as e:
-            self.logger.exception(
-                f"Error estimating profit for transaction {tx.hash.hex()}: {e} ⚠️"
+            print(
+                f"Error estimating profit for transaction {tx.hash.hex()}: {e} "
             )
             return Decimal(0)
 
@@ -342,12 +342,12 @@ class Mempool_Monitor:
                 "gas price": self.web3.from_wei(tx.gasPrice, "gwei"),
             }
             if is_eth:
-                self.logger.info(f"Pending ETH Transaction Details: {transaction_info} 📜")
+                print(f"Pending ETH Transaction Details: {transaction_info} ")
             else:
-                self.logger.info(
-                    f"Pending Token Transaction Details: {transaction_info} 📜"
+                print(
+                     f"Pending Token Transaction Details: {transaction_info} "
                 )
         except Exception as e:
-            self.logger.exception(
-                f"Error logging transaction details for {tx.hash.hex()}: {e} ⚠️"
+            print(
+                f"Error logging transaction details for {tx.hash.hex()}: {e} "
             )

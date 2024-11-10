@@ -8,14 +8,14 @@ class Nonce_Core:
         self,
         web3: AsyncWeb3,
         address: str,
-        logger: Optional[logging.Logger] = None,
+        
         max_retries: int = 3,
         retry_delay: float = 1.0,
         cache_ttl: int = 300,  # Cache TTL in seconds
     ):
         self.web3 = web3
         self.address = self.web3.to_checksum_address(address)
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        
         self.max_retries = max(1, max_retries)
         self.retry_delay = max(0.1, retry_delay)
         self.cache_ttl = cache_ttl
@@ -34,11 +34,11 @@ class Nonce_Core:
                 if not self._initialized:
                     await self._init_nonce()
                     self._initialized = True
-                    self.logger.info(
-                        f"Nonce_Core initialized for {self.address[:10]}... ✅"
+                    print(
+                        f"Nonce_Core initialized for {self.address[:10]}... "
                     )
         except Exception as e:
-            self.logger.exception(f"Initialization failed: {e} ❌")
+            print(f"Initialization failed: {e} !")
             raise RuntimeError("Nonce_Core initialization failed") from e
 
     async def _init_nonce(self) -> None:
@@ -64,13 +64,13 @@ class Nonce_Core:
                 next_nonce = current_nonce + 1
                 self.nonce_cache[self.address] = next_nonce
 
-                self.logger.debug(
-                    f"Allocated nonce {current_nonce} for {self.address[:10]}... 📝"
+                print(
+                     f"Allocated nonce {current_nonce} for {self.address[:10]}... "
                 )
                 return current_nonce
 
             except Exception as e:
-                self.logger.exception(f"Error getting nonce: {e} ❌")
+                print(f"Error getting nonce: {e} !")
                 await self._handle_nonce_error()
                 raise
 
@@ -87,10 +87,10 @@ class Nonce_Core:
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
 
-                self.logger.debug(f"Nonce refreshed to {new_nonce} 🔄")
+                print(f"Nonce refreshed to {new_nonce} ")
 
             except Exception as e:
-                self.logger.exception(f"Nonce refresh failed: {e} ❌")
+                print(f"Nonce refresh failed: {e} !")
                 raise
 
     async def _fetch_current_nonce_with_retries(self) -> int:
@@ -104,10 +104,10 @@ class Nonce_Core:
                 )
             except Exception as e:
                 if attempt == self.max_retries - 1:
-                    self.logger.exception(f"Nonce fetch failed after retries: {e} ❌")
+                    print(f"Nonce fetch failed after retries: {e} !")
                     raise
-                self.logger.warning(
-                    f"Nonce fetch attempt {attempt + 1} failed: {e}. Retrying in {backoff}s... ⏳"
+                print(
+                     f"Nonce fetch attempt {attempt + 1} failed: {e}. Retrying in {backoff}s... "
                 )
                 await asyncio.sleep(backoff)
                 backoff *= 2
@@ -118,7 +118,7 @@ class Nonce_Core:
             pending_nonces = [int(nonce) for nonce in self.pending_transactions]
             return max(pending_nonces) + 1 if pending_nonces else 0
         except Exception as e:
-            self.logger.exception(f"Error getting pending nonce: {e} ❌")
+            print(f"Error getting pending nonce: {e} !")
             return 0
 
     async def track_transaction(self, tx_hash: str, nonce: int) -> None:
@@ -129,7 +129,7 @@ class Nonce_Core:
             await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             self.pending_transactions.discard(nonce)
         except Exception as e:
-            self.logger.exception(f"Transaction tracking failed: {e} ❌")
+            print(f"Transaction tracking failed: {e} !")
         finally:
             self.pending_transactions.discard(nonce)
 
@@ -138,7 +138,7 @@ class Nonce_Core:
         try:
             await self.sync_nonce_with_chain()
         except Exception as e:
-            self.logger.exception(f"Nonce error recovery failed: {e} ❌")
+            print(f"Nonce error recovery failed: {e} !")
             raise
 
     async def sync_nonce_with_chain(self) -> None:
@@ -150,9 +150,9 @@ class Nonce_Core:
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
                 self.pending_transactions.clear()
-                self.logger.info(f"Nonce synchronized to {new_nonce} ✨")
+                print(f"Nonce synchronized to {new_nonce} ")
             except Exception as e:
-                self.logger.exception(f"Nonce synchronization failed: {e} ❌")
+                print(f"Nonce synchronization failed: {e} !")
                 raise
 
     def _should_refresh_cache(self) -> bool:
@@ -168,9 +168,9 @@ class Nonce_Core:
                 self.last_sync = 0.0
                 self._initialized = False
                 await self.initialize()
-                self.logger.info("Nonce_Core reset complete ✨")
+                print(f"Nonce_Core reset complete ")
             except Exception as e:
-                self.logger.exception(f"Reset failed: {e} ❌")
+                print(f"Reset failed: {e} !")
                 raise
 
 #//////////////////////////////////////////////////////////////////////////////

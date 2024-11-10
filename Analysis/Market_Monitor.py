@@ -4,12 +4,12 @@ class Market_Monitor:
         web3: AsyncWeb3,
         configuration: Configuration,
         api_config: API_Config,
-        logger: Optional[logging.Logger] = None,
+        
     ):
         self.web3 = web3
         self.configuration = configuration
         self.api_config = api_config
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        
         self.price_model = LinearRegression()
         self.model_last_updated = 0
         self.MODEL_UPDATE_INTERVAL = 3600  # Update model every hour
@@ -25,14 +25,14 @@ class Market_Monitor:
         }
         token_symbol = await self.api_config.get_token_symbol(self.web3, token_address)
         if not token_symbol:
-            self.logger.error(f"Cannot get token symbol for address {token_address} ❌")
+            print(f"Cannot get token symbol for address {token_address} !")
             return market_conditions
 
         # Fetch recent price data (e.g., last 1 day)
         prices = await self.fetch_historical_prices(token_symbol, days=1)
         if len(prices) < 2:
-            self.logger.error(
-                f"Not enough price data to analyze market conditions for {token_symbol} 📊"
+            print(
+                f"Not enough price data to analyze market conditions for {token_symbol} "
             )
             return market_conditions
 
@@ -40,7 +40,7 @@ class Market_Monitor:
         prices_array = np.array(prices)
         returns = np.diff(prices_array) / prices_array[:-1]
         volatility = np.std(returns)
-        self.logger.debug(f"Calculated volatility for {token_symbol}: {volatility} 📊")
+        print(f"Calculated volatility for {token_symbol}: {volatility} ")
 
         # Define thresholds
         VOLATILITY_THRESHOLD = 0.05  # 5% standard deviation
@@ -67,52 +67,52 @@ class Market_Monitor:
         """Fetch historical price data for a given token symbol."""
         cache_key = f"historical_prices_{token_symbol}_{days}"
         if cache_key in self.price_cache:
-            self.logger.debug(
-                f"Returning cached historical prices for {token_symbol}. 📊⏳"
+            print(
+                f"Returning cached historical prices for {token_symbol}. "
             )
             return self.price_cache[cache_key]
 
         for service in self.api_config.api_configs.keys():
             try:
-                self.logger.debug(
-                    f"Fetching historical prices for {token_symbol} using {service}... 📊⏳"
+                print(
+                     f"Fetching historical prices for {token_symbol} using {service}... "
                 )
                 prices = await self.api_config.fetch_historical_prices(token_symbol, days=days)
                 if prices:
                     self.price_cache[cache_key] = prices
                     return prices
             except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch historical prices using {service}: {e} ⚠️"
+                print(
+                     f"Failed to fetch historical prices using {service}: {e} "
                 )
 
-        self.logger.error(f"Failed to fetch historical prices for {token_symbol}. ❌")
+        print(f"Failed to fetch historical prices for {token_symbol}. !")
         return []
 
     async def get_token_volume(self, token_symbol: str) -> float:
         """Get the 24-hour trading volume for a given token symbol."""
         cache_key = f"token_volume_{token_symbol}"
         if cache_key in self.price_cache:
-            self.logger.debug(
-                f"Returning cached trading volume for {token_symbol}. 📊⏳"
+            print(
+                f"Returning cached trading volume for {token_symbol}. "
             )
             return self.price_cache[cache_key]
 
         for service in self.api_config.api_configs.keys():
             try:
-                self.logger.debug(
-                    f"Fetching volume for {token_symbol} using {service}. 📊⏳"
+                print(
+                     f"Fetching volume for {token_symbol} using {service}. "
                 )
                 volume = await self.api_config.get_token_volume(token_symbol)
                 if volume:
                     self.price_cache[cache_key] = volume
                     return volume
             except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch trading volume using {service}: {e} ⚠️"
+                print(
+                     f"Failed to fetch trading volume using {service}: {e} "
                 )
 
-        self.logger.error(f"Failed to fetch trading volume for {token_symbol}. ❌")
+        print(f"Failed to fetch trading volume for {token_symbol}. !")
         return 0.0
 
     async def predict_price_movement(self, token_symbol: str) -> float:
@@ -130,17 +130,17 @@ class Market_Monitor:
 
             prices = await self.fetch_historical_prices(token_symbol, days=1)
             if not prices:
-                self.logger.warning(f"No recent prices available for {token_symbol}.")
+                print(f"No recent prices available for {token_symbol}.")
                 return 0.0
 
             next_time = np.array([[len(prices)]])
             predicted_price = self.price_model.predict(next_time)[0]
 
-            self.logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
+            print(f"Price prediction for {token_symbol}: {predicted_price}")
             return float(predicted_price)
 
         except Exception as e:
-            self.logger.error(f"Price prediction failed: {str(e)}", exc_info=True)
+            print(f"Price prediction failed: {str(e)}", exc_info=True)
             return 0.0
 
     async def is_arbitrage_opportunity(self, target_tx: Dict[str, Any]) -> bool:
@@ -172,14 +172,14 @@ class Market_Monitor:
                 return False
             price_difference_percentage = price_difference / average_price
             if price_difference_percentage > 0.01:
-                self.logger.debug(
-                    f"Arbitrage opportunity detected for {token_symbol} 📈"
+                print(
+                     f"Arbitrage opportunity detected for {token_symbol} "
                 )
                 return True
             else:
                 return False
         except Exception as e:
-            self.logger.error(f"Failed in checking arbitrage opportunity: {e} ❌")
+            print(f"Failed in checking arbitrage opportunity: {e} !")
             return False
 
     async def decode_transaction_input(
@@ -187,12 +187,12 @@ class Market_Monitor:
     ) -> Optional[Dict[str, Any]]:
         """Decode the input data of a transaction."""
         try:
-            erc20_ABI = await self.api_config._load_contract_ABI(self.configuration.ERC20_ABI)
+            erc20_abi = await self.api_config._load_abi(self.configuration.ERC20_ABI)
             contract = self.web3.eth.contract(
-                address=contract_address, abi=erc20_ABI
+                address=contract_address, abi=erc20_abi
             )
             function_ABI, params = contract.decode_function_input(input_data)
             return {"function_name": function_ABI["name"], "params": params}
         except Exception as e:
-            self.logger.error(f"Failed in decoding transaction input: {e} ❌")
+            print(f"Failed in decoding transaction input: {e} !")
             return None

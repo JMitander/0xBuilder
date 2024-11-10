@@ -3,8 +3,8 @@ class Configuration:
     Loads configuration from environment variables and monitored tokens from a JSON file.
     """
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+    def __init__(self):
+        
 
     async def load(self) -> None:
         """Loads the configuration."""
@@ -17,12 +17,12 @@ class Configuration:
             self._load_api_keys()
             self._load_providers_and_account()
             await self._load_json_elements()
-            self.logger.info("Configurationsuration loaded successfully. ✅")
+            print(f"Configurationsuration loaded successfully. ")
         except (EnvironmentError, FileNotFoundError) as e:
-            self.logger.exception(f"Configurationsuration loading error: {e} ❌")
+            print(f"Configurationsuration loading error: {e} !")
             raise
         except Exception as e:
-            self.logger.exception(f"Unexpected error loading configuration: {e} ❌")
+            print(f"Unexpected error loading configuration: {e} !")
             raise
 
     def _load_api_keys(self) -> None:
@@ -49,39 +49,39 @@ class Configuration:
         self.TOKEN_SYMBOLS = await self._load_json_file(
             self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
         )
-        self.ERC20_ABI = await self._construct_ABI_path("abi", "erc20_ABI.json")
+        self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
         self.ERC20_SIGNATURES = await self._load_json_file(
             self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
         )
-        self.SUSHISWAP_ROUTER_ABI = await self._construct_ABI_path(
-            "abi", "sushiswap_router_ABI.json"
+        self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path(
+            "abi", "sushiswap_router_abi.json"
         )
         self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable(
             "SUSHISWAP_ROUTER_ADDRESS"
         )
-        self.UNISWAP_ROUTER_ABI = await self._construct_ABI_path(
-            "abi", "uniswap_v2_router_ABI.json"
+        self.UNISWAP_ROUTER_ABI = await self._construct_abi_path(
+            "abi", "uniswap_router_abi.json"
         )
-        self.UNISWAP_V2_ROUTER_ADDRESS = self._get_env_variable(
-            "UNISWAP_V2_ROUTER_ADDRESS"
+        self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable(
+            "UNISWAP_ROUTER_ADDRESS"
         )
-        self.AAVE_FLASHLOAN_ABI = await self._construct_ABI_path(
+        self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path(
             "abi", "aave_flashloan_abi.json"
         )
-        self.AAVE_LENDING_POOL_ABI = await self._construct_ABI_path(
+        self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path(
             "abi", "aave_lending_pool_abi.json"
         )
         self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable(
             "AAVE_FLASHLOAN_ADDRESS"
         )
-        self.PANCAKESWAP_ROUTER_ABI = await self._construct_ABI_path(
-            "abi", "pancakeswap_router_ABI.json"
+        self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path(
+            "abi", "pancakeswap_router_abi.json"
         )
         self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable(
             "PANCAKESWAP_ROUTER_ADDRESS"
         )
-        self.BALANCER_ROUTER_ABI = await self._construct_ABI_path(
-            "abi", "balancer_router_ABI.json"
+        self.BALANCER_ROUTER_ABI = await self._construct_abi_path(
+            "abi", "balancer_router_abi.json"
         )
         self.BALANCER_ROUTER_ADDRESS = self._get_env_variable(
             "BALANCER_ROUTER_ADDRESS"
@@ -90,7 +90,7 @@ class Configuration:
     def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
         value = os.getenv(var_name, default)
         if value is None:
-            self.logger.error(f"Missing environment variable: {var_name} ❌")
+            print(f"Missing environment variable: {var_name} !")
             raise EnvironmentError(f"Missing environment variable: {var_name}")
         return value
 
@@ -100,43 +100,43 @@ class Configuration:
             async with aiofiles.open(file_path, "r") as f:
                 content = await f.read()
                 data = json.loads(content)
-                self.logger.debug(
-                    f"Loaded {len(data)} {description} from {file_path} ✅"
+                print(
+                     f"Loaded {len(data)} {description} from {file_path} "
                 )
                 return data
         except FileNotFoundError as e:
-            self.logger.exception(f"{description.capitalize()} file not found: {e} ❌")
+            print(f"{description.capitalize()} file not found: {e} !")
             raise
         except json.JSONDecodeError as e:
-            self.logger.exception(f"Error decoding {description} JSON: {e} ❌")
+            print(f"Error decoding {description} JSON: {e} !")
             raise
         except Exception as e:
-            self.logger.exception(
-                f"Failed to load {description} from {file_path}: {e} ❌"
+            print(
+                f"Failed to load {description} from {file_path}: {e} !"
             )
             raise
 
-    async def _construct_ABI_path(self, base_path: str, ABI_filename: str) -> str:
-        ABI_path = os.path.join(base_path, ABI_filename)
-        await loading_bar(f"Constructing '{ABI_filename}'", 1)
-        if not os.path.exists(ABI_path):
-            self.logger.error(f"abi file not found at path: {ABI_path} ❌")
+    async def _construct_abi_path(self, base_path: str, abi_filename: str) -> str:
+        abi_path = os.path.join(base_path, abi_filename)
+        await loading_bar(f"Constructing '{abi_filename}'", 1)
+        if not os.path.exists(abi_path):
+            print(f"abi file not found at path: {abi_path} !")
             raise FileNotFoundError(
-                f"abi file '{ABI_filename}' not found in path '{base_path}' ❌"
+                f"abi file '{abi_filename}' not found in path '{base_path}' !"
             )
-        return ABI_path
+        return abi_path
 
-    def get_ABI_path(self, ABI_name: str) -> str:
-        ABI_paths = {
-            "erc20": self.ERC20_ABI,
-            "sushiswap": self.SUSHISWAP_ROUTER_ABI,
-            "uniswap_v2": self.UNISWAP_ROUTER_ABI,
+    def get_abi_path(self, abi_name: str) -> str:
+        abi_paths = {
+            "erc20_abi": self.ERC20_ABI,
+            "sushiswap_router_abi": self.SUSHISWAP_ROUTER_ABI,
+            "uniswap_router_abi": self.UNISWAP_ROUTER_ABI,
             "aave_flashloan_abi": self.AAVE_FLASHLOAN_ABI,
-            "lending_pool": self.AAVE_LENDING_POOL_ABI,
-            "pancakeswap": self.PANCAKESWAP_ROUTER_ABI,
+            "aave_lending_pool_abi": self.AAVE_LENDING_POOL_ABI,
+            "pancakeswap_router_abi": self.PANCAKESWAP_ROUTER_ABI,
             "balancer": self.BALANCER_ROUTER_ABI,
         }
-        return ABI_paths.get(ABI_name.lower(), "")
+        return abi_paths.get(abi_name.lower(), "")
 
     async def get_token_addresses(self) -> List[str]:
         return self.TOKEN_ADDRESSES

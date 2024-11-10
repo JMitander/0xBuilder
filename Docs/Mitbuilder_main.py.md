@@ -65,10 +65,10 @@ __init__(logger: Optional[Logger] = None)
 
 ---
 
-### <kbd>function</kbd> `get_ABI_path`
+### <kbd>function</kbd> `get_abi_path`
 
 ```python
-get_ABI_path(ABI_name: str) → str
+get_abi_path(abi_name: str) → str
 ```
 
 Retrieves the abi path for a given contract name. 
@@ -116,7 +116,7 @@ Market_Monitor class analyzes market conditions, fetches price data, and checks 
 ```python
 __init__(
     web3: AsyncWeb3,
-    erc20_ABI: List[Dict[str, Any]],
+    erc20_abi: List[Dict[str, Any]],
     configuration: Configuration,
     logger: Optional[Logger] = None
 )
@@ -247,7 +247,7 @@ __init__(
     nonce_core: Nonce_Core,
     logger: Optional[Logger] = None,
     monitored_tokens: Optional[List[str]] = None,
-    erc20_ABI: List[Dict[str, Any]] = None,
+    erc20_abi: List[Dict[str, Any]] = None,
     configuration: Configuration = None
 )
 ```
@@ -517,7 +517,7 @@ Estimates the gas required for a transaction.
 get_balance(account: Account) → Decimal
 ```
 
-Returns the balance of an account in ETH. 
+Returns the balancer_router_abi of an account in ETH. 
 
 
 
@@ -529,7 +529,7 @@ Returns the balance of an account in ETH.
 
 **Returns:**
  
- - <b>`Decimal`</b>:  The balance in ETH. 
+ - <b>`Decimal`</b>:  The balancer_router_abi in ETH. 
 
 ---
 
@@ -1094,10 +1094,10 @@ Transaction_Core class builds and executes transactions, including front-run, ba
 __init__(
     web3: AsyncWeb3,
     account: Account,
-    flashloan_contract_address: str,
-    flashloan_contract_ABI: List[Dict[str, Any]],
-    lending_pool_contract_address: str,
-    lending_pool_contract_ABI: List[Dict[str, Any]],
+    aave_flashloan_address: str,
+    aave_flashloan_abi: List[Dict[str, Any]],
+    lending_pool_address: str,
+    lending_pool_ABI: List[Dict[str, Any]],
     monitor: Mempool_Monitor,
     nonce_core: Nonce_Core,
     safety_net: Safety_Net,
@@ -1106,7 +1106,7 @@ __init__(
     gas_price_multiplier: float = 1.1,
     retry_attempts: int = 3,
     retry_delay: float = 1.0,
-    erc20_ABI: Optional[List[Dict[str, Any]]] = None
+    erc20_abi: Optional[List[Dict[str, Any]]] = None
 )
 ```
 

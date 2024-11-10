@@ -66,16 +66,16 @@ contract SimpleFlashLoan is FlashLoanSimpleReceiverBase {
     // Allow the owner to withdraw any ERC20 tokens stuck in the contract
     function withdrawToken(address _tokenAddress) public onlyOwner {
         IERC20 token = IERC20(_tokenAddress);
-        uint256 balance = token.balanceOf(address(this));
-        require(balance > 0, "No tokens to withdraw");
-        token.transfer(owner, balance);
+        uint256 balancer_router_abi = token.balanceOf(address(this));
+        require(balancer_router_abi > 0, "No tokens to withdraw");
+        token.transfer(owner, balancer_router_abi);
     }
 
     // Function to withdraw ETH if the contract receives any
     function withdrawETH() public onlyOwner {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "No ETH to withdraw");
-        owner.transfer(balance);
+        uint256 balancer_router_abi = address(this).balancer_router_abi;
+        require(balancer_router_abi > 0, "No ETH to withdraw");
+        owner.transfer(balancer_router_abi);
     }
 
     // Fallback function to receive ETH

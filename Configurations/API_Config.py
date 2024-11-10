@@ -1,7 +1,7 @@
 class API_Config:
-    def __init__(self, configuration, logger: Optional[logging.Logger] = None):
+    def __init__(self, configuration):
         self.configuration = configuration
-        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        
         self.session = aiohttp.ClientSession()
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
         self.token_symbol_cache = TTLCache(maxsize=1000, ttl=86400)  # Cache for 1 day
@@ -45,13 +45,13 @@ class API_Config:
             return symbol
         try:
             # Create contract instance
-            erc20_ABI = await self._load_contract_ABI(self.configuration.ERC20_ABI)
-            contract = web3.eth.contract(address=token_address, abi=erc20_ABI)
+            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
+            contract = web3.eth.contract(address=token_address, abi=erc20_abi)
             symbol = await contract.functions.symbol().call()
             self.token_symbol_cache[token_address] = symbol  # Cache the result
             return symbol
         except Exception as e:
-            self.logger.error(f"Error getting symbol for token {token_address}: {e}")
+            print(f"Error getting symbol for token {token_address}: {e}")
             return None
 
     async def get_real_time_price(self, token: str, vs_currency: str = 'eth') -> Optional[Decimal]:
@@ -72,11 +72,11 @@ class API_Config:
                             prices.append(price)
                             weights.append(configuration["weight"] * configuration["success_rate"])
                     except Exception as e:
-                        self.logger.warning(f"Error fetching price from {source}: {e}")
+                        print(f"Error fetching price from {source}: {e}")
                         configuration["success_rate"] *= 0.9
 
             if not prices:
-                self.logger.error(f"No valid prices found for {token} ❌")
+                print(f"No valid prices found for {token} !")
                 return None
 
             # Calculate weighted average price
@@ -86,14 +86,14 @@ class API_Config:
             return self.price_cache[cache_key]
 
         except Exception as e:
-            self.logger.exception(f"Error calculating weighted price for {token}: {e} ❌")
+            print(f"Error calculating weighted price for {token}: {e} !")
             return None
 
     async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
         """Fetch the price of a token from a specified source."""
         configuration = self.api_configs.get(source)
         if not configuration:
-            self.logger.error(f"API configuration for {source} not found.")
+            print(f"API configuration for {source} not found.")
             return None
 
         if source == "coingecko":
@@ -104,7 +104,7 @@ class API_Config:
                 price = Decimal(str(response[token][vs_currency]))
                 return price
             except Exception as e:
-                self.logger.warning(f"Error fetching price from Coingecko: {e}")
+                print(f"Error fetching price from Coingecko: {e}")
                 return None
 
         elif source == "coinmarketcap":
@@ -117,7 +117,7 @@ class API_Config:
                 price = Decimal(str(data))
                 return price
             except Exception as e:
-                self.logger.warning(f"Error fetching price from CoinMarketCap: {e}")
+                print(f"Error fetching price from CoinMarketCap: {e}")
                 return None
 
         elif source == "cryptocompare":
@@ -128,7 +128,7 @@ class API_Config:
                 price = Decimal(str(response[vs_currency.upper()]))
                 return price
             except Exception as e:
-                self.logger.warning(f"Error fetching price from CryptoCompare: {e}")
+                print(f"Error fetching price from CryptoCompare: {e}")
                 return None
 
         elif source == "binance":
@@ -140,11 +140,11 @@ class API_Config:
                 price = Decimal(str(response["price"]))
                 return price
             except Exception as e:
-                self.logger.warning(f"Error fetching price from Binance: {e}")
+                print(f"Error fetching price from Binance: {e}")
                 return None
 
         else:
-            self.logger.error(f"Unsupported price source: {source}")
+            print(f"Unsupported price source: {source}")
             return None
 
     async def make_request(
@@ -166,8 +166,8 @@ class API_Config:
                         return await response.json()
             except Exception as e:
                 if attempt == max_attempts - 1:
-                    self.logger.exception(
-                        f"Request failed after {max_attempts} attempts: {e} ❌"
+                    print(
+                        f"Request failed after {max_attempts} attempts: {e} !"
                     )
                     raise Exception(
                         f"Request failed after {max_attempts} attempts: {e}"
@@ -175,15 +175,15 @@ class API_Config:
                 wait_time = backoff_factor ** attempt
                 await asyncio.sleep(wait_time)
 
-    async def _load_contract_ABI(self, abi_path: str) -> List[Dict[str, Any]]:
+    async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         """Load contract abi from a file."""
         try:
             async with aiofiles.open(abi_path, 'r') as file:
                 content = await file.read()
                 abi = json.loads(content)
-            self.logger.info(f"Loaded abi from {abi_path} successfully. ✅")
+            print(f"Loaded abi from {abi_path} successfully. ")
             return abi
         except Exception as e:
-            self.logger.error(f"Failed to load abi from {abi_path}: {e} ❌")
+            print(f"Failed to load abi from {abi_path}: {e} !")
             raise
     

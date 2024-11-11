@@ -862,12 +862,12 @@ class Mempool_Monitor:
         self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
         self.task_queue = asyncio.Queue()
 
-        print(f"Mempool_Monitor initialized with enhanced configuration ")
+        logger.info(f"Mempool_Monitor initialized with enhanced configuration ")
 
     async def start_monitoring(self) -> None:
         """Start monitoring the mempool with improved error handling."""
         if self.running:
-            print(f"Monitoring is already active ")
+            logger.debug(f"Monitoring is already active ")
             return
 
         try:
@@ -875,12 +875,12 @@ class Mempool_Monitor:
             monitoring_task = asyncio.create_task(self._run_monitoring())
             processor_task = asyncio.create_task(self._process_task_queue())
 
-            print(f"Mempool monitoring started successfully ")
+            logger.info(f"Mempool monitoring started successfully ")
             await asyncio.gather(monitoring_task, processor_task)
 
         except Exception as e:
             self.running = False
-            print(f"Failed to start monitoring: {e} !")
+            logger.error(f"Failed to start monitoring: {e} !")
             raise
 
     async def stop_monitoring(self) -> None:
@@ -893,9 +893,9 @@ class Mempool_Monitor:
             # Wait for remaining tasks to complete
             while not self.task_queue.empty():
                 await asyncio.sleep(0.1)
-            print(f"Mempool monitoring stopped gracefully ")
+            logger.info(f"Mempool monitoring stopped gracefully ")
         except Exception as e:
-            print(f"Error during monitoring shutdown: {e} !")
+            logger.error(f"Error during monitoring shutdown: {e} !")
 
     async def _run_monitoring(self) -> None:
         """Enhanced mempool monitoring with automatic recovery."""
@@ -916,7 +916,7 @@ class Mempool_Monitor:
             except Exception as e:
                 retry_count += 1
                 wait_time = min(self.backoff_factor ** retry_count, 30)
-                print(
+                logger.error(
                      f"Monitoring error (attempt {retry_count}): {e} "
                 )
                 await asyncio.sleep(wait_time)
@@ -930,13 +930,13 @@ class Mempool_Monitor:
                 raise ValueError("Invalid provider type")
 
             pending_filter = await self.web3.eth.filter("pending")
-            print(
+            logger.debug(
                 f"Connected to network via {self.web3.provider.__class__.__name__} "
             )
             return pending_filter
 
         except Exception as e:
-            print(f"Failed to setup pending filter: {e} !")
+            logger.warning(f"Failed to setup pending filter: {e} !")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
@@ -955,7 +955,7 @@ class Mempool_Monitor:
                 await process_batch(batch)
 
         except Exception as e:
-            print(f"Error processing transaction batch: {e} !")
+            logger.error(f"Error processing transaction batch: {e} !")
 
     async def _queue_transaction(self, tx_hash: str) -> None:
         """Queue transaction for processing with deduplication."""
@@ -975,7 +975,7 @@ class Mempool_Monitor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Task processing error: {e} !")
+                logger.error(f"Task processing error: {e} !")
 
     async def process_transaction(self, tx_hash: str) -> None:
         """Process individual transactions with enhanced error handling."""
@@ -989,7 +989,7 @@ class Mempool_Monitor:
                 await self._handle_profitable_transaction(analysis)
 
         except Exception as e:
-            print(f"Error processing transaction {tx_hash}: {e} !")
+            logger.debug(f"Error processing transaction {tx_hash}: {e} !")
 
     async def _get_transaction_with_retry(self, tx_hash: str) -> Optional[Any]:
         """Fetch transaction details with exponential backoff."""
@@ -1001,23 +1001,23 @@ class Mempool_Monitor:
                     return None
                 await asyncio.sleep(self.backoff_factor ** attempt)
             except Exception as e:
-                print(f"Error fetching transaction {tx_hash}: {e} !")
+                logger.error(f"Error fetching transaction {tx_hash}: {e} !")
                 return None
 
     async def _handle_profitable_transaction(self, analysis: Dict[str, Any]) -> None:
         """Process and queue profitable transactions."""
         try:
             await self.profitable_transactions.put(analysis)
-            print(
+            logger.debug(
                 f"Profitable transaction identified: {analysis['tx_hash']} "
                 f" (Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
             )
         except Exception as e:
-            print(f"Error handling profitable transaction: {e} !")
+            logger.debug(f"Error handling profitable transaction: {e} !")
 
     async def analyze_transaction(self, tx) -> Dict[str, Any]:
         if not tx.hash or not tx.input:
-            print(
+            logger.debug(
                 f"Transaction {tx.hash.hex()} is missing essential fields. Skipping."
             )
             return {"is_profitable": False}
@@ -1026,7 +1026,7 @@ class Mempool_Monitor:
                 return await self._analyze_eth_transaction(tx)
             return await self._analyze_token_transaction(tx)
         except Exception as e:
-            print(
+            logger.error(
                 f"Error analyzing transaction {tx.hash.hex()}: {e} "
             )
             return {"is_profitable": False}
@@ -1046,7 +1046,7 @@ class Mempool_Monitor:
                 }
             return {"is_profitable": False}
         except Exception as e:
-            print(
+            logger.error(
                 f"Error analyzing ETH transaction {tx.hash.hex()}: {e} "
             )
             return {"is_profitable": False}
@@ -1059,7 +1059,7 @@ class Mempool_Monitor:
             if function_name in self.configuration.ERC20_SIGNATURES:
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
-                    print(
+                    logger.debug(
                         f"Identified profitable transaction {tx.hash.hex()} with estimated profit: {estimated_profit:.4f} ETH "
                     )
                     await self._log_transaction_details(tx)
@@ -1075,17 +1075,17 @@ class Mempool_Monitor:
                         "gasPrice": tx.gasPrice,
                     }
                 else:
-                    print(
+                    logger.debug(
                         f"Transaction {tx.hash.hex()} is below threshold. Skipping... "
                     )
                     return {"is_profitable": False}
             else:
-                print(
+                logger.debug(
                      f"Function {function_name} not in ERC20_SIGNATURES. Skipping."
                 )
                 return {"is_profitable": False}
         except Exception as e:
-            print(
+            logger.debug(
                 f"Error decoding function input for transaction {tx.hash.hex()}: {e} !"
             )
             return {"is_profitable": False}
@@ -1095,7 +1095,7 @@ class Mempool_Monitor:
             potential_profit = await self._estimate_eth_transaction_profit(tx)
             return potential_profit > self.minimum_profit_threshold
         except Exception as e:
-            print(
+            logger.debug(
                 f"Error estimating ETH transaction profit for transaction {tx.hash.hex()}: {e} !"
             )
             return False
@@ -1109,7 +1109,7 @@ class Mempool_Monitor:
             potential_profit = eth_value - gas_cost_eth
             return potential_profit if potential_profit > 0 else Decimal(0)
         except Exception as e:
-            print(f"Error estimating ETH transaction profit: {e} !")
+            logger.error(f"Error estimating ETH transaction profit: {e} !")
             return Decimal(0)
 
     async def _estimate_profit(self, tx, function_params: Dict[str, Any]) -> Decimal:
@@ -1121,14 +1121,14 @@ class Mempool_Monitor:
             output_amount_min_wei = Decimal(function_params.get("amountOutMin", 0))
             path = function_params.get("path", [])
             if len(path) < 2:
-                print(
+                logger.debug(
                      f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping. "
                 )
                 return Decimal(0)
             output_token_address = path[-1]
             output_token_symbol = await self.api_config.get_token_symbol(self.web3, output_token_address)
             if not output_token_symbol:
-                print(
+                logger.debug(
                      f"Output token symbol not found for address {output_token_address}. Skipping. "
                 )
                 return Decimal(0)
@@ -1136,7 +1136,7 @@ class Mempool_Monitor:
                 output_token_symbol.lower()
             )
             if market_price is None or market_price == 0:
-                print(
+                logger.debug(
                      f"Market price not available for token {output_token_symbol}. Skipping. "
                 )
                 return Decimal(0)
@@ -1146,7 +1146,7 @@ class Mempool_Monitor:
             profit = expected_output_value - input_amount_eth - gas_cost_eth
             return profit if profit > 0 else Decimal(0)
         except Exception as e:
-            print(
+            logger.debug(
                 f"Error estimating profit for transaction {tx.hash.hex()}: {e} "
             )
             return Decimal(0)
@@ -1164,13 +1164,13 @@ class Mempool_Monitor:
                 "gas price": self.web3.from_wei(tx.gasPrice, "gwei"),
             }
             if is_eth:
-                print(f"Pending ETH Transaction Details: {transaction_info} ")
+                logger.debug(f"Pending ETH Transaction Details: {transaction_info} ")
             else:
-                print(
+                logger.debug(
                      f"Pending Token Transaction Details: {transaction_info} "
                 )
         except Exception as e:
-            print(
+            logger.debug(
                 f"Error logging transaction details for {tx.hash.hex()}: {e} "
             )
 
@@ -1269,8 +1269,8 @@ class Transaction_Core:
                 address=self.web3.to_checksum_address(contract_address),
                 abi=contract_abi,
             )
-            logger.info(
-                f"Loaded {contract_name} at {contract_address} successfully. "
+            loading_bar(
+                f"Loaded {contract_name} at {contract_address} successfully. ", 2
             )
             return contract_instance
         except Exception as e:
@@ -2762,7 +2762,7 @@ class Main_Core:
             'transaction_core': None,
             'strategy_net': None
         }
-        print(f"Main Core initialized successfully. ")
+        logger.info(f"Main Core initialized successfully. ")
 
     async def initialize(self) -> None:
         """Initialize all components with proper error handling."""
@@ -2793,21 +2793,21 @@ class Main_Core:
 
             await self._check_account_balance()
             await self._initialize_components()
-            print(f"All components initialized successfully. ")
+            logger.info(f"All components initialized successfully. ")
         except Exception as e:
-            print(f"Fatal error during initialization: {e} !")
+            logger.error(f"Fatal error during initialization: {e} !")
             await self.stop()
 
     async def _initialize_web3(self) -> Optional[AsyncWeb3]:
         """Initialize Web3 connection with multiple provider fallback."""
         providers = self._get_providers()
         if not providers:
-            print(f"No valid endpoints provided. !")
+            logger.error(f"No valid endpoints provided. !")
             return None
 
         for provider_name, provider in providers:
             try:
-                print(f"Attempting connection with {provider_name}...")
+                logger.debug(f"Attempting connection with {provider_name}...")
                 web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)})
 
                 if await self._test_connection(web3, provider_name):
@@ -2815,7 +2815,7 @@ class Main_Core:
                     return web3
 
             except Exception as e:
-                print(f"{provider_name} connection failed: {e}")
+                logger.warning(f"{provider_name} connection failed: {e}")
                 continue
 
         return None
@@ -2838,10 +2838,10 @@ class Main_Core:
             try:
                 if await web3.is_connected():
                     chain_id = await web3.eth.chain_id
-                    print(f"Connected to network {name} (Chain ID: {chain_id}) ")
+                    logger.info(f"Connected to network {name} (Chain ID: {chain_id}) ")
                     return True
             except Exception as e:
-                print(f"Connection attempt {attempt + 1} failed: {e}")
+                logger.error(f"Connection attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(1)
         return False
 
@@ -2851,14 +2851,14 @@ class Main_Core:
             chain_id = await web3.eth.chain_id
             if chain_id in {99, 100, 77, 7766, 56}:  # POA networks
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-                print(f"Injected POA middleware.")
+                logger.info(f"Injected POA middleware.")
             elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
-                print(f"No middleware required for ETH network.")
+                logger.info(f"No middleware required for ETH network.")
                 pass
             else:
-                print(f"Unknown network; no middleware injected.")
+                logger.warning(f"Unknown network; no middleware injected.")
         except Exception as e:
-            print(f"Middleware configuration failed: {e}")
+            logger.error(f"Middleware configuration failed: {e}")
             raise
 
     async def _check_account_balance(self) -> None:
@@ -2870,14 +2870,14 @@ class Main_Core:
             balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
             balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
 
-            print(f"Account {self.account.address} initialized")
-            print(f"Balance: {balance_eth:.4f} ETH")
+            logger.info(f"Account {self.account.address} initialized")
+            logger.debug(f"Balance: {balance_eth:.4f} ETH")
 
             if balance_eth < 0.1:
-                print(f"Low account balancer_router_abi! (<0.1 ETH)")
+                logger.warning(f"Low account balancer_router_abi! (<0.1 ETH)")
 
         except Exception as e:
-            print(f"Balance check failed: {e}")
+            logger.error(f"Balance check failed: {e}")
             raise
 
     async def _initialize_components(self) -> None:
@@ -2945,12 +2945,12 @@ class Main_Core:
             )
 
         except Exception as e:
-            print(f"Component initialization failed: {e}")
+            logger.error(f"Component initialization failed: {e}")
             raise
 
     async def run(self) -> None:
         """Main execution loop with improved error handling."""
-        print(f"Starting 0xBuilder... ")
+        logger.info(f"Starting 0xBuilder... ")
 
         try:
             if 'mempool_monitor' in self.components and self.components['mempool_monitor'] is not None:
@@ -2965,17 +2965,17 @@ class Main_Core:
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    print(f"Error in main loop: {e}")
+                    logger.error(f"Error in main loop: {e}")
                     await asyncio.sleep(5)  # Back off on error
 
         except KeyboardInterrupt:
-            print(f"Received shutdown signal...")
+            logger.warning(f"Received shutdown signal...")
         finally:
             await self.stop()
 
     async def stop(self) -> None:
         """Graceful shutdown of all components."""
-        print(f"Shutting down Core...")
+        logger.warning(f"Shutting down Core...")
 
         try:
             if self.components['mempool_monitor']:
@@ -2987,9 +2987,9 @@ class Main_Core:
             if self.components['nonce_core']:
                 await self.components['nonce_core'].stop()
 
-            print(f"Shutdown complete ")
+            logger.info(f"Shutdown complete ")
         except Exception as e:
-            print(f"Error during shutdown: {e}")
+            logger.error(f"Error during shutdown: {e}")
         finally:
             sys.exit(0)
 
@@ -3003,27 +3003,27 @@ class Main_Core:
                 tx = await monitor.profitable_transactions.get()
                 tx_hash = tx.get('tx_hash', 'Unknown')[:10]
                 strategy_type = tx.get('strategy_type', 'Unknown')
-                print(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
+                logger.info(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
 
                 success = await strategy.execute_strategy_for_transaction(tx)
 
                 if success:
-                    print(f"Strategy execution successful for tx: {tx_hash} ")
+                    logger.info(f"Strategy execution successful for tx: {tx_hash} ")
                 else:
-                    print(f"Strategy execution failed for tx: {tx_hash} !")
+                    logger.warning(f"Strategy execution failed for tx: {tx_hash} !")
 
             except Exception as e:
-                print(f"Error processing transaction: {e}")
+                logger.error(f"Error processing transaction: {e}")
 
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         """Load contract abi from a file."""
         try:
             with open(abi_path, 'r') as file:
                 abi = json.load(file)
-            print(f"Loaded abi from {abi_path} successfully. ")
+            logger.info(f"Loaded abi from {abi_path} successfully. ")
             return abi
         except Exception as e:
-            print(f"Failed to load abi from {abi_path}: {e} !")
+            logger.warning(f"Failed to load abi from {abi_path}: {e} !")
             raise
 # ////////////////////////////////////////////////////////////////////////////
 
@@ -3042,9 +3042,9 @@ async def main():
         await main_core.run()
 
     except KeyboardInterrupt:
-        print("Shutdown complete.")
+        logger.info("Shutdown complete.")
     except Exception as e:
-        print(f"Fatal error: {e}")
+        logger.error(f"Fatal error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

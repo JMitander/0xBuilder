@@ -34,11 +34,11 @@ class Nonce_Core:
                 if not self._initialized:
                     await self._init_nonce()
                     self._initialized = True
-                    print(
+                    logger.info(
                         f"Nonce_Core initialized for {self.address[:10]}... "
                     )
         except Exception as e:
-            print(f"Initialization failed: {e} !")
+            logger.info(f"Initialization failed: {e} !")
             raise RuntimeError("Nonce_Core initialization failed") from e
 
     async def _init_nonce(self) -> None:
@@ -64,13 +64,13 @@ class Nonce_Core:
                 next_nonce = current_nonce + 1
                 self.nonce_cache[self.address] = next_nonce
 
-                print(
+                logger.info(
                      f"Allocated nonce {current_nonce} for {self.address[:10]}... "
                 )
                 return current_nonce
 
             except Exception as e:
-                print(f"Error getting nonce: {e} !")
+                logger.error(f"error getting nonce: {e} !")
                 await self._handle_nonce_error()
                 raise
 
@@ -87,10 +87,10 @@ class Nonce_Core:
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
 
-                print(f"Nonce refreshed to {new_nonce} ")
+                logger.info(f"Nonce refreshed to {new_nonce} ")
 
             except Exception as e:
-                print(f"Nonce refresh failed: {e} !")
+                logger.info(f"Nonce refresh failed: {e} !")
                 raise
 
     async def _fetch_current_nonce_with_retries(self) -> int:
@@ -104,9 +104,9 @@ class Nonce_Core:
                 )
             except Exception as e:
                 if attempt == self.max_retries - 1:
-                    print(f"Nonce fetch failed after retries: {e} !")
+                    logger.info(f"Nonce fetch failed after retries: {e} !")
                     raise
-                print(
+                logger.info(
                      f"Nonce fetch attempt {attempt + 1} failed: {e}. Retrying in {backoff}s... "
                 )
                 await asyncio.sleep(backoff)
@@ -118,7 +118,7 @@ class Nonce_Core:
             pending_nonces = [int(nonce) for nonce in self.pending_transactions]
             return max(pending_nonces) + 1 if pending_nonces else 0
         except Exception as e:
-            print(f"Error getting pending nonce: {e} !")
+            logger.error(f"error getting pending nonce: {e} !")
             return 0
 
     async def track_transaction(self, tx_hash: str, nonce: int) -> None:
@@ -129,7 +129,7 @@ class Nonce_Core:
             await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             self.pending_transactions.discard(nonce)
         except Exception as e:
-            print(f"Transaction tracking failed: {e} !")
+            logger.info(f"Transaction tracking failed: {e} !")
         finally:
             self.pending_transactions.discard(nonce)
 
@@ -138,7 +138,7 @@ class Nonce_Core:
         try:
             await self.sync_nonce_with_chain()
         except Exception as e:
-            print(f"Nonce error recovery failed: {e} !")
+            logger.info(f"Nonce error recovery failed: {e} !")
             raise
 
     async def sync_nonce_with_chain(self) -> None:
@@ -150,9 +150,9 @@ class Nonce_Core:
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
                 self.pending_transactions.clear()
-                print(f"Nonce synchronized to {new_nonce} ")
+                logger.info(f"Nonce synchronized to {new_nonce} ")
             except Exception as e:
-                print(f"Nonce synchronization failed: {e} !")
+                logger.info(f"Nonce synchronization failed: {e} !")
                 raise
 
     def _should_refresh_cache(self) -> bool:
@@ -168,9 +168,9 @@ class Nonce_Core:
                 self.last_sync = 0.0
                 self._initialized = False
                 await self.initialize()
-                print(f"Nonce_Core reset complete ")
+                logger.info(f"Nonce_Core reset complete ")
             except Exception as e:
-                print(f"Reset failed: {e} !")
+                logger.info(f"Reset failed: {e} !")
                 raise
 
 #//////////////////////////////////////////////////////////////////////////////

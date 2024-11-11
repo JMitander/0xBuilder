@@ -41,7 +41,7 @@ class Safety_Net:
             "base_gas_limit": 21000,
         }
 
-        print(f"Safety_Net initialized with enhanced configuration ")
+        logger.info(f"Safety_Net initialized with enhanced configuration ")
 
     async def get_balance(self, account: Account) -> Decimal:
         """Get account balancer_router_abi with retries and caching."""
@@ -55,13 +55,13 @@ class Safety_Net:
                 balance_eth = Decimal(self.web3.from_wei(balance_wei, "ether"))
                 self.price_cache[cache_key] = balance_eth
 
-                print(
+                logger.info(
                      f"Balance for {account.address[:10]}...: {balance_eth:.4f} ETH "
                 )
                 return balance_eth
             except Exception as e:
                 if attempt == 2:
-                    print(f"Failed to get balancer_router_abi after 3 attempts: {e} !")
+                    logger.warning(f"failed to get balancer_router_abi after 3 attempts: {e} !")
                     return Decimal(0)
                 await asyncio.sleep(1 * (attempt + 1))
 
@@ -113,19 +113,19 @@ class Safety_Net:
             return profit > Decimal(minimum_profit_eth)
 
         except KeyError as e:
-            print(f"Missing required transaction data key: {e} !")
+            logger.info(f"Missing required transaction data key: {e} !")
         except Exception as e:
-            print(f"Error in profit calculation: {e} !")
+            logger.error(f"error in profit calculation: {e} !")
         return False
 
     def _validate_gas_parameters(self, gas_price_gwei: Decimal, gas_used: int) -> bool:
         """Validate gas parameters against safety thresholds."""
         if gas_used == 0:
-            print(f"Gas estimation returned zero ")
+            logger.info(f"Gas estimation returned zero ")
             return False
 
         if gas_price_gwei > self.gas_config["max_gas_price_gwei"]:
-            print(
+            logger.info(
                 f"Gas price {gas_price_gwei} gwei exceeds maximum threshold "
             )
             return False
@@ -159,7 +159,7 @@ class Safety_Net:
         minimum_profit_eth: float,
     ) -> None:
         """Log detailed profit calculation metrics."""
-        print(
+        logger.info(
             f"Profit Calculation Summary:\n"
             f"Token: {transaction_data['output_token']}\n"
             f"Real-time Price: {real_time_price:.6f} ETH\n"
@@ -184,7 +184,7 @@ class Safety_Net:
             self.gas_price_cache["gas_price"] = gas_price_gwei
             return gas_price_gwei
         except Exception as e:
-            print(f"Error fetching dynamic gas price: {e} !")
+            logger.error(f"error fetching dynamic gas price: {e} !")
             return Decimal(0)
 
     async def estimate_gas(self, transaction_data: Dict[str, Any]) -> int:
@@ -193,7 +193,7 @@ class Safety_Net:
             gas_estimate = await self.web3.eth.estimate_gas(transaction_data)
             return gas_estimate
         except Exception as e:
-            print(f"Gas estimation failed: {e} !")
+            logger.info(f"Gas estimation failed: {e} !")
             return 0
 
     async def adjust_slippage_tolerance(self) -> float:
@@ -207,10 +207,10 @@ class Safety_Net:
             else:
                 slippage = self.slippage_config["default"]
             slippage = min(max(slippage, self.slippage_config["min"]), self.slippage_config["max"])
-            print(f"Adjusted slippage tolerance to {slippage * 100}%")
+            logger.info(f"Adjusted slippage tolerance to {slippage * 100}%")
             return slippage
         except Exception as e:
-            print(f"Error adjusting slippage tolerance: {e} !")
+            logger.error(f"error adjusting slippage tolerance: {e} !")
             return self.slippage_config["default"]
 
     async def get_network_congestion(self) -> float:
@@ -220,8 +220,8 @@ class Safety_Net:
             gas_used = latest_block['gasUsed']
             gas_limit = latest_block['gasLimit']
             congestion_level = gas_used / gas_limit
-            print(f"Network congestion level: {congestion_level * 100}%")
+            logger.info(f"Network congestion level: {congestion_level * 100}%")
             return congestion_level
         except Exception as e:
-            print(f"Error fetching network congestion: {e} !")
+            logger.error(f"error fetching network congestion: {e} !")
             return 0.5  # Assume medium congestion if unknown

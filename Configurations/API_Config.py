@@ -51,7 +51,7 @@ class API_Config:
             self.token_symbol_cache[token_address] = symbol  # Cache the result
             return symbol
         except Exception as e:
-            print(f"Error getting symbol for token {token_address}: {e}")
+            logger.error(f"error getting symbol for token {token_address}: {e}")
             return None
 
     async def get_real_time_price(self, token: str, vs_currency: str = 'eth') -> Optional[Decimal]:
@@ -72,11 +72,11 @@ class API_Config:
                             prices.append(price)
                             weights.append(configuration["weight"] * configuration["success_rate"])
                     except Exception as e:
-                        print(f"Error fetching price from {source}: {e}")
+                        logger.error(f"error fetching price from {source}: {e}")
                         configuration["success_rate"] *= 0.9
 
             if not prices:
-                print(f"No valid prices found for {token} !")
+                logger.info(f"No valid prices found for {token} !")
                 return None
 
             # Calculate weighted average price
@@ -86,14 +86,14 @@ class API_Config:
             return self.price_cache[cache_key]
 
         except Exception as e:
-            print(f"Error calculating weighted price for {token}: {e} !")
+            logger.error(f"error calculating weighted price for {token}: {e} !")
             return None
 
     async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
         """Fetch the price of a token from a specified source."""
         configuration = self.api_configs.get(source)
         if not configuration:
-            print(f"API configuration for {source} not found.")
+            logger.info(f"API configuration for {source} not found.")
             return None
 
         if source == "coingecko":
@@ -104,7 +104,7 @@ class API_Config:
                 price = Decimal(str(response[token][vs_currency]))
                 return price
             except Exception as e:
-                print(f"Error fetching price from Coingecko: {e}")
+                logger.error(f"error fetching price from Coingecko: {e}")
                 return None
 
         elif source == "coinmarketcap":
@@ -117,7 +117,7 @@ class API_Config:
                 price = Decimal(str(data))
                 return price
             except Exception as e:
-                print(f"Error fetching price from CoinMarketCap: {e}")
+                logger.error(f"error fetching price from CoinMarketCap: {e}")
                 return None
 
         elif source == "cryptocompare":
@@ -128,7 +128,7 @@ class API_Config:
                 price = Decimal(str(response[vs_currency.upper()]))
                 return price
             except Exception as e:
-                print(f"Error fetching price from CryptoCompare: {e}")
+                logger.error(f"error fetching price from CryptoCompare: {e}")
                 return None
 
         elif source == "binance":
@@ -140,11 +140,11 @@ class API_Config:
                 price = Decimal(str(response["price"]))
                 return price
             except Exception as e:
-                print(f"Error fetching price from Binance: {e}")
+                logger.error(f"error fetching price from Binance: {e}")
                 return None
 
         else:
-            print(f"Unsupported price source: {source}")
+            logger.info(f"Unsupported price source: {source}")
             return None
 
     async def make_request(
@@ -166,7 +166,7 @@ class API_Config:
                         return await response.json()
             except Exception as e:
                 if attempt == max_attempts - 1:
-                    print(
+                    logger.info(
                         f"Request failed after {max_attempts} attempts: {e} !"
                     )
                     raise Exception(
@@ -181,9 +181,9 @@ class API_Config:
             async with aiofiles.open(abi_path, 'r') as file:
                 content = await file.read()
                 abi = json.loads(content)
-            print(f"Loaded abi from {abi_path} successfully. ")
+            logger.info(f"Loaded abi from {abi_path} successfully. ")
             return abi
         except Exception as e:
-            print(f"Failed to load abi from {abi_path}: {e} !")
+            logger.warning(f"failed to load abi from {abi_path}: {e} !")
             raise
     

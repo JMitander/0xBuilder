@@ -18,7 +18,7 @@ class Main_Core:
             'transaction_core': None,
             'strategy_net': None
         }
-        logger.info(f"Main_Core core initialized successfully. ")
+        logger.debug(f"Main_Core core initialized successfully. ")
 
     async def initialize(self) -> None:
         """Initialize all components with proper error handling."""
@@ -49,21 +49,21 @@ class Main_Core:
 
             await self._check_account_balance()
             await self._initialize_components()
-            logger.info(f"All components initialized successfully. ")
+            logger.debug(f"All components initialized successfully. ")
         except Exception as e:
-            logger.info(f"Fatal error during initialization: {e} !")
+            logger.debug(f"Fatal error during initialization: {e} !")
             await self.stop()
 
     async def _initialize_web3(self) -> Optional[AsyncWeb3]:
         """Initialize Web3 connection with multiple provider fallback."""
         providers = self._get_providers()
         if not providers:
-            logger.info(f"No valid endpoints provided. !")
+            logger.debug(f"No valid endpoints provided. !")
             return None
 
         for provider_name, provider in providers:
             try:
-                logger.info(f"Attempting connection with {provider_name}...")
+                logger.debug(f"Attempting connection with {provider_name}...")
                 web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)})
 
                 if await self._test_connection(web3, provider_name):
@@ -71,7 +71,7 @@ class Main_Core:
                     return web3
 
             except Exception as e:
-                logger.info(f"{provider_name} connection failed: {e}")
+                logger.debug(f"{provider_name} connection failed: {e}")
                 continue
 
         return None
@@ -97,7 +97,7 @@ class Main_Core:
                     logger.info(f"Connected to network {name} (Chain ID: {chain_id}) ")
                     return True
             except Exception as e:
-                logger.info(f"Connection attempt {attempt + 1} failed: {e}")
+                logger.debug(f"Connection attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(1)
         return False
 
@@ -107,14 +107,14 @@ class Main_Core:
             chain_id = await web3.eth.chain_id
             if chain_id in {99, 100, 77, 7766, 56}:  # POA networks
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-                logger.info(f"Injected POA middleware.")
+                logger.debug(f"Injected POA middleware.")
             elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
-                logger.info(f"No additional middleware required for ETH network.")
+                logger.debug(f"No additional middleware required for ETH network.")
                 pass
             else:
-                logger.info(f"Unknown network; no middleware injected.")
+                logger.debug(f"Unknown network; no middleware injected.")
         except Exception as e:
-            logger.info(f"Middleware configuration failed: {e}")
+            logger.debug(f"Middleware configuration failed: {e}")
             raise
 
     async def _check_account_balance(self) -> None:
@@ -127,13 +127,13 @@ class Main_Core:
             balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
 
             logger.info(f"Account {self.account.address} initialized")
-            logger.info(f"Balance: {balance_eth:.4f} ETH")
+            logger.debug(f"Balance: {balance_eth:.4f} ETH")
 
             if balance_eth < 0.1:
-                logger.info(f"Low account balancer_router_abi! (<0.1 ETH)")
+                logger.debug(f"Low account balancer_router_abi! (<0.1 ETH)")
 
         except Exception as e:
-            logger.info(f"Balance check failed: {e}")
+            logger.debug(f"Balance check failed: {e}")
             raise
 
     async def _initialize_components(self) -> None:
@@ -201,12 +201,12 @@ class Main_Core:
             )
 
         except Exception as e:
-            logger.info(f"Component initialization failed: {e}")
+            logger.debug(f"Component initialization failed: {e}")
             raise
 
     async def run(self) -> None:
         """Main execution loop with improved error handling."""
-        logger.info(f"Starting Main_Core... ")
+        logger.debug(f"Starting Main_Core... ")
 
         try:
             await self.components['mempool_monitor'].start_monitoring()
@@ -222,13 +222,13 @@ class Main_Core:
                     await asyncio.sleep(5)  # Back off on error
 
         except KeyboardInterrupt:
-            logger.info(f"Received shutdown signal...")
+            logger.debug(f"Received shutdown signal...")
         finally:
             await self.stop()
 
     async def stop(self) -> None:
         """Graceful shutdown of all components."""
-        logger.info(f"Shutting down Main_Core...")
+        logger.debug(f"Shutting down Main_Core...")
 
         try:
             if self.components['mempool_monitor']:
@@ -238,7 +238,7 @@ class Main_Core:
             api_config: API_Config = self.components['safety_net'].api_config
             await api_config.session.close()
 
-            logger.info(f"Shutdown complete ")
+            logger.debug(f"Shutdown complete ")
         except Exception as e:
             logger.error(f"error during shutdown: {e}")
         finally:
@@ -254,14 +254,14 @@ class Main_Core:
                 tx = await monitor.profitable_transactions.get()
                 tx_hash = tx.get('tx_hash', 'Unknown')[:10]
                 strategy_type = tx.get('strategy_type', 'Unknown')
-                logger.info(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
+                logger.debug(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
 
                 success = await strategy.execute_strategy_for_transaction(tx)
 
                 if success:
-                    logger.info(f"Strategy execution successful for tx: {tx_hash} ")
+                    logger.debug(f"Strategy execution successful for tx: {tx_hash} ")
                 else:
-                    logger.info(f"Strategy execution failed for tx: {tx_hash} !")
+                    logger.debug(f"Strategy execution failed for tx: {tx_hash} !")
 
             except Exception as e:
                 logger.error(f"error processing transaction: {e}")
@@ -286,7 +286,7 @@ async def main():
         # Setup logging
         await setup_logging()
         logger = logging.getLogger("Main_Core")
-        logger.info("Starting Main_Core initialization...")
+        logger.debug("Starting Main_Core initialization...")
 
         # Initialize configuration
         configuration = Configuration(logger)
@@ -298,27 +298,27 @@ async def main():
         await main_cn_cre.run()
 
     except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt, initiating shutdown...")
+        logger.debug("Received keyboard interrupt, initiating shutdown...")
         if 'main_cn_cre' in locals():
             await main_cn_cre.stop()
     except Exception as e:
         if logger:
             logger.critical(f"Fatal error: {e}", exc_info=True)
         else:
-            logger.info(f"Fatal error before logger initialization: {e}")
+            logger.debug(f"Fatal error before logger initialization: {e}")
         sys.exit(1)
     finally:
         if logger:
-            logger.info("Main_Core shutdown complete.")
+            logger.debug("Main_Core shutdown complete.")
         sys.exit(0)
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info(f"nShutdown complete.")
+        logger.debug(f"nShutdown complete.")
     except Exception as e:
-        logger.info(f"Fatal error in asyncio.run: {e}")
+        logger.debug(f"Fatal error in asyncio.run: {e}")
         sys.exit(1)
 
 #//////////////////////////////////////////////////////////////////////////////

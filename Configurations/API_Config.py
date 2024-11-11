@@ -76,7 +76,7 @@ class API_Config:
                         configuration["success_rate"] *= 0.9
 
             if not prices:
-                logger.info(f"No valid prices found for {token} !")
+                logger.debug(f"No valid prices found for {token} !")
                 return None
 
             # Calculate weighted average price
@@ -93,7 +93,7 @@ class API_Config:
         """Fetch the price of a token from a specified source."""
         configuration = self.api_configs.get(source)
         if not configuration:
-            logger.info(f"API configuration for {source} not found.")
+            logger.debug(f"API configuration for {source} not found.")
             return None
 
         if source == "coingecko":
@@ -144,7 +144,7 @@ class API_Config:
                 return None
 
         else:
-            logger.info(f"Unsupported price source: {source}")
+            logger.debug(f"Unsupported price source: {source}")
             return None
 
     async def make_request(
@@ -166,7 +166,7 @@ class API_Config:
                         return await response.json()
             except Exception as e:
                 if attempt == max_attempts - 1:
-                    logger.info(
+                    logger.debug(
                         f"Request failed after {max_attempts} attempts: {e} !"
                     )
                     raise Exception(

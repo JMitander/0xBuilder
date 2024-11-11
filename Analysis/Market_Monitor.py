@@ -25,13 +25,13 @@ class Market_Monitor:
         }
         token_symbol = await self.api_config.get_token_symbol(self.web3, token_address)
         if not token_symbol:
-            logger.info(f"Cannot get token symbol for address {token_address} !")
+            logger.debug(f"Cannot get token symbol for address {token_address} !")
             return market_conditions
 
         # Fetch recent price data (e.g., last 1 day)
         prices = await self.fetch_historical_prices(token_symbol, days=1)
         if len(prices) < 2:
-            logger.info(
+            logger.debug(
                 f"Not enough price data to analyze market conditions for {token_symbol} "
             )
             return market_conditions
@@ -40,7 +40,7 @@ class Market_Monitor:
         prices_array = np.array(prices)
         returns = np.diff(prices_array) / prices_array[:-1]
         volatility = np.std(returns)
-        logger.info(f"Calculated volatility for {token_symbol}: {volatility} ")
+        logger.debug(f"Calculated volatility for {token_symbol}: {volatility} ")
 
         # Define thresholds
         VOLATILITY_THRESHOLD = 0.05  # 5% standard deviation
@@ -67,14 +67,14 @@ class Market_Monitor:
         """Fetch historical price data for a given token symbol."""
         cache_key = f"historical_prices_{token_symbol}_{days}"
         if cache_key in self.price_cache:
-            logger.info(
+            logger.debug(
                 f"Returning cached historical prices for {token_symbol}. "
             )
             return self.price_cache[cache_key]
 
         for service in self.api_config.api_configs.keys():
             try:
-                logger.info(
+                logger.debug(
                      f"Fetching historical prices for {token_symbol} using {service}... "
                 )
                 prices = await self.api_config.fetch_historical_prices(token_symbol, days=days)
@@ -82,7 +82,7 @@ class Market_Monitor:
                     self.price_cache[cache_key] = prices
                     return prices
             except Exception as e:
-                logger.info(
+                logger.debug(
                      f"Failed to fetch historical prices using {service}: {e} "
                 )
 
@@ -93,14 +93,14 @@ class Market_Monitor:
         """Get the 24-hour trading volume for a given token symbol."""
         cache_key = f"token_volume_{token_symbol}"
         if cache_key in self.price_cache:
-            logger.info(
+            logger.debug(
                 f"Returning cached trading volume for {token_symbol}. "
             )
             return self.price_cache[cache_key]
 
         for service in self.api_config.api_configs.keys():
             try:
-                logger.info(
+                logger.debug(
                      f"Fetching volume for {token_symbol} using {service}. "
                 )
                 volume = await self.api_config.get_token_volume(token_symbol)
@@ -108,7 +108,7 @@ class Market_Monitor:
                     self.price_cache[cache_key] = volume
                     return volume
             except Exception as e:
-                logger.info(
+                logger.debug(
                      f"Failed to fetch trading volume using {service}: {e} "
                 )
 
@@ -130,17 +130,17 @@ class Market_Monitor:
 
             prices = await self.fetch_historical_prices(token_symbol, days=1)
             if not prices:
-                logger.info(f"No recent prices available for {token_symbol}.")
+                logger.debug(f"No recent prices available for {token_symbol}.")
                 return 0.0
 
             next_time = np.array([[len(prices)]])
             predicted_price = self.price_model.predict(next_time)[0]
 
-            logger.info(f"Price prediction for {token_symbol}: {predicted_price}")
+            logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
             return float(predicted_price)
 
         except Exception as e:
-            logger.info(f"Price prediction failed: {str(e)}", exc_info=True)
+            logger.debug(f"Price prediction failed: {str(e)}", exc_info=True)
             return 0.0
 
     async def is_arbitrage_opportunity(self, target_tx: Dict[str, Any]) -> bool:
@@ -172,7 +172,7 @@ class Market_Monitor:
                 return False
             price_difference_percentage = price_difference / average_price
             if price_difference_percentage > 0.01:
-                logger.info(
+                logger.debug(
                      f"Arbitrage opportunity detected for {token_symbol} "
                 )
                 return True

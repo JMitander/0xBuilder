@@ -17,12 +17,12 @@ class Configuration:
             self._load_api_keys()
             self._load_providers_and_account()
             await self._load_json_elements()
-            logger.info(f"Configurationsuration loaded successfully. ")
+            logger.debug(f"Configurationsuration loaded successfully. ")
         except (EnvironmentError, FileNotFoundError) as e:
-            logger.info(f"Configurationsuration loading error: {e} !")
+            logger.debug(f"Configurationsuration loading error: {e} !")
             raise
         except Exception as e:
-            logger.info(f"Unexpected error loading configuration: {e} !")
+            logger.debug(f"Unexpected error loading configuration: {e} !")
             raise
 
     def _load_api_keys(self) -> None:
@@ -90,7 +90,7 @@ class Configuration:
     def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
         value = os.getenv(var_name, default)
         if value is None:
-            logger.info(f"Missing environment variable: {var_name} !")
+            logger.debug(f"Missing environment variable: {var_name} !")
             raise EnvironmentError(f"Missing environment variable: {var_name}")
         return value
 
@@ -100,18 +100,18 @@ class Configuration:
             async with aiofiles.open(file_path, "r") as f:
                 content = await f.read()
                 data = json.loads(content)
-                logger.info(
+                logger.debug(
                      f"Loaded {len(data)} {description} from {file_path} "
                 )
                 return data
         except FileNotFoundError as e:
-            logger.info(f"{description.capitalize()} file not found: {e} !")
+            logger.debug(f"{description.capitalize()} file not found: {e} !")
             raise
         except json.JSONDecodeError as e:
             logger.error(f"error decoding {description} JSON: {e} !")
             raise
         except Exception as e:
-            logger.info(
+            logger.debug(
                 f"Failed to load {description} from {file_path}: {e} !"
             )
             raise
@@ -120,7 +120,7 @@ class Configuration:
         abi_path = os.path.join(base_path, abi_filename)
         await loading_bar(f"Constructing '{abi_filename}'", 1)
         if not os.path.exists(abi_path):
-            logger.info(f"abi file not found at path: {abi_path} !")
+            logger.debug(f"abi file not found at path: {abi_path} !")
             raise FileNotFoundError(
                 f"abi file '{abi_filename}' not found in path '{base_path}' !"
             )

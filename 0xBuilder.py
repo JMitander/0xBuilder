@@ -52,7 +52,7 @@ def configure_logging():
     handler.setFormatter(ColorFormatter("%(asctime)s [%(levelname)s] %(message)s"))
 
     logging.basicConfig(
-        level=logging.DEBUG,  # Global logging level
+        level=logging.INFO,  # Global logging level
         handlers=[handler]
     )
 
@@ -2873,8 +2873,8 @@ class Main_Core:
             logger.info(f"Account {self.account.address} initialized")
             logger.debug(f"Balance: {balance_eth:.4f} ETH")
 
-            if balance_eth < 0.1:
-                logger.warning(f"Low account balancer_router_abi! (<0.1 ETH)")
+            if balance_eth < 0.01:
+                logger.warning(f"Low account balance (<0.01 ETH)")
 
         except Exception as e:
             logger.error(f"Balance check failed: {e}")

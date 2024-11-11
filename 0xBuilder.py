@@ -1,6 +1,4 @@
-
-#//////////////////////////////////////////////////////////////////////////////
-#//////////////////////////////////////////////////////////////////////////////
+"""0xBuilder project"""
 
 import os
 import random
@@ -43,20 +41,15 @@ async def loading_bar(
     message: str,
     total_time: int,
     success_message: Optional[str] = None,
-    component_name: Optional[str] = None,
 ) -> None:
     """Displays a loading bar in the console, ensuring no duplicate runs, with color output and specific success messages."""
     global _loading_bar_active
 
     # ANSI escape codes for color
     YELLOW = "\033[93m"
+    RED = "\033[91m"
     GREEN = "\033[92m"
     RESET = "\033[0m"
-
-    # Check if the loading bar is already active
-    if _loading_bar_active:
-        print(f"\n{YELLOW}Another loading bar is already active, skipping this request.{RESET}")
-        return
 
     _loading_bar_active = True  # Set the flag to active
     bar_length = 20
@@ -76,12 +69,11 @@ async def loading_bar(
         if success_message:
             print(f"{YELLOW}{success_message}{RESET}")
         else:
-            print(f"{GREEN}Success!{RESET}")
+            print(f"{GREEN}Success! Procceeding...{RESET}")
+    except Exception as e:
+        print(f"{RED}Error: {e}{RESET}")
     finally:
         _loading_bar_active = False  # Reset the flag after completion
-
-
-
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -594,7 +586,6 @@ class API_Config:
             print(f"Failed to load abi from {abi_path}: {e} !")
             raise
     
-
 #//////////////////////////////////////////////////////////////////////////////
 
 class Safety_Net:
@@ -824,7 +815,6 @@ class Safety_Net:
         except Exception as e:
             print(f"Error fetching network congestion: {e} !")
             return 0.5  # Assume medium congestion if unknown
-
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -3221,6 +3211,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Fatal error in asyncio.run: {e}")
         sys.exit(1)
-
-#//////////////////////////////////////////////////////////////////////////////
-#//////////////////////////////////////////////////////////////////////////////

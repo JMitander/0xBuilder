@@ -15,7 +15,7 @@ import hexbytes
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 
 from eth_account import Account
 from web3 import AsyncWeb3
@@ -809,17 +809,13 @@ class Mempool_Monitor:
     Includes sophisticated profit estimation, caching, and parallel processing capabilities.
     """
 
-    MAX_PARALLEL_TASKS = 50
-    RETRY_ATTEMPTS = 3
-    BACKOFF_FACTOR = 1.5
-    MINIMUM_PROFIT_THRESHOLD = Decimal("0.001")
-
     def __init__(
         self,
         web3: AsyncWeb3,
         safety_net: Safety_Net,
         nonce_core: Nonce_Core,
         api_config: API_Config,
+        
         monitored_tokens: Optional[List[str]] = None,
         erc20_abi: List[Dict[str, Any]] = None,
         configuration: Configuration = None,
@@ -830,6 +826,7 @@ class Mempool_Monitor:
         self.safety_net = safety_net
         self.nonce_core = nonce_core
         self.api_config = api_config
+        
 
         # Monitoring state
         self.running = False
@@ -837,50 +834,74 @@ class Mempool_Monitor:
         self.profitable_transactions = asyncio.Queue()
         self.processed_transactions = set()
 
-        # Configuration
+        # Configurationsuration
         self.erc20_abi = erc20_abi or []
-        self.semaphore = asyncio.Semaphore(self.MAX_PARALLEL_TASKS)
+        self.minimum_profit_threshold = Decimal("0.001")
+        self.max_parallel_tasks = 50
+        self.retry_attempts = 3
+        self.backoff_factor = 1.5
+
+        # Concurrency control
+        self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
         self.task_queue = asyncio.Queue()
 
-        logger.info("Mempool_Monitor initialized with enhanced configuration")
+        print(f"Mempool_Monitor initialized with enhanced configuration ")
 
     async def start_monitoring(self) -> None:
         """Start monitoring the mempool with improved error handling."""
         if self.running:
-            logger.info("Monitoring is already active")
+            print(f"Monitoring is already active ")
             return
 
-        self.running = True
-        monitoring_task = asyncio.create_task(self._run_monitoring())
-        processor_task = asyncio.create_task(self._process_task_queue())
-        logger.info("Mempool monitoring started successfully")
-        await asyncio.gather(monitoring_task, processor_task)
+        try:
+            self.running = True
+            monitoring_task = asyncio.create_task(self._run_monitoring())
+            processor_task = asyncio.create_task(self._process_task_queue())
+
+            print(f"Mempool monitoring started successfully ")
+            await asyncio.gather(monitoring_task, processor_task)
+
+        except Exception as e:
+            self.running = False
+            print(f"Failed to start monitoring: {e} !")
+            raise
 
     async def stop_monitoring(self) -> None:
         """Gracefully stop monitoring activities."""
         if not self.running:
             return
+
         self.running = False
-        await self.task_queue.join()
-        logger.info("Mempool monitoring stopped gracefully")
+        try:
+            # Wait for remaining tasks to complete
+            while not self.task_queue.empty():
+                await asyncio.sleep(0.1)
+            print(f"Mempool monitoring stopped gracefully ")
+        except Exception as e:
+            print(f"Error during monitoring shutdown: {e} !")
 
     async def _run_monitoring(self) -> None:
         """Enhanced mempool monitoring with automatic recovery."""
         retry_count = 0
+
         while self.running:
             try:
                 pending_filter = await self._setup_pending_filter()
                 if not pending_filter:
                     continue
+
                 while self.running:
                     tx_hashes = await pending_filter.get_new_entries()
                     if tx_hashes:
                         await self._handle_new_transactions(tx_hashes)
                     await asyncio.sleep(0.1)
+
             except Exception as e:
                 retry_count += 1
-                wait_time = min(self.BACKOFF_FACTOR ** retry_count, 30)
-                logger.error(f"Monitoring error (attempt {retry_count}): {e}")
+                wait_time = min(self.backoff_factor ** retry_count, 30)
+                print(
+                     f"Monitoring error (attempt {retry_count}): {e} "
+                )
                 await asyncio.sleep(wait_time)
 
     async def _setup_pending_filter(self) -> Optional[Any]:
@@ -890,19 +911,34 @@ class Mempool_Monitor:
                 self.web3.provider, (AsyncHTTPProvider, AsyncIPCProvider)
             ):
                 raise ValueError("Invalid provider type")
+
             pending_filter = await self.web3.eth.filter("pending")
-            logger.info(f"Connected to network via {self.web3.provider.__class__.__name__}")
+            print(
+                f"Connected to network via {self.web3.provider.__class__.__name__} "
+            )
             return pending_filter
+
         except Exception as e:
-            logger.error(f"Failed to setup pending filter: {e}")
+            print(f"Failed to setup pending filter: {e} !")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
         """Process new transactions in parallel with rate limiting."""
-        batch_size = 10
-        for i in range(0, len(tx_hashes), batch_size):
-            batch = tx_hashes[i : i + batch_size]
-            await asyncio.gather(*(self._queue_transaction(tx_hash) for tx_hash in batch))
+
+        async def process_batch(batch):
+            await asyncio.gather(
+                *(self._queue_transaction(tx_hash) for tx_hash in batch)
+            )
+
+        try:
+            # Process transactions in batches
+            batch_size = 10
+            for i in range(0, len(tx_hashes), batch_size):
+                batch = tx_hashes[i : i + batch_size]
+                await process_batch(batch)
+
+        except Exception as e:
+            print(f"Error processing transaction batch: {e} !")
 
     async def _queue_transaction(self, tx_hash: str) -> None:
         """Queue transaction for processing with deduplication."""
@@ -919,82 +955,102 @@ class Mempool_Monitor:
                 async with self.semaphore:
                     await self.process_transaction(tx_hash)
                 self.task_queue.task_done()
+            except asyncio.CancelledError:
+                break
             except Exception as e:
-                logger.error(f"Task processing error: {e}")
+                print(f"Task processing error: {e} !")
 
     async def process_transaction(self, tx_hash: str) -> None:
         """Process individual transactions with enhanced error handling."""
-        tx = await self._get_transaction_with_retry(tx_hash)
-        if not tx:
-            return
-        analysis = await self.analyze_transaction(tx)
-        if analysis.get("is_profitable"):
-            await self._handle_profitable_transaction(analysis)
+        try:
+            tx = await self._get_transaction_with_retry(tx_hash)
+            if not tx:
+                return
+
+            analysis = await self.analyze_transaction(tx)
+            if analysis.get("is_profitable"):
+                await self._handle_profitable_transaction(analysis)
+
+        except Exception as e:
+            print(f"Error processing transaction {tx_hash}: {e} !")
 
     async def _get_transaction_with_retry(self, tx_hash: str) -> Optional[Any]:
         """Fetch transaction details with exponential backoff."""
-        for attempt in range(self.RETRY_ATTEMPTS):
+        for attempt in range(self.retry_attempts):
             try:
                 return await self.web3.eth.get_transaction(tx_hash)
             except TransactionNotFound:
-                if attempt == self.RETRY_ATTEMPTS - 1:
+                if attempt == self.retry_attempts - 1:
                     return None
-                await asyncio.sleep(self.BACKOFF_FACTOR ** attempt)
+                await asyncio.sleep(self.backoff_factor ** attempt)
             except Exception as e:
-                logger.error(f"Error fetching transaction {tx_hash}: {e}")
+                print(f"Error fetching transaction {tx_hash}: {e} !")
                 return None
 
     async def _handle_profitable_transaction(self, analysis: Dict[str, Any]) -> None:
         """Process and queue profitable transactions."""
-        await self.profitable_transactions.put(analysis)
-        logger.info(
-            f"Profitable transaction identified: {analysis['tx_hash']} "
-            f"(Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
-        )
+        try:
+            await self.profitable_transactions.put(analysis)
+            print(
+                f"Profitable transaction identified: {analysis['tx_hash']} "
+                f" (Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
+            )
+        except Exception as e:
+            print(f"Error handling profitable transaction: {e} !")
 
     async def analyze_transaction(self, tx) -> Dict[str, Any]:
-        """Analyze a transaction to determine if it's profitable."""
         if not tx.hash or not tx.input:
-            logger.debug(f"Transaction {tx.hash.hex()} is missing essential fields. Skipping.")
+            print(
+                f"Transaction {tx.hash.hex()} is missing essential fields. Skipping."
+            )
             return {"is_profitable": False}
-        if tx.value > 0:
-            return await self._analyze_eth_transaction(tx)
-        return await self._analyze_token_transaction(tx)
+        try:
+            if tx.value > 0:
+                return await self._analyze_eth_transaction(tx)
+            return await self._analyze_token_transaction(tx)
+        except Exception as e:
+            print(
+                f"Error analyzing transaction {tx.hash.hex()}: {e} "
+            )
+            return {"is_profitable": False}
 
     async def _analyze_eth_transaction(self, tx) -> Dict[str, Any]:
-        """Analyze an ETH transaction for profitability."""
-        if await self._is_profitable_eth_transaction(tx):
-            await self._log_transaction_details(tx, is_eth=True)
-            return {
-                "is_profitable": True,
-                "tx_hash": tx.hash.hex(),
-                "value": tx.value,
-                "to": tx.to,
-                "from": tx["from"],
-                "input": tx.input,
-                "gasPrice": tx.gasPrice,
-            }
-        return {"is_profitable": False}
+        try:
+            if await self._is_profitable_eth_transaction(tx):
+                await self._log_transaction_details(tx, is_eth=True)
+                return {
+                    "is_profitable": True,
+                    "tx_hash": tx.hash.hex(),
+                    "value": tx.value,
+                    "to": tx.to,
+                    "from": tx["from"],
+                    "input": tx.input,
+                    "gasPrice": tx.gasPrice,
+                }
+            return {"is_profitable": False}
+        except Exception as e:
+            print(
+                f"Error analyzing ETH transaction {tx.hash.hex()}: {e} "
+            )
+            return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
-        """Analyze a token transaction for profitability."""
         try:
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_abi)
-            function_abi, params = contract.decode_function_input(tx.input)
-            function_name = function_abi["name"]
+            function_ABI, function_params = contract.decode_function_input(tx.input)
+            function_name = function_ABI["name"]
             if function_name in self.configuration.ERC20_SIGNATURES:
-                estimated_profit = await self._estimate_profit(tx, params)
-                if estimated_profit > self.MINIMUM_PROFIT_THRESHOLD:
-                    logger.info(
-                        f"Identified profitable transaction {tx.hash.hex()} "
-                        f"with estimated profit: {estimated_profit:.4f} ETH"
+                estimated_profit = await self._estimate_profit(tx, function_params)
+                if estimated_profit > self.minimum_profit_threshold:
+                    print(
+                        f"Identified profitable transaction {tx.hash.hex()} with estimated profit: {estimated_profit:.4f} ETH "
                     )
                     await self._log_transaction_details(tx)
                     return {
                         "is_profitable": True,
                         "profit": estimated_profit,
                         "function_name": function_name,
-                        "params": params,
+                        "params": function_params,
                         "tx_hash": tx.hash.hex(),
                         "to": tx.to,
                         "input": tx.input,
@@ -1002,20 +1058,32 @@ class Mempool_Monitor:
                         "gasPrice": tx.gasPrice,
                     }
                 else:
-                    logger.debug(f"Transaction {tx.hash.hex()} is below threshold. Skipping.")
+                    print(
+                        f"Transaction {tx.hash.hex()} is below threshold. Skipping... "
+                    )
+                    return {"is_profitable": False}
             else:
-                logger.debug(f"Function {function_name} not in ERC20_SIGNATURES. Skipping.")
+                print(
+                     f"Function {function_name} not in ERC20_SIGNATURES. Skipping."
+                )
+                return {"is_profitable": False}
         except Exception as e:
-            logger.error(f"Error decoding transaction {tx.hash.hex()}: {e}")
-        return {"is_profitable": False}
+            print(
+                f"Error decoding function input for transaction {tx.hash.hex()}: {e} !"
+            )
+            return {"is_profitable": False}
 
     async def _is_profitable_eth_transaction(self, tx) -> bool:
-        """Determine if an ETH transaction is profitable."""
-        potential_profit = await self._estimate_eth_transaction_profit(tx)
-        return potential_profit > self.MINIMUM_PROFIT_THRESHOLD
+        try:
+            potential_profit = await self._estimate_eth_transaction_profit(tx)
+            return potential_profit > self.minimum_profit_threshold
+        except Exception as e:
+            print(
+                f"Error estimating ETH transaction profit for transaction {tx.hash.hex()}: {e} !"
+            )
+            return False
 
     async def _estimate_eth_transaction_profit(self, tx: Any) -> Decimal:
-        """Estimate profit for an ETH transaction."""
         try:
             gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
             gas_used = tx.gas
@@ -1024,26 +1092,36 @@ class Mempool_Monitor:
             potential_profit = eth_value - gas_cost_eth
             return potential_profit if potential_profit > 0 else Decimal(0)
         except Exception as e:
-            logger.error(f"error estimating ETH transaction profit: {e}")
+            print(f"Error estimating ETH transaction profit: {e} !")
             return Decimal(0)
 
-    async def _estimate_profit(self, tx, params: Dict[str, Any]) -> Decimal:
-        """Estimate profit for a token transaction."""
+    async def _estimate_profit(self, tx, function_params: Dict[str, Any]) -> Decimal:
         try:
             gas_price_gwei = self.web3.from_wei(tx.gasPrice, "gwei")
             gas_used = tx.gas
             gas_cost_eth = Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
-            input_amount_wei = Decimal(params.get("amountIn", 0))
-            output_amount_min_wei = Decimal(params.get("amountOutMin", 0))
-            path = params.get("path", [])
+            input_amount_wei = Decimal(function_params.get("amountIn", 0))
+            output_amount_min_wei = Decimal(function_params.get("amountOutMin", 0))
+            path = function_params.get("path", [])
             if len(path) < 2:
-                logger.debug(f"Transaction {tx.hash.hex()} has an invalid path. Skipping.")
+                print(
+                     f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping. "
+                )
                 return Decimal(0)
-            output_token_symbol = await self.api_config.get_token_symbol(self.web3, path[-1])
+            output_token_address = path[-1]
+            output_token_symbol = await self.api_config.get_token_symbol(self.web3, output_token_address)
             if not output_token_symbol:
+                print(
+                     f"Output token symbol not found for address {output_token_address}. Skipping. "
+                )
                 return Decimal(0)
-            market_price = await self.api_config.get_real_time_price(output_token_symbol.lower())
+            market_price = await self.api_config.get_real_time_price(
+                output_token_symbol.lower()
+            )
             if market_price is None or market_price == 0:
+                print(
+                     f"Market price not available for token {output_token_symbol}. Skipping. "
+                )
                 return Decimal(0)
             input_amount_eth = Decimal(self.web3.from_wei(input_amount_wei, "ether"))
             output_amount_eth = Decimal(self.web3.from_wei(output_amount_min_wei, "ether"))
@@ -1051,24 +1129,33 @@ class Mempool_Monitor:
             profit = expected_output_value - input_amount_eth - gas_cost_eth
             return profit if profit > 0 else Decimal(0)
         except Exception as e:
-            logger.error(f"Error estimating profit for transaction {tx.hash.hex()}: {e}")
+            print(
+                f"Error estimating profit for transaction {tx.hash.hex()}: {e} "
+            )
             return Decimal(0)
 
     async def _log_transaction_details(self, tx, is_eth=False) -> None:
-        """Log transaction details for debugging purposes."""
         try:
             transaction_info = {
                 "transaction hash": tx.hash.hex(),
-                "value": self.web3.from_wei(tx.value, "ether") if is_eth else tx.value,
+                "value": self.web3.from_wei(tx.value, "ether")
+                if is_eth
+                else tx.value,
                 "from": tx["from"],
                 "to": (tx.to[:10] + "..." + tx.to[-10:]) if tx.to else None,
                 "input": tx.input,
                 "gas price": self.web3.from_wei(tx.gasPrice, "gwei"),
             }
-            tx_type = "ETH" if is_eth else "Token"
-            logger.debug(f"Pending {tx_type} Transaction Details: {transaction_info}")
+            if is_eth:
+                print(f"Pending ETH Transaction Details: {transaction_info} ")
+            else:
+                print(
+                     f"Pending Token Transaction Details: {transaction_info} "
+                )
         except Exception as e:
-            logger.error(f"Error logging transaction details for {tx.hash.hex()}: {e}")
+            print(
+                f"Error logging transaction details for {tx.hash.hex()}: {e} "
+            )
 
 
 #//////////////////////////////////////////////////////////////////////////////
@@ -2627,72 +2714,79 @@ class Main_Core:
     managing connections, and orchestrating the main execution loop.
     """
 
-    MAX_CONNECTION_ATTEMPTS = 3
-    BALANCE_THRESHOLD_ETH = 0.1
-
     def __init__(self, configuration: Configuration) -> None:
+        
         self.configuration = configuration
         self.web3: Optional[AsyncWeb3] = None
         self.account: Optional[Account] = None
-        component_names = [
-            'api_config',
-            'nonce_core',
-            'safety_net',
-            'market_monitor',
-            'mempool_monitor',
-            'transaction_core',
-            'strategy_net'
-        ]
-        self.components: Dict[str, Any] = {name: None for name in component_names}
-        logger.info("Main Core initialized successfully.")
+        self.components: Dict[str, Any] = {
+            'api_config': None,
+            'nonce_core': None,
+            'safety_net': None,
+            'market_monitor': None,
+            'mempool_monitor': None,
+            'transaction_core': None,
+            'strategy_net': None
+        }
+        print(f"Main Core initialized successfully. ")
 
     async def initialize(self) -> None:
         """Initialize all components with proper error handling."""
         try:
-            self.account = self._parse_wallet_key(self.configuration.WALLET_KEY)
+            # Initialize account first
+            wallet_key = self.configuration.WALLET_KEY
+            if not wallet_key:
+                raise ValueError("Key in .env is not set")
+
+            try:
+                # Remove '0x' prefix if present and ensure the key is valid hex
+                cleaned_key = wallet_key[2:] if wallet_key.startswith('0x') else wallet_key
+                if not all(c in '0123456789abcdefABCDEF' for c in cleaned_key):
+                    raise ValueError("Invalid wallet key format - must be hexadecimal")
+                # Add '0x' prefix back if it was removed
+                full_key = f"0x{cleaned_key}" if not wallet_key.startswith('0x') else wallet_key
+                self.account = Account.from_key(full_key)
+            except Exception as e:
+                raise ValueError(f"Invalid wallet key format: {e}")
+
+            # Initialize web3 after account is set up
             self.web3 = await self._initialize_web3()
-            if not self.web3 or not self.account:
-                raise RuntimeError("Failed to initialize Web3 connection or account")
+            if not self.web3:
+                raise RuntimeError("Failed to initialize Web3 connection")
+
+            if not self.account:
+                raise RuntimeError("Failed to initialize account")
 
             await self._check_account_balance()
             await self._initialize_components()
-            logger.info("All components initialized successfully.")
+            print(f"All components initialized successfully. ")
         except Exception as e:
-            logger.info(f"Fatal error during initialization: {e}")
+            print(f"Fatal error during initialization: {e} !")
             await self.stop()
-
-    def _parse_wallet_key(self, wallet_key: str) -> Account:
-        """Parse and validate the wallet key."""
-        if not wallet_key:
-            raise ValueError("WALLET_KEY is not set in configuration.")
-        try:
-            cleaned_key = wallet_key[2:] if wallet_key.startswith('0x') else wallet_key
-            if not all(c in '0123456789abcdefABCDEF' for c in cleaned_key):
-                raise ValueError("Invalid wallet key format - must be hexadecimal")
-            full_key = f"0x{cleaned_key}"
-            return Account.from_key(full_key)
-        except Exception as e:
-            raise ValueError(f"Invalid wallet key format: {e}")
 
     async def _initialize_web3(self) -> Optional[AsyncWeb3]:
         """Initialize Web3 connection with multiple provider fallback."""
         providers = self._get_providers()
         if not providers:
-            logger.info("No valid endpoints provided.")
+            print(f"No valid endpoints provided. !")
             return None
 
         for provider_name, provider in providers:
             try:
-                logger.info(f"Attempting connection with {provider_name}...")
+                print(f"Attempting connection with {provider_name}...")
                 web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)})
+
                 if await self._test_connection(web3, provider_name):
                     await self._add_middleware(web3)
                     return web3
+
             except Exception as e:
-                logger.info(f"{provider_name} connection failed: {e}")
+                print(f"{provider_name} connection failed: {e}")
+                continue
+
         return None
 
-    def _get_providers(self) -> List[Tuple[str, Any]]:
+    def _get_providers(self) -> List[Tuple[str, Union[AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider]]]:
         """Get list of available providers with validation."""
         providers = []
         if self.configuration.IPC_ENDPOINT and os.path.exists(self.configuration.IPC_ENDPOINT):
@@ -2703,16 +2797,17 @@ class Main_Core:
             providers.append(("WebSocket", WebSocketProvider(self.configuration.WEBSOCKET_ENDPOINT)))
         return providers
 
+
     async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
         """Test Web3 connection with retries."""
-        for attempt in range(self.MAX_CONNECTION_ATTEMPTS):
+        for attempt in range(3):
             try:
                 if await web3.is_connected():
                     chain_id = await web3.eth.chain_id
-                    logger.info(f"Connected to network {name} (Chain ID: {chain_id})")
+                    print(f"Connected to network {name} (Chain ID: {chain_id}) ")
                     return True
             except Exception as e:
-                logger.info(f"Connection attempt {attempt + 1} failed: {e}")
+                print(f"Connection attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(1)
         return False
 
@@ -2722,26 +2817,33 @@ class Main_Core:
             chain_id = await web3.eth.chain_id
             if chain_id in {99, 100, 77, 7766, 56}:  # POA networks
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-                logger.info("Injected POA middleware.")
+                print(f"Injected POA middleware.")
             elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
-                logger.info("No middleware required for ETH network.")
+                print(f"No middleware required for ETH network.")
+                pass
             else:
-                logger.info("Unknown network; no middleware injected.")
+                print(f"Unknown network; no middleware injected.")
         except Exception as e:
-            logger.info(f"Middleware configuration failed: {e}")
+            print(f"Middleware configuration failed: {e}")
             raise
 
     async def _check_account_balance(self) -> None:
-        """Check the Ethereum account balance."""
+        """Check the Ethereum account balancer_router_abi."""
         try:
-            balance_wei = await self.web3.eth.get_balance(self.account.address)
-            balance_eth = self.web3.from_wei(balance_wei, 'ether')
-            logger.info(f"Account {self.account.address} initialized")
-            logger.info(f"Balance: {balance_eth:.4f} ETH")
-            if balance_eth < self.BALANCE_THRESHOLD_ETH:
-                logger.info(f"Low account balance! (<{self.BALANCE_THRESHOLD_ETH} ETH)")
+            if not self.account:
+                raise ValueError("Account not initialized")
+
+            balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
+            balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
+
+            print(f"Account {self.account.address} initialized")
+            print(f"Balance: {balance_eth:.4f} ETH")
+
+            if balance_eth < 0.1:
+                print(f"Low account balancer_router_abi! (<0.1 ETH)")
+
         except Exception as e:
-            logger.info(f"Balance check failed: {e}")
+            print(f"Balance check failed: {e}")
             raise
 
     async def _initialize_components(self) -> None:
@@ -2753,10 +2855,10 @@ class Main_Core:
             )
             await self.components['nonce_core'].initialize()
 
-            self.components['api_config'] = API_Config(self.configuration)
+            api_config = API_Config(self.configuration)
 
             self.components['safety_net'] = Safety_Net(
-                self.web3, self.configuration, self.account, self.components['api_config']
+                self.web3, self.configuration, self.account, api_config
             )
 
             # Load contract ABIs
@@ -2766,7 +2868,7 @@ class Main_Core:
 
             # Initialize analysis components
             self.components['market_monitor'] = Market_Monitor(
-                self.web3, self.configuration, self.components['api_config']
+                self.web3, self.configuration, api_config
             )
 
             # Initialize monitoring components
@@ -2774,7 +2876,8 @@ class Main_Core:
                 web3=self.web3,
                 safety_net=self.components['safety_net'],
                 nonce_core=self.components['nonce_core'],
-                api_config=self.components['api_config'],
+                api_config=api_config,
+                
                 monitored_tokens=await self.configuration.get_token_addresses(),
                 erc20_abi=erc20_abi,
                 configuration=self.configuration
@@ -2791,8 +2894,9 @@ class Main_Core:
                 monitor=self.components['mempool_monitor'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
-                api_config=self.components['api_config'],
+                api_config=api_config,
                 configuration=self.configuration,
+                
                 erc20_abi=erc20_abi
             )
             await self.components['transaction_core'].initialize()
@@ -2802,16 +2906,17 @@ class Main_Core:
                 transaction_core=self.components['transaction_core'],
                 market_monitor=self.components['market_monitor'],
                 safety_net=self.components['safety_net'],
-                api_config=self.components['api_config'],
+                api_config=api_config,
+                
             )
 
         except Exception as e:
-            logger.info(f"Component initialization failed: {e}")
+            print(f"Component initialization failed: {e}")
             raise
 
     async def run(self) -> None:
         """Main execution loop with improved error handling."""
-        logger.info("Starting 0xBuilder...")
+        print(f"Starting 0xBuilder... ")
 
         try:
             await self.components['mempool_monitor'].start_monitoring()
@@ -2823,28 +2928,33 @@ class Main_Core:
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    logger.error(f"error in main loop: {e}")
+                    print(f"Error in main loop: {e}")
                     await asyncio.sleep(5)  # Back off on error
 
         except KeyboardInterrupt:
-            logger.info("Received shutdown signal...")
+            print(f"Received shutdown signal...")
+        finally:
             await self.stop()
 
     async def stop(self) -> None:
         """Graceful shutdown of all components."""
-        logger.info("Shutting down Core...")
+        print(f"Shutting down Core...")
 
         try:
             if self.components['mempool_monitor']:
                 await self.components['mempool_monitor'].stop_monitoring()
 
-            # Close the aiohttp session in API_Config
-            api_config: API_Config = self.components['api_config']
-            await api_config.session.close()
+            if self.components['transaction_core']:
+                await self.components['transaction_core'].stop()
+            
+            if self.components['nonce_core']:
+                await self.components['nonce_core'].stop()
 
-            logger.info("Shutdown complete.")
+            print(f"Shutdown complete ")
         except Exception as e:
-            logger.error(f"error during shutdown: {e}")
+            print(f"Error during shutdown: {e}")
+        finally:
+            sys.exit(0)
 
     async def _process_profitable_transactions(self) -> None:
         """Process profitable transactions from the queue."""
@@ -2856,36 +2966,34 @@ class Main_Core:
                 tx = await monitor.profitable_transactions.get()
                 tx_hash = tx.get('tx_hash', 'Unknown')[:10]
                 strategy_type = tx.get('strategy_type', 'Unknown')
-                logger.info(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
+                print(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
 
-                success = await strategy.execute_best_strategy(tx, strategy_type)
+                success = await strategy.execute_strategy_for_transaction(tx)
 
                 if success:
-                    logger.info(f"Strategy execution successful for tx: {tx_hash}")
+                    print(f"Strategy execution successful for tx: {tx_hash} ")
                 else:
-                    logger.info(f"Strategy execution failed for tx: {tx_hash}")
+                    print(f"Strategy execution failed for tx: {tx_hash} !")
 
             except Exception as e:
-                logger.error(f"error processing transaction: {e}")
+                print(f"Error processing transaction: {e}")
 
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         """Load contract abi from a file."""
         try:
-            async with aiofiles.open(abi_path, 'r') as file:
-                content = await file.read()
-                abi = json.loads(content)
-            logger.info(f"Loaded abi from {abi_path} successfully.")
+            with open(abi_path, 'r') as file:
+                abi = json.load(file)
+            print(f"Loaded abi from {abi_path} successfully. ")
             return abi
         except Exception as e:
-            logger.warning(f"failed to load abi from {abi_path}: {e}")
+            print(f"Failed to load abi from {abi_path}: {e} !")
             raise
-
 # ////////////////////////////////////////////////////////////////////////////
+
 
 async def main():
     """Main entry point with proper setup and error handling."""
     global logger
-
     try:
         # Initialize configuration
         configuration = Configuration()
@@ -2897,9 +3005,9 @@ async def main():
         await main_core.run()
 
     except KeyboardInterrupt:
-        logger.info("Shutdown complete.")
+        print("Shutdown complete.")
     except Exception as e:
-        logger.critical(f"Fatal error: {e}")
+        print(f"Fatal error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

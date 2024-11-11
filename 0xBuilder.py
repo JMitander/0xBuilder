@@ -17,12 +17,13 @@ from sklearn.linear_model import LinearRegression
 from decimal import Decimal
 from typing import List, Dict, Any, Optional, Tuple, Union
 
+from web3.contract import Contract
 from eth_account import Account
 from web3 import AsyncWeb3
 from web3.providers import AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider
 from web3.middleware import ExtraDataToPOAMiddleware
 from web3.exceptions import TransactionNotFound, ContractLogicError
-from web3.eth import AsyncEth, Contract
+from web3.eth import AsyncEth
 
 #//////////////////////////////////////////////////////////////////////////////
 # ANSI color codes for different log levels
@@ -1258,6 +1259,12 @@ class Transaction_Core:
         contract_name: str,
     ) -> Contract:
         try:
+            # Load ABI from file if it's a string path
+            if isinstance(contract_abi, str):
+                async with aiofiles.open(contract_abi, 'r') as f:
+                    abi_content = await f.read()
+                    contract_abi = json.loads(abi_content)
+                    
             contract_instance = self.web3.eth.contract(
                 address=self.web3.to_checksum_address(contract_address),
                 abi=contract_abi,

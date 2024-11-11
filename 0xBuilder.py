@@ -80,7 +80,7 @@ async def loading_bar(
 
     # ANSI escape codes for color
     YELLOW = "\033[93m"
-    RED = "\033[91m"
+    _RED = "\033[91m"  # Prefixed with underscore to indicate internal use
     GREEN = "\033[92m"
     RESET = "\033[0m"
 
@@ -105,7 +105,7 @@ async def loading_bar(
             logger.info(f"{YELLOW}{success_message}{RESET}")
         else:
             return
-    except Exception as e:
+    except Exception:
         raise
 
 # ////////////////////////////////////////////////////////////////////////////
@@ -2149,7 +2149,7 @@ class Market_Monitor:
             return self.price_cache[cache_key]
 
         prices = await self._fetch_from_services(
-            lambda service: self.api_config.fetch_historical_prices(token_symbol, days=days),
+            lambda _: self.api_config.fetch_historical_prices(token_symbol, days=days),
             f"historical prices for {token_symbol}"
         )
         if prices:
@@ -2164,7 +2164,7 @@ class Market_Monitor:
             return self.price_cache[cache_key]
 
         volume = await self._fetch_from_services(
-            lambda service: self.api_config.get_token_volume(token_symbol),
+            lambda _: self.api_config.get_token_volume(token_symbol),
             f"trading volume for {token_symbol}"
         )
         if volume is not None:

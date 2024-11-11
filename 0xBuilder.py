@@ -427,7 +427,7 @@ class API_Config:
         try:
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             contract = web3.eth.contract(address=token_address, abi=erc20_abi)
-            symbol = await contract.functions.symbol().call()
+            symbol = contract.functions.symbol().call()
             self.token_symbol_cache[token_address] = symbol
             return symbol
         except Exception as e:
@@ -1053,7 +1053,7 @@ class Mempool_Monitor:
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
         try:
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_abi)
-            function_ABI, function_params = contract.decode_function_input(tx.input)
+            function_ABI, function_params = await contract.decode_function_input(tx.input)
             function_name = function_ABI["name"]
             if function_name in self.configuration.ERC20_SIGNATURES:
                 estimated_profit = await self._estimate_profit(tx, function_params)
@@ -1982,9 +1982,9 @@ class Transaction_Core:
                 )
                 return None
             contract = self.web3.eth.contract(address=to_address, abi=abi)
-            function_obj, function_params = contract.decode_function_input(input_data)
+            function_obj, function_params = await contract.functions.decode_function_input(input_data)
             decoded_data = {
-                "function_name": function_obj.function_identifier,
+                "function_name": function_obj.fn_name,
                 "params": function_params,
             }
             logger.info(
@@ -2946,7 +2946,10 @@ class Main_Core:
         print(f"Starting 0xBuilder... ")
 
         try:
-            await self.components['mempool_monitor'].start_monitoring()
+            if 'mempool_monitor' in self.components and self.components['mempool_monitor'] is not None:
+                await self.components['mempool_monitor'].start_monitoring()
+            else:
+                raise RuntimeError("Mempool monitor not properly initialized")
 
             while True:
                 try:

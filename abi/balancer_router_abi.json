@@ -4,7 +4,7 @@
             {"internalType": "string", "name": "name", "type": "string"},
             {"internalType": "string", "name": "symbol", "type": "string"}
         ],
-        "stateMutABIlity": "nonpayable",
+        "stateMutability": "nonpayable",
         "type": "constructor"
     },
     {
@@ -124,35 +124,35 @@
         "inputs": [],
         "name": "DEFAULT_ADMIN_ROLE",
         "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [],
         "name": "DOMAIN_SEPARATOR",
         "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [],
         "name": "MINTER_ROLE",
         "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [],
         "name": "PERMIT_TYPEHASH",
         "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [],
         "name": "SNAPSHOT_ROLE",
         "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -162,7 +162,7 @@
         ],
         "name": "allowance",
         "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -172,14 +172,14 @@
         ],
         "name": "approve",
         "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-        "stateMutABIlity": "nonpayable",
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
         "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
         "name": "balanceOf",
         "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -189,14 +189,14 @@
         ],
         "name": "balanceOfAt",
         "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
         "name": "burn",
         "outputs": [],
-        "stateMutABIlity": "nonpayable",
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
@@ -206,14 +206,14 @@
         ],
         "name": "burnFrom",
         "outputs": [],
-        "stateMutABIlity": "nonpayable",
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
         "inputs": [],
         "name": "decimals",
         "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -223,14 +223,14 @@
         ],
         "name": "decreaseAllowance",
         "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-        "stateMutABIlity": "nonpayable",
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
         "inputs": [{"internalType": "bytes32", "name": "role", "type": "bytes32"}],
         "name": "getRoleAdmin",
         "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -240,14 +240,14 @@
         ],
         "name": "getRoleMember",
         "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [{"internalType": "bytes32", "name": "role", "type": "bytes32"}],
         "name": "getRoleMemberCount",
         "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-        "stateMutABIlity": "view",
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -257,7 +257,7 @@
         ],
         "name": "grantRole",
         "outputs": [],
-        "stateMutABIlity": "nonpayable",
+        "stateMutability": "nonpayable",
         "type": "function"
     }
 

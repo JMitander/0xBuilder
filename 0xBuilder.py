@@ -228,8 +228,9 @@ class Nonce_Core:
 
     def __init__(
         self,
-        web3: AsyncWeb3,
+        web3: AsyncWeb3, 
         address: str,
+        configuration: Optional[Any] = None
     ):
         self.web3 = web3
         self.address = self.web3.to_checksum_address(address)
@@ -369,6 +370,13 @@ class Nonce_Core:
             except Exception as e:
                 logger.error(f"Reset failed: {e}")
                 raise
+    async def stop(self) -> None:
+        """Gracefully stop the nonce manager."""
+        try:
+            await self.reset()
+            logger.info("Nonce Core stopped successfully.")
+        except Exception as e:
+            logger.error(f"Error stopping nonce core: {e}")
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -798,6 +806,15 @@ class Safety_Net:
         except Exception as e:
             logger.error(f"Error fetching network congestion: {e}")
             return 0.5  # Assume medium congestion if unknown
+    
+    async def stop(self) -> None:
+        """Gracefully stop the safety net."""
+        try:
+            await self.api_config.session.close()
+            logger.info("Safety Net stopped successfully.")
+        except Exception as e:
+            logger.error(f"Error stopping safety net: {e}")
+            raise
 
 
 #//////////////////////////////////////////////////////////////////////////////
@@ -1173,6 +1190,7 @@ class Transaction_Core:
         aave_flashloan_abi: List[Dict[str, Any]],
         lending_pool_address: str,
         lending_pool_ABI: List[Dict[str, Any]],
+        api_config: API_Config,
         monitor: Mempool_Monitor,
         nonce_core: Nonce_Core,
         safety_net: Safety_Net,
@@ -1187,6 +1205,7 @@ class Transaction_Core:
         self.account = account
         self.configuration = configuration
         self.monitor = monitor
+        self.api_config = api_config
         self.nonce_core = nonce_core
         self.safety_net = safety_net
         self.gas_price_multiplier = gas_price_multiplier
@@ -2078,6 +2097,15 @@ class Transaction_Core:
         except Exception as e:
             logger.error(f"Error transferring profit: {e} !")
             return False
+        
+    async def stop(self) -> None:
+        try:
+            await self.safety_net.stop()
+            await self.nonce_core.stop()
+            logger.info("Stopped 0xBuilder. ")
+        except Exception as e:
+            logger.error(f"Error stopping 0xBuilder: {e} !")
+            raise
 
 #//////////////////////////////////////////////////////////////////////////////
 

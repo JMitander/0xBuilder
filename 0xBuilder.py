@@ -80,7 +80,6 @@ async def loading_bar(
 
     # ANSI escape codes for color
     YELLOW = "\033[93m"
-    _RED = "\033[91m"  # Prefixed with underscore to indicate internal use
     GREEN = "\033[92m"
     RESET = "\033[0m"
 
@@ -127,8 +126,8 @@ class Configuration:
             await self._load_json_elements()
             logger.info("Configuration loaded successfully.")
         except Exception as e:
-            raise
-
+            raise RuntimeError(f"Failed to load configuration: {e}") from e
+        
     def _load_api_keys(self) -> None:
         self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
         self.INFURA_PROJECT_ID = self._get_env_variable("INFURA_PROJECT_ID")
@@ -763,7 +762,7 @@ class Safety_Net:
         """Estimate the gas required for a transaction."""
         try:
             gas_estimate = await self.web3.eth.estimate_gas(transaction_data)
-            return gas_estimate
+            return await gas_estimate
         except Exception as e:
             logger.error(f"Gas estimation failed: {e}")
             return 0
@@ -835,7 +834,7 @@ class Mempool_Monitor:
         self.processed_transactions = set()
 
         # Configurationsuration
-        self.erc20_abi = erc20_abi or []
+        self.erc20_abi = erc20_abi or self._load_erc20_abi()
         self.minimum_profit_threshold = Decimal("0.001")
         self.max_parallel_tasks = 50
         self.retry_attempts = 3
@@ -1187,7 +1186,6 @@ class Transaction_Core:
         self.web3 = web3
         self.account = account
         self.configuration = configuration
-        
         self.monitor = monitor
         self.nonce_core = nonce_core
         self.safety_net = safety_net
@@ -1259,7 +1257,7 @@ class Transaction_Core:
 
     async def _load_erc20_abi(self) -> List[Dict[str, Any]]:
         try:
-            erc20_abi = await self.erc20_abi()
+            erc20_abi = await self._load_erc20_abi()
             logger.info(f"ERC20 abi loaded successfully. ")
             return erc20_abi
         except Exception as e:
@@ -1274,7 +1272,7 @@ class Transaction_Core:
             tx_details = {
                 "data": function_call.encodeABI(),
                 "to": function_call.address,
-                "chainId": await self.web3.eth.chain_id,
+                "chainId": await self.web3.eth.chain_id(),
                 "nonce": await self.nonce_core.get_nonce(),
                 "from": self.account.address,
             }
@@ -1319,6 +1317,7 @@ class Transaction_Core:
             try:
                 signed_tx = await self.sign_transaction(tx)
                 tx_hash = await self.web3.eth.send_raw_transaction(signed_tx)
+                tx_hash = await self.web3.eth.send_raw_transaction(signed_tx)
                 tx_hash_hex = (
                     tx_hash.hex()
                     if isinstance(tx_hash, hexbytes.HexBytes)
@@ -1342,9 +1341,9 @@ class Transaction_Core:
 
     async def sign_transaction(self, transaction: Dict[str, Any]) -> bytes:
         try:
-            signed_tx = await self.web3.eth.account.sign_transaction(
+            signed_tx = self.web3.eth.account.sign_transaction(
                 transaction,
-                private_key=self.account.key,
+                private_key=self.account.key,   
             )
             logger.info(
                 f"Transaction signed successfully: Nonce {transaction['nonce']}. "
@@ -1372,7 +1371,7 @@ class Transaction_Core:
             tx_details["gasPrice"] = int(
                 original_gas_price * 1.1
             )
-            eth_value_ether = self.web3.from_wei(eth_value, "ether")
+            eth_value_ether = await self.web3.from_wei(eth_value, "ether")
             logger.info(
                 f"Building ETH front-run transaction for {eth_value_ether} ETH to {tx_details['to']}"
             )
@@ -1425,7 +1424,7 @@ class Transaction_Core:
             return None
         try:
             flashloan_function = self.flashloan_contract.functions.fn_RequestFlashLoan(
-                self.web3.to_checksum_address(flashloan_asset), flashloan_amount
+                await self.web3.to_checksum_address(flashloan_asset), flashloan_amount
             )
             logger.info(
                 f"Preparing flashloan transaction for {flashloan_amount} of {flashloan_asset}. "
@@ -1442,7 +1441,7 @@ class Transaction_Core:
 
     async def send_bundle(self, transactions: List[Dict[str, Any]]) -> bool:
         try:
-            signed_txs = [await self.sign_transaction(tx) for tx in transactions]
+            signed_txs = [self.sign_transaction(tx) for tx in transactions]
             base_bundle_payload = {
                 "jsonrpc": "2.0", 
                 "id": 1,
@@ -1582,7 +1581,7 @@ class Transaction_Core:
 
             # Prepare flashloan
             try:
-                flashloan_asset = self.web3.to_checksum_address(path[0])
+                flashloan_asset = await self.web3.to_checksum_address(path[0])
                 flashloan_amount = self.calculate_flashloan_amount(target_tx)
                 
                 if flashloan_amount <= 0:
@@ -1670,7 +1669,7 @@ class Transaction_Core:
 
             try:
                 # Validate flashloan parameters
-                flashloan_asset = self.web3.to_checksum_address(path[-1])
+                flashloan_asset = await self.web3.to_checksum_address(path[-1])
                 flashloan_amount = self.calculate_flashloan_amount(target_tx)
                 
                 if flashloan_amount <= 0:
@@ -1739,8 +1738,8 @@ class Transaction_Core:
             f"Attempting sandwich attack on target transaction: {tx_hash} "
         )
         decoded_tx = await self.decode_transaction_input(
-            target_tx.get("input", "0x"), target_tx.get("to", "")
-        )
+             target_tx.get("input", "0x"), self.web3.to_checksum_address(target_tx.get("to", ""))
+       )
         if not decoded_tx:
             logger.warning(
                 "Failed to decode target transaction input for sandwich attack. "
@@ -1813,8 +1812,8 @@ class Transaction_Core:
 
         try:
             decoded_tx = await self.decode_transaction_input(
-                target_tx.get("input", "0x"), target_tx.get("to", "")
-            )
+                 target_tx.get("input", "0x"), await self.web3.to_checksum_address(target_tx.get("to", ""))
+          )
             if not decoded_tx:
                 logger.debug(
                     "Failed to decode target transaction input for front-run preparation. "
@@ -1945,7 +1944,7 @@ class Transaction_Core:
         self, input_data: str, to_address: str
     ) -> Optional[Dict[str, Any]]:
         try:
-            to_address = self.web3.to_checksum_address(to_address)
+            to_address = await self.web3.to_checksum_address(to_address)
             if to_address == self.configuration.UNISWAP_ROUTER_ADDRESS:
                 abi = self.configuration.UNISWAP_ROUTER_ABI
                 exchange_name = "Uniswap"
@@ -2027,7 +2026,7 @@ class Transaction_Core:
 
     async def withdraw_eth(self) -> bool:
         try:
-            withdraw_function = self.flashloan_contract.find_functions_by_name
+            withdraw_function = await self.flashloan_contract.find_functions_by_name()
             tx = await self.build_transaction(withdraw_function)
             tx_hash = await self.execute_transaction(tx)
             if tx_hash:
@@ -2044,7 +2043,7 @@ class Transaction_Core:
 
     async def withdraw_token(self, token_address: str) -> bool:
         try:
-            withdraw_function = self.flashloan_contract.find_functions_by_name(
+            withdraw_function = await self.flashloan_contract.find_functions_by_name(
                 self.web3.to_checksum_address(token_address)
             )
             tx = await self.build_transaction(withdraw_function)
@@ -2064,7 +2063,7 @@ class Transaction_Core:
     async def transfer_profit_to_account(self, amount: Decimal, account: str) -> bool:
         try:
             transfer_function = self.flashloan_contract.find_functions_by_name(
-                self.web3.to_checksum_address(account), amount
+                await self.flashloan_contract.find_functions_by_name(self.web3.to_checksum_address(account), amount)
             )
             tx = await self.build_transaction(transfer_function)
             tx_hash = await self.execute_transaction(tx)

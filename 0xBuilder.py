@@ -84,8 +84,7 @@ async def loading_bar(
     GREEN = "\033[92m"
     RESET = "\033[0m"
 
-    if _loading_bar_active:
-        return  # Prevent multiple loading bars from running simultaneously
+    
     _loading_bar_active = True  # Set the flag to active
     bar_length = 20
 
@@ -178,7 +177,7 @@ class Configuration:
             async with aiofiles.open(file_path, "r") as f:
                 content = await f.read()
                 data = json.loads(content)
-                logger.info(f"Loaded {len(data)} {description} from {file_path}")
+                await loading_bar(f"Loading {len(data)} {description} from {file_path}", 3)
                 return data
         except FileNotFoundError as e:
             logger.error(f"{description.capitalize()} file not found: {e}")
@@ -215,27 +214,6 @@ class Configuration:
         }
         return abi_paths.get(abi_name.lower(), "")
 
-# ////////////////////////////////////////////////////////////////////////////
-
-import asyncio
-import time
-import random
-import logging
-import json
-import hexbytes
-import aiohttp
-import aiofiles
-import numpy as np
-from typing import Any, Dict, List, Optional
-from decimal import Decimal
-from cachetools import TTLCache
-from web3 import AsyncWeb3, Account
-from web3.exceptions import TransactionNotFound, ContractLogicError
-from web3.types import TxParams
-from sklearn.linear_model import LinearRegression
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -253,7 +231,7 @@ class Nonce_Core:
         self,
         web3: AsyncWeb3,
         address: str,
-        configuration: Configuration,
+        configuration: Configuration
     ):
         self.web3 = web3
         self.address = self.web3.to_checksum_address(address)
@@ -649,7 +627,7 @@ class API_Config:
             async with aiofiles.open(abi_path, 'r') as file:
                 content = await file.read()
                 abi = json.loads(content)
-            logger.info(f"Loaded abi from {abi_path} successfully.")
+            logger.debug(f"Loaded abi from {abi_path} successfully.")
             return abi
         except Exception as e:
             logger.error(f"Failed to load abi from {abi_path}: {e}")
@@ -1327,7 +1305,7 @@ class Transaction_Core:
                 address=self.web3.to_checksum_address(contract_address),
                 abi=contract_abi,
             )
-            logger.info(f"Loaded {contract_name} at {contract_address} successfully.")
+            logger.info(f"Loaded {contract_name} successfully.")
             return contract_instance
         except FileNotFoundError:
             logger.error(f"ABI file for {contract_name} not found at {contract_abi}.")
@@ -3150,7 +3128,7 @@ class Main_Core:
             # Load contract ABIs
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             aave_flashloan_abi = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI)
-            lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
+            aave_lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
 
             # Initialize analysis components
             self.components['market_monitor'] = Market_Monitor(
@@ -3175,8 +3153,8 @@ class Main_Core:
                 account=self.account,
                 aave_flashloan_address=self.configuration.AAVE_FLASHLOAN_ADDRESS,
                 aave_flashloan_abi=aave_flashloan_abi,
-                lending_pool_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
-                lending_pool_ABI=lending_pool_abi,
+                aave_lending_pool_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
+                aave_lending_pool_abi=aave_lending_pool_abi,
                 monitor=self.components['mempool_monitor'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
@@ -3272,7 +3250,7 @@ class Main_Core:
         try:
             with open(abi_path, 'r') as file:
                 abi = json.load(file)
-            logger.info(f"Loaded abi from {abi_path} successfully. ")
+            await loading_bar(f"Loaded abi from {abi_path} successfully.", 0.1)
             return abi
         except Exception as e:
             logger.warning(f"Failed to load abi from {abi_path}: {e} !")

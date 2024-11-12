@@ -10,8 +10,8 @@ class Transaction_Core:
         account: Account,
         aave_flashloan_address: str,
         aave_flashloan_abi: List[Dict[str, Any]],
-        lending_pool_address: str,
-        lending_pool_ABI: List[Dict[str, Any]],
+        aave_lending_pool_address: str,
+        aave_lending_pool_abi: List[Dict[str, Any]],
         monitor: Mempool_Monitor,
         nonce_core: Nonce_Core,
         safety_net: Safety_Net,
@@ -36,8 +36,8 @@ class Transaction_Core:
         self.current_profit = Decimal("0")
         self.aave_flashloan_address = aave_flashloan_address
         self.aave_flashloan_abi = aave_flashloan_abi
-        self.lending_pool_address = lending_pool_address
-        self.lending_pool_ABI = lending_pool_ABI
+        self.aave_lending_pool_address = aave_lending_pool_address
+        self.aave_lending_pool_abi = aave_lending_pool_abi
 
     async def initialize(self):
         self.flashloan_contract = await self._initialize_contract(
@@ -46,8 +46,8 @@ class Transaction_Core:
             "Flashloan Contract",
         )
         self.lending_pool_contract = await self._initialize_contract(
-            self.lending_pool_address,
-            self.lending_pool_ABI,
+            self.aave_lending_pool_address,
+            self.aave_lending_pool_abi,
             "Lending Pool Contract",
         )
         self.uniswap_router_contract = await self._initialize_contract(

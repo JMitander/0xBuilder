@@ -154,7 +154,7 @@ class Main_Core:
             # Load contract ABIs
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             aave_flashloan_abi = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI)
-            lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
+            aave_lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
 
             # Initialize analysis components
             self.components['market_monitor'] = Market_Monitor(
@@ -179,8 +179,8 @@ class Main_Core:
                 account=self.account,
                 aave_flashloan_address=self.configuration.AAVE_FLASHLOAN_ADDRESS,
                 aave_flashloan_abi=aave_flashloan_abi,
-                lending_pool_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
-                lending_pool_ABI=lending_pool_abi,
+                aave_lending_pool_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
+                aave_lending_pool_abi=aave_lending_pool_abi,
                 monitor=self.components['mempool_monitor'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],

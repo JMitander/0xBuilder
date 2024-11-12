@@ -217,6 +217,28 @@ class Configuration:
 
 # ////////////////////////////////////////////////////////////////////////////
 
+import asyncio
+import time
+import random
+import logging
+import json
+import hexbytes
+import aiohttp
+import aiofiles
+import numpy as np
+from typing import Any, Dict, List, Optional
+from decimal import Decimal
+from cachetools import TTLCache
+from web3 import AsyncWeb3, Account
+from web3.exceptions import TransactionNotFound, ContractLogicError
+from web3.types import TxParams
+from sklearn.linear_model import LinearRegression
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+#//////////////////////////////////////////////////////////////////////////////
+
 class Nonce_Core:
     """
     Advanced nonce management system for Ethereum transactions with caching,
@@ -229,9 +251,9 @@ class Nonce_Core:
 
     def __init__(
         self,
-        web3: AsyncWeb3, 
+        web3: AsyncWeb3,
         address: str,
-        configuration: Optional[Any] = None
+        configuration: Configuration,
     ):
         self.web3 = web3
         self.address = self.web3.to_checksum_address(address)
@@ -250,7 +272,7 @@ class Nonce_Core:
                     self._initialized = True
                     logger.debug(f"Nonce_Core initialized for {self.address[:10]}...")
         except Exception as e:
-            logger.debug(f"Initialization failed: {e}")
+            logger.error(f"Initialization failed: {e}")
             raise RuntimeError("Nonce_Core initialization failed") from e
 
     async def _init_nonce(self) -> None:
@@ -274,6 +296,10 @@ class Nonce_Core:
                 self.nonce_cache[self.address] = current_nonce + 1
                 logger.debug(f"Allocated nonce {next_nonce} for {self.address[:10]}...")
                 return next_nonce
+            except KeyError as e:
+                logger.error(f"Nonce cache key error: {e}")
+                await self._handle_nonce_error()
+                raise
             except Exception as e:
                 logger.error(f"Error getting nonce: {e}")
                 await self._handle_nonce_error()
@@ -317,7 +343,7 @@ class Nonce_Core:
             pending_nonces = [int(nonce) for nonce in self.pending_transactions]
             return max(pending_nonces) + 1 if pending_nonces else 0
         except Exception as e:
-            logger.error(f"error getting pending nonce: {e}")
+            logger.error(f"Error getting pending nonce: {e}")
             return 0
 
     async def track_transaction(self, tx_hash: str, nonce: int) -> None:
@@ -344,7 +370,6 @@ class Nonce_Core:
         """Force synchronization with chain state."""
         async with self.lock:
             try:
-                await loading_bar("Synchronizing Nonce", 1)
                 new_nonce = await self._fetch_current_nonce_with_retries()
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
@@ -371,6 +396,7 @@ class Nonce_Core:
             except Exception as e:
                 logger.error(f"Reset failed: {e}")
                 raise
+
     async def stop(self) -> None:
         """Gracefully stop the nonce manager."""
         try:
@@ -378,12 +404,13 @@ class Nonce_Core:
             logger.debug("Nonce Core stopped successfully.")
         except Exception as e:
             logger.error(f"Error stopping nonce core: {e}")
+            raise
 
 #//////////////////////////////////////////////////////////////////////////////
 
 class API_Config:
-    def __init__(self, configuration: Configuration):
-        self.configuration = configuration
+    def __init__(self, Configuration: Any):
+        self.configuration = Configuration
         self.session = aiohttp.ClientSession()
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
         self.token_symbol_cache = TTLCache(maxsize=1000, ttl=86400)  # Cache for 1 day
@@ -394,28 +421,36 @@ class API_Config:
                 "base_url": "https://api.binance.com/api/v3",
                 "success_rate": 1.0,
                 "weight": 1.0,
+                "rate_limit": 1200,  # Max requests per minute
             },
             "coingecko": {
                 "base_url": "https://api.coingecko.com/api/v3",
                 "api_key": self.configuration.COINGECKO_API_KEY,
                 "success_rate": 1.0,
                 "weight": 0.8,
+                "rate_limit": 50,  # Max requests per minute
             },
             "coinmarketcap": {
                 "base_url": "https://pro-api.coinmarketcap.com/v1",
                 "api_key": self.configuration.COINMARKETCAP_API_KEY,
                 "success_rate": 1.0,
                 "weight": 0.7,
+                "rate_limit": 333,  # Max requests per minute
             },
             "cryptocompare": {
                 "base_url": "https://min-api.cryptocompare.com/data",
                 "api_key": self.configuration.CRYPTOCOMPARE_API_KEY,
                 "success_rate": 1.0,
                 "weight": 0.6,
+                "rate_limit": 80,  # Max requests per minute
             },
         }
 
         self.api_lock = asyncio.Lock()
+        self.rate_limiters = {
+            provider: asyncio.Semaphore(config.get("rate_limit", 10))
+            for provider, config in self.api_configs.items()
+        }
 
     async def get_token_symbol(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
         """Get the token symbol for a given token address."""
@@ -428,7 +463,7 @@ class API_Config:
         try:
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             contract = web3.eth.contract(address=token_address, abi=erc20_abi)
-            symbol = contract.functions.symbol().call()
+            symbol = await contract.functions.symbol().call()
             self.token_symbol_cache[token_address] = symbol
             return symbol
         except Exception as e:
@@ -468,25 +503,25 @@ class API_Config:
         if source == "coingecko":
             url = f"{config['base_url']}/simple/price"
             params = {"ids": token, "vs_currencies": vs_currency}
-            response = await self.make_request(url, params=params)
+            response = await self.make_request(source, url, params=params)
             return Decimal(str(response[token][vs_currency]))
         elif source == "coinmarketcap":
             url = f"{config['base_url']}/cryptocurrency/quotes/latest"
             params = {"symbol": token.upper(), "convert": vs_currency.upper()}
             headers = {"X-CMC_PRO_API_KEY": config["api_key"]}
-            response = await self.make_request(url, params=params, headers=headers)
+            response = await self.make_request(source, url, params=params, headers=headers)
             data = response["data"][token.upper()]["quote"][vs_currency.upper()]["price"]
             return Decimal(str(data))
         elif source == "cryptocompare":
             url = f"{config['base_url']}/price"
             params = {"fsym": token.upper(), "tsyms": vs_currency.upper(), "api_key": config["api_key"]}
-            response = await self.make_request(url, params=params)
+            response = await self.make_request(source, url, params=params)
             return Decimal(str(response[vs_currency.upper()]))
         elif source == "binance":
             url = f"{config['base_url']}/ticker/price"
             symbol = f"{token.upper()}{vs_currency.upper()}"
             params = {"symbol": symbol}
-            response = await self.make_request(url, params=params)
+            response = await self.make_request(source, url, params=params)
             return Decimal(str(response["price"]))
         else:
             logger.warning(f"Unsupported price source: {source}")
@@ -494,26 +529,48 @@ class API_Config:
 
     async def make_request(
         self,
+        provider_name: str,
         url: str,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
         max_attempts: int = 5,
         backoff_factor: float = 1.5,
     ) -> Any:
-        """Make HTTP request with exponential backoff and circuit breaker."""
-        for attempt in range(max_attempts):
-            try:
-                timeout = aiohttp.ClientTimeout(total=10 * (attempt + 1))
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.get(url, params=params, headers=headers) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except Exception as e:
-                if attempt == max_attempts - 1:
-                    logger.warning(f"Request failed after {max_attempts} attempts: {e}")
+        """Make HTTP request with exponential backoff and rate limit per provider."""
+        rate_limiter = self.rate_limiters.get(provider_name)
+        if rate_limiter is None:
+            rate_limiter = asyncio.Semaphore(10)
+            self.rate_limiters[provider_name] = rate_limiter
+        async with rate_limiter:
+            for attempt in range(max_attempts):
+                try:
+                    timeout = aiohttp.ClientTimeout(total=10 * (attempt + 1))
+                    async with aiohttp.ClientSession(timeout=timeout) as session:
+                        async with session.get(url, params=params, headers=headers) as response:
+                            if response.status == 429:
+                                wait_time = backoff_factor ** attempt
+                                logger.warning(f"Rate limit exceeded for {provider_name}, retrying in {wait_time}s...")
+                                await asyncio.sleep(wait_time)
+                                continue
+                            response.raise_for_status()
+                            return await response.json()
+                except aiohttp.ClientResponseError as e:
+                    if attempt == max_attempts - 1:
+                        logger.error(f"Request failed after {max_attempts} attempts: {e}")
+                        raise
+                    wait_time = backoff_factor ** attempt
+                    logger.warning(f"Request attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                except aiohttp.ClientConnectionError as e:
+                    if attempt == max_attempts - 1:
+                        logger.error(f"Connection error after {max_attempts} attempts: {e}")
+                        raise
+                    wait_time = backoff_factor ** attempt
+                    logger.warning(f"Connection error on attempt {attempt + 1}: {e}. Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                except Exception as e:
+                    logger.error(f"Unexpected error: {e}")
                     raise
-                wait_time = backoff_factor ** attempt
-                await asyncio.sleep(wait_time)
 
     async def fetch_historical_prices(self, token: str, days: int = 30) -> List[float]:
         """Fetch historical price data for a given token symbol."""
@@ -538,7 +595,7 @@ class API_Config:
         if source == "coingecko":
             url = f"{config['base_url']}/coins/{token}/market_chart"
             params = {"vs_currency": "usd", "days": days}
-            response = await self.make_request(url, params=params)
+            response = await self.make_request(source, url, params=params)
             return [price[1] for price in response["prices"]]
         else:
             logger.debug(f"Unsupported historical price source: {source}")
@@ -567,7 +624,7 @@ class API_Config:
         if source == "coingecko":
             url = f"{config['base_url']}/coins/markets"
             params = {"vs_currency": "usd", "ids": token}
-            response = await self.make_request(url, params=params)
+            response = await self.make_request(source, url, params=params)
             return response[0]["total_volume"] if response else None
         else:
             logger.debug(f"Unsupported volume source: {source}")
@@ -582,8 +639,8 @@ class API_Config:
                 if result:
                     return result
             except Exception as e:
-                logger.warning(f"failed to fetch {description} using {service}: {e}")
-        logger.warning(f"failed to fetch {description}.")
+                logger.warning(f"Failed to fetch {description} using {service}: {e}")
+        logger.warning(f"Failed to fetch {description}.")
         return None
 
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
@@ -598,7 +655,10 @@ class API_Config:
             logger.error(f"Failed to load abi from {abi_path}: {e}")
             raise
 
-    
+    async def close(self):
+        """Close the aiohttp session."""
+        await self.session.close()
+
 #//////////////////////////////////////////////////////////////////////////////
 
 class Safety_Net:
@@ -628,7 +688,7 @@ class Safety_Net:
         self,
         web3: AsyncWeb3,
         configuration: Configuration,
-        account: Account,
+        account: Any,
         api_config: API_Config,
     ):
         self.web3 = web3
@@ -642,7 +702,7 @@ class Safety_Net:
         self.price_lock = asyncio.Lock()
         logger.debug("Safety Net initialized with enhanced configuration")
 
-    async def get_balance(self, account: Account) -> Decimal:
+    async def get_balance(self, account: Any) -> Decimal:
         """Get account balance with retries and caching."""
         cache_key = f"balance_{account.address}"
         if cache_key in self.price_cache:
@@ -760,7 +820,7 @@ class Safety_Net:
             gas_price = await self.web3.eth.generate_gas_price()
             if gas_price is None:
                 gas_price = await self.web3.eth.gas_price
-            gas_price_gwei = self.web3.from_wei(gas_price, "gwei")
+            gas_price_gwei = Decimal(self.web3.from_wei(gas_price, "gwei"))
             self.gas_price_cache["gas_price"] = gas_price_gwei
             return gas_price_gwei
         except Exception as e:
@@ -771,7 +831,7 @@ class Safety_Net:
         """Estimate the gas required for a transaction."""
         try:
             gas_estimate = await self.web3.eth.estimate_gas(transaction_data)
-            return await gas_estimate
+            return gas_estimate
         except Exception as e:
             logger.error(f"Gas estimation failed: {e}")
             return 0
@@ -792,7 +852,7 @@ class Safety_Net:
             logger.debug(f"Adjusted slippage tolerance to {slippage * 100}%")
             return slippage
         except Exception as e:
-            logger.error(f"error adjusting slippage tolerance: {e}")
+            logger.error(f"Error adjusting slippage tolerance: {e}")
             return self.SLIPPAGE_CONFIG["default"]
 
     async def get_network_congestion(self) -> float:
@@ -807,16 +867,15 @@ class Safety_Net:
         except Exception as e:
             logger.error(f"Error fetching network congestion: {e}")
             return 0.5  # Assume medium congestion if unknown
-    
+
     async def stop(self) -> None:
         """Gracefully stop the safety net."""
         try:
-            await self.api_config.session.close()
+            await self.api_config.close()
             logger.debug("Safety Net stopped successfully.")
         except Exception as e:
             logger.error(f"Error stopping safety net: {e}")
             raise
-
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -826,16 +885,20 @@ class Mempool_Monitor:
     Includes sophisticated profit estimation, caching, and parallel processing capabilities.
     """
 
+    MAX_RETRIES = 3
+    RETRY_DELAY = 1.0
+    BATCH_SIZE = 10
+    MAX_PARALLEL_TASKS = 50
+
     def __init__(
         self,
         web3: AsyncWeb3,
         safety_net: Safety_Net,
         nonce_core: Nonce_Core,
         api_config: API_Config,
-        
         monitored_tokens: Optional[List[str]] = None,
         erc20_abi: List[Dict[str, Any]] = None,
-        configuration: Configuration = None,
+        configuration: Optional[Configuration] = None,
     ):
         # Core components
         self.web3 = web3
@@ -843,7 +906,6 @@ class Mempool_Monitor:
         self.safety_net = safety_net
         self.nonce_core = nonce_core
         self.api_config = api_config
-        
 
         # Monitoring state
         self.running = False
@@ -851,23 +913,23 @@ class Mempool_Monitor:
         self.profitable_transactions = asyncio.Queue()
         self.processed_transactions = set()
 
-        # Configurationsuration
-        self.erc20_abi = erc20_abi or self._load_erc20_abi()
+        # Configuration
+        self.erc20_abi = erc20_abi or []
         self.minimum_profit_threshold = Decimal("0.001")
-        self.max_parallel_tasks = 50
-        self.retry_attempts = 3
+        self.max_parallel_tasks = self.MAX_PARALLEL_TASKS
+        self.retry_attempts = self.MAX_RETRIES
         self.backoff_factor = 1.5
 
         # Concurrency control
         self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
         self.task_queue = asyncio.Queue()
 
-        logger.debug(f"Mempool_Monitor initialized with enhanced configuration ")
+        logger.debug("Mempool_Monitor initialized with enhanced configuration.")
 
     async def start_monitoring(self) -> None:
         """Start monitoring the mempool with improved error handling."""
         if self.running:
-            logger.debug(f"Monitoring is already active ")
+            logger.debug("Monitoring is already active.")
             return
 
         try:
@@ -875,12 +937,12 @@ class Mempool_Monitor:
             monitoring_task = asyncio.create_task(self._run_monitoring())
             processor_task = asyncio.create_task(self._process_task_queue())
 
-            logger.info(f"Mempool monitoring started....  ")
+            logger.info("Mempool monitoring started.")
             await asyncio.gather(monitoring_task, processor_task)
 
         except Exception as e:
             self.running = False
-            logger.error(f"Failed to start monitoring: {e} !")
+            logger.error(f"Failed to start monitoring: {e}")
             raise
 
     async def stop_monitoring(self) -> None:
@@ -893,9 +955,9 @@ class Mempool_Monitor:
             # Wait for remaining tasks to complete
             while not self.task_queue.empty():
                 await asyncio.sleep(0.1)
-            logger.info(f"Mempool monitoring stopped gracefully ")
+            logger.info("Mempool monitoring stopped gracefully.")
         except Exception as e:
-            logger.error(f"Error during monitoring shutdown: {e} !")
+            logger.error(f"Error during monitoring shutdown: {e}")
 
     async def _run_monitoring(self) -> None:
         """Enhanced mempool monitoring with automatic recovery."""
@@ -917,31 +979,25 @@ class Mempool_Monitor:
                 retry_count += 1
                 wait_time = min(self.backoff_factor ** retry_count, 30)
                 logger.error(
-                     f"Monitoring error (attempt {retry_count}): {e} "
+                    f"Monitoring error (attempt {retry_count}): {e}"
                 )
                 await asyncio.sleep(wait_time)
 
     async def _setup_pending_filter(self) -> Optional[Any]:
         """Set up pending transaction filter with validation."""
         try:
-            if not isinstance(
-                self.web3.provider, (AsyncHTTPProvider, AsyncIPCProvider)
-            ):
-                raise ValueError("Invalid provider type")
-
             pending_filter = await self.web3.eth.filter("pending")
             logger.debug(
-                f"Connected to network via {self.web3.provider.__class__.__name__} "
+                f"Connected to network via {self.web3.provider.__class__.__name__}"
             )
             return pending_filter
 
         except Exception as e:
-            logger.warning(f"Failed to setup pending filter: {e} !")
+            logger.warning(f"Failed to setup pending filter: {e}")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
         """Process new transactions in parallel with rate limiting."""
-
         async def process_batch(batch):
             await asyncio.gather(
                 *(self._queue_transaction(tx_hash) for tx_hash in batch)
@@ -949,20 +1005,19 @@ class Mempool_Monitor:
 
         try:
             # Process transactions in batches
-            batch_size = 10
-            for i in range(0, len(tx_hashes), batch_size):
-                batch = tx_hashes[i : i + batch_size]
+            for i in range(0, len(tx_hashes), self.BATCH_SIZE):
+                batch = tx_hashes[i: i + self.BATCH_SIZE]
                 await process_batch(batch)
 
         except Exception as e:
-            logger.error(f"Error processing transaction batch: {e} !")
+            logger.error(f"Error processing transaction batch: {e}")
 
     async def _queue_transaction(self, tx_hash: str) -> None:
         """Queue transaction for processing with deduplication."""
-        tx_hash_hex = tx_hash.hex()
+        tx_hash_hex = tx_hash.hex() if isinstance(tx_hash, bytes) else tx_hash
         if tx_hash_hex not in self.processed_transactions:
             self.processed_transactions.add(tx_hash_hex)
-            await self.task_queue.put(tx_hash)
+            await self.task_queue.put(tx_hash_hex)
 
     async def _process_task_queue(self) -> None:
         """Process queued transactions with concurrency control."""
@@ -975,7 +1030,7 @@ class Mempool_Monitor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Task processing error: {e} !")
+                logger.error(f"Task processing error: {e}")
 
     async def process_transaction(self, tx_hash: str) -> None:
         """Process individual transactions with enhanced error handling."""
@@ -989,7 +1044,7 @@ class Mempool_Monitor:
                 await self._handle_profitable_transaction(analysis)
 
         except Exception as e:
-            logger.debug(f"Error processing transaction {tx_hash}: {e} !")
+            logger.debug(f"Error processing transaction {tx_hash}: {e}")
 
     async def _get_transaction_with_retry(self, tx_hash: str) -> Optional[Any]:
         """Fetch transaction details with exponential backoff."""
@@ -1001,7 +1056,7 @@ class Mempool_Monitor:
                     return None
                 await asyncio.sleep(self.backoff_factor ** attempt)
             except Exception as e:
-                logger.error(f"Error fetching transaction {tx_hash}: {e} !")
+                logger.error(f"Error fetching transaction {tx_hash}: {e}")
                 return None
 
     async def _handle_profitable_transaction(self, analysis: Dict[str, Any]) -> None:
@@ -1010,10 +1065,10 @@ class Mempool_Monitor:
             await self.profitable_transactions.put(analysis)
             logger.debug(
                 f"Profitable transaction identified: {analysis['tx_hash']} "
-                f" (Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
+                f"(Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
             )
         except Exception as e:
-            logger.debug(f"Error handling profitable transaction: {e} !")
+            logger.debug(f"Error handling profitable transaction: {e}")
 
     async def analyze_transaction(self, tx) -> Dict[str, Any]:
         if not tx.hash or not tx.input:
@@ -1027,7 +1082,7 @@ class Mempool_Monitor:
             return await self._analyze_token_transaction(tx)
         except Exception as e:
             logger.error(
-                f"Error analyzing transaction {tx.hash.hex()}: {e} "
+                f"Error analyzing transaction {tx.hash.hex()}: {e}"
             )
             return {"is_profitable": False}
 
@@ -1047,20 +1102,24 @@ class Mempool_Monitor:
             return {"is_profitable": False}
         except Exception as e:
             logger.error(
-                f"Error analyzing ETH transaction {tx.hash.hex()}: {e} "
+                f"Error analyzing ETH transaction {tx.hash.hex()}: {e}"
             )
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
         try:
+            if not self.erc20_abi:
+                logger.warning("ERC20 ABI not loaded. Cannot analyze token transaction.")
+                return {"is_profitable": False}
+
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_abi)
-            function_ABI, function_params = await contract.decode_function_input(tx.input)
-            function_name = function_ABI["name"]
+            function_abi, function_params = contract.decode_function_input(tx.input)
+            function_name = function_abi.name
             if function_name in self.configuration.ERC20_SIGNATURES:
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
                     logger.debug(
-                        f"Identified profitable transaction {tx.hash.hex()} with estimated profit: {estimated_profit:.4f} ETH "
+                        f"Identified profitable transaction {tx.hash.hex()} with estimated profit: {estimated_profit:.4f} ETH"
                     )
                     await self._log_transaction_details(tx)
                     return {
@@ -1076,17 +1135,17 @@ class Mempool_Monitor:
                     }
                 else:
                     logger.debug(
-                        f"Transaction {tx.hash.hex()} is below threshold. Skipping... "
+                        f"Transaction {tx.hash.hex()} is below threshold. Skipping..."
                     )
                     return {"is_profitable": False}
             else:
                 logger.debug(
-                     f"Function {function_name} not in ERC20_SIGNATURES. Skipping."
+                    f"Function {function_name} not in ERC20_SIGNATURES. Skipping."
                 )
                 return {"is_profitable": False}
         except Exception as e:
             logger.debug(
-                f"Error decoding function input for transaction {tx.hash.hex()}: {e} !"
+                f"Error decoding function input for transaction {tx.hash.hex()}: {e}"
             )
             return {"is_profitable": False}
 
@@ -1096,40 +1155,40 @@ class Mempool_Monitor:
             return potential_profit > self.minimum_profit_threshold
         except Exception as e:
             logger.debug(
-                f"Error estimating ETH transaction profit for transaction {tx.hash.hex()}: {e} !"
+                f"Error estimating ETH transaction profit for transaction {tx.hash.hex()}: {e}"
             )
             return False
 
     async def _estimate_eth_transaction_profit(self, tx: Any) -> Decimal:
         try:
             gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
-            gas_used = tx.gas
+            gas_used = tx.gas if tx.gas else await self.web3.eth.estimate_gas(tx)
             gas_cost_eth = Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
             eth_value = Decimal(self.web3.from_wei(tx.value, "ether"))
             potential_profit = eth_value - gas_cost_eth
             return potential_profit if potential_profit > 0 else Decimal(0)
         except Exception as e:
-            logger.error(f"Error estimating ETH transaction profit: {e} !")
+            logger.error(f"Error estimating ETH transaction profit: {e}")
             return Decimal(0)
 
     async def _estimate_profit(self, tx, function_params: Dict[str, Any]) -> Decimal:
         try:
-            gas_price_gwei = self.web3.from_wei(tx.gasPrice, "gwei")
-            gas_used = tx.gas
-            gas_cost_eth = Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
+            gas_price_gwei = Decimal(self.web3.from_wei(tx.gasPrice, "gwei"))
+            gas_used = tx.gas if tx.gas else await self.web3.eth.estimate_gas(tx)
+            gas_cost_eth = gas_price_gwei * Decimal(gas_used) * Decimal("1e-9")
             input_amount_wei = Decimal(function_params.get("amountIn", 0))
             output_amount_min_wei = Decimal(function_params.get("amountOutMin", 0))
             path = function_params.get("path", [])
             if len(path) < 2:
                 logger.debug(
-                     f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping. "
+                    f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping."
                 )
                 return Decimal(0)
             output_token_address = path[-1]
             output_token_symbol = await self.api_config.get_token_symbol(self.web3, output_token_address)
             if not output_token_symbol:
                 logger.debug(
-                     f"Output token symbol not found for address {output_token_address}. Skipping. "
+                    f"Output token symbol not found for address {output_token_address}. Skipping."
                 )
                 return Decimal(0)
             market_price = await self.api_config.get_real_time_price(
@@ -1137,7 +1196,7 @@ class Mempool_Monitor:
             )
             if market_price is None or market_price == 0:
                 logger.debug(
-                     f"Market price not available for token {output_token_symbol}. Skipping. "
+                    f"Market price not available for token {output_token_symbol}. Skipping."
                 )
                 return Decimal(0)
             input_amount_eth = Decimal(self.web3.from_wei(input_amount_wei, "ether"))
@@ -1147,7 +1206,7 @@ class Mempool_Monitor:
             return profit if profit > 0 else Decimal(0)
         except Exception as e:
             logger.debug(
-                f"Error estimating profit for transaction {tx.hash.hex()}: {e} "
+                f"Error estimating profit for transaction {tx.hash.hex()}: {e}"
             )
             return Decimal(0)
 
@@ -1155,23 +1214,19 @@ class Mempool_Monitor:
         try:
             transaction_info = {
                 "transaction hash": tx.hash.hex(),
-                "value": self.web3.from_wei(tx.value, "ether")
-                if is_eth
-                else tx.value,
+                "value": self.web3.from_wei(tx.value, "ether") if is_eth else tx.value,
                 "from": tx["from"],
                 "to": (tx.to[:10] + "..." + tx.to[-10:]) if tx.to else None,
                 "input": tx.input,
                 "gas price": self.web3.from_wei(tx.gasPrice, "gwei"),
             }
             if is_eth:
-                logger.debug(f"Pending ETH Transaction Details: {transaction_info} ")
+                logger.debug(f"Pending ETH Transaction Details: {transaction_info}")
             else:
-                logger.debug(
-                     f"Pending Token Transaction Details: {transaction_info} "
-                )
+                logger.debug(f"Pending Token Transaction Details: {transaction_info}")
         except Exception as e:
             logger.debug(
-                f"Error logging transaction details for {tx.hash.hex()}: {e} "
+                f"Error logging transaction details for {tx.hash.hex()}: {e}"
             )
 
 
@@ -1183,23 +1238,23 @@ class Transaction_Core:
     back-run, and sandwich attack strategies. It interacts with smart contracts,
     manages transaction signing, gas price estimation, and handles flashloans.
     """
+    MAX_RETRIES = 3
+    RETRY_DELAY = 1.0  # Base delay in seconds for retries
+
     def __init__(
         self,
         web3: AsyncWeb3,
         account: Account,
         aave_flashloan_address: str,
         aave_flashloan_abi: List[Dict[str, Any]],
-        lending_pool_address: str,
-        lending_pool_ABI: List[Dict[str, Any]],
-        api_config: API_Config,
-        monitor: Mempool_Monitor,
-        nonce_core: Nonce_Core,
-        safety_net: Safety_Net,
-        configuration: Configuration,
-        
+        aave_lending_pool_address: str,
+        aave_lending_pool_abi: List[Dict[str, Any]],
+        api_config: API_Config,  # Should be an instance of API_Config
+        monitor: Mempool_Monitor,      # Should be an instance of Mempool_Monitor
+        nonce_core: Nonce_Core,   # Should be an instance of Nonce_Core
+        safety_net: Safety_Net,   # Should be an instance of Safety_Net
+        configuration: Configuration,  # Configuration object containing ABIs and other settings
         gas_price_multiplier: float = 1.1,
-        retry_attempts: int = 3,
-        retry_delay: float = 1.0,
         erc20_abi: Optional[List[Dict[str, Any]]] = None,
     ):
         self.web3 = web3
@@ -1210,24 +1265,25 @@ class Transaction_Core:
         self.nonce_core = nonce_core
         self.safety_net = safety_net
         self.gas_price_multiplier = gas_price_multiplier
-        self.retry_attempts = retry_attempts
-        self.retry_delay = retry_delay
+        self.retry_attempts = self.MAX_RETRIES
+        self.retry_delay = self.RETRY_DELAY
         self.erc20_abi = erc20_abi or []
         self.current_profit = Decimal("0")
         self.aave_flashloan_address = aave_flashloan_address
         self.aave_flashloan_abi = aave_flashloan_abi
-        self.lending_pool_address = lending_pool_address
-        self.lending_pool_ABI = lending_pool_ABI
+        self.aave_lending_pool_address = aave_lending_pool_address
+        self.aave_lending_pool_abi = aave_lending_pool_abi
 
     async def initialize(self):
+        """Initialize all required contracts."""
         self.flashloan_contract = await self._initialize_contract(
             self.aave_flashloan_address,
             self.aave_flashloan_abi,
             "Flashloan Contract",
         )
         self.lending_pool_contract = await self._initialize_contract(
-            self.lending_pool_address,
-            self.lending_pool_ABI,
+            self.aave_lending_pool_address,
+            self.aave_lending_pool_abi,
             "Lending Pool Contract",
         )
         self.uniswap_router_contract = await self._initialize_contract(
@@ -1250,6 +1306,7 @@ class Transaction_Core:
             self.configuration.BALANCER_ROUTER_ABI,
             "Balancer Router Contract",
         )
+
         self.erc20_abi = self.erc20_abi or await self._load_erc20_abi()
 
     async def _initialize_contract(
@@ -1257,70 +1314,94 @@ class Transaction_Core:
         contract_address: str,
         contract_abi: List[Dict[str, Any]],
         contract_name: str,
-    ) -> Contract:
+    ) -> Any:
+        """Initialize a contract instance with proper error handling."""
         try:
             # Load ABI from file if it's a string path
             if isinstance(contract_abi, str):
                 async with aiofiles.open(contract_abi, 'r') as f:
                     abi_content = await f.read()
                     contract_abi = json.loads(abi_content)
-                    
+
             contract_instance = self.web3.eth.contract(
                 address=self.web3.to_checksum_address(contract_address),
                 abi=contract_abi,
             )
-            await loading_bar(
-                f"Loaded {contract_name} at {contract_address} successfully. ", 2
-            )
+            logger.info(f"Loaded {contract_name} at {contract_address} successfully.")
             return contract_instance
+        except FileNotFoundError:
+            logger.error(f"ABI file for {contract_name} not found at {contract_abi}.")
+            raise
+        except json.JSONDecodeError:
+            logger.error(f"ABI file for {contract_name} is not valid JSON.")
+            raise
         except Exception as e:
-            logger.debug(
-                f"Failed to load {contract_name} at {contract_address}: {e} !"
+            logger.error(
+                f"Failed to load {contract_name} at {contract_address}: {e}"
             )
             raise ValueError(
                 f"Contract initialization failed for {contract_name}"
             ) from e
 
     async def _load_erc20_abi(self) -> List[Dict[str, Any]]:
+        """Load the ERC20 ABI."""
         try:
-            erc20_abi = await self._load_erc20_abi()
-            logger.info(f"ERC20 abi loaded successfully. ")
+            erc20_abi = await self.api_config._load_abi(self.configuration.ERC20_ABI)
+            logger.info("ERC20 ABI loaded successfully.")
             return erc20_abi
+        except FileNotFoundError:
+            logger.error(f"ERC20 ABI file not found at {self.configuration.ERC20_ABI}.")
+            raise
+        except json.JSONDecodeError:
+            logger.error("ERC20 ABI file is not valid JSON.")
+            raise
         except Exception as e:
-            logger.error(f"Failed to load ERC20 abi: {e} !")
-            raise ValueError("ERC20 abi loading failed") from e
-        
+            logger.error(f"Failed to load ERC20 ABI: {e}")
+            raise ValueError("ERC20 ABI loading failed") from e
+
     async def build_transaction(
         self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
+        """
+        Build a transaction dictionary from a contract function call.
+
+        :param function_call: Contract function call object.
+        :param additional_params: Additional transaction parameters.
+        :return: Transaction dictionary.
+        """
         additional_params = additional_params or {}
         try:
-            tx_details = {
-                "data": function_call.encodeABI(),
-                "to": function_call.address,
-                "chainId": await self.web3.eth.chain_id(),
-                "nonce": await self.nonce_core.get_nonce(),
-                "from": self.account.address,
-            }
+            tx_details = function_call.buildTransaction({
+                'chainId': await self.web3.eth.chain_id,
+                'nonce': await self.nonce_core.get_nonce(),
+                'from': self.account.address,
+            })
             tx_details.update(additional_params)
-            tx = tx_details.copy()
-            tx["gas"] = await self.estimate_gas_smart(tx)
-            tx.update(await self.get_dynamic_gas_price())
-            logger.debug(f"Built transaction: {tx}")
-            return tx
+            tx_details["gas"] = await self.estimate_gas_smart(tx_details)
+            tx_details.update(await self.get_dynamic_gas_price())
+            logger.debug(f"Built transaction: {tx_details}")
+            return tx_details
+        except KeyError as e:
+            logger.error(f"Missing transaction parameter: {e}")
+            raise
         except Exception as e:
-            logger.error(f"Error building transaction: {e} ")
+            logger.error(f"Error building transaction: {e}")
             raise
 
     async def get_dynamic_gas_price(self) -> Dict[str, int]:
+        """
+        Get dynamic gas price adjusted by the multiplier.
+
+        :return: Dictionary containing 'gasPrice'.
+        """
         try:
             gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
-            logger.debug(f"Fetched gas price: {gas_price_gwei} Gwei ")
+            logger.debug(f"Fetched gas price: {gas_price_gwei} Gwei")
         except Exception as e:
             logger.error(
-                f"Error fetching dynamic gas price: {e}. Using default gas price. "
+                f"Error fetching dynamic gas price: {e}. Using default gas price."
             )
-            gas_price_gwei = 100.0  # Default gas price in Gwei
+            gas_price_gwei = Decimal(100.0)  # Default gas price in Gwei
 
         gas_price = int(
             self.web3.to_wei(gas_price_gwei * self.gas_price_multiplier, "gwei")
@@ -1328,21 +1409,36 @@ class Transaction_Core:
         return {"gasPrice": gas_price}
 
     async def estimate_gas_smart(self, tx: Dict[str, Any]) -> int:
+        """
+        Estimate gas with fallback to a default value.
+
+        :param tx: Transaction dictionary.
+        :return: Estimated gas.
+        """
         try:
             gas_estimate = await self.web3.eth.estimate_gas(tx)
-            logger.debug(f"Estimated gas: {gas_estimate} ")
+            logger.debug(f"Estimated gas: {gas_estimate}")
             return gas_estimate
+        except ContractLogicError as e:
+            logger.warning(f"Contract logic error during gas estimation: {e}. Using default gas limit.")
+            return 100_000  # Default gas limit
+        except TransactionNotFound:
+            logger.warning("Transaction not found during gas estimation. Using default gas limit.")
+            return 100_000
         except Exception as e:
-            logger.warning(
-                f"Gas estimation failed: {e}. Using default gas limit of 100000 "
-            )
+            logger.error(f"Gas estimation failed: {e}. Using default gas limit.")
             return 100_000  # Default gas limit
 
     async def execute_transaction(self, tx: Dict[str, Any]) -> Optional[str]:
+        """
+        Execute a transaction with retries.
+
+        :param tx: Transaction dictionary.
+        :return: Transaction hash if successful, else None.
+        """
         for attempt in range(1, self.retry_attempts + 1):
             try:
                 signed_tx = await self.sign_transaction(tx)
-                tx_hash = await self.web3.eth.send_raw_transaction(signed_tx)
                 tx_hash = await self.web3.eth.send_raw_transaction(signed_tx)
                 tx_hash_hex = (
                     tx_hash.hex()
@@ -1350,126 +1446,189 @@ class Transaction_Core:
                     else tx_hash
                 )
                 logger.info(
-                     f"Transaction sent successfully with hash: {tx_hash_hex} "
+                    f"Transaction sent successfully with hash: {tx_hash_hex}"
                 )
                 await self.nonce_core.refresh_nonce()
                 return tx_hash_hex
+            except TransactionNotFound as e:
+                logger.error(
+                    f"Transaction not found: {e}. Attempt {attempt} of {self.retry_attempts}"
+                )
+            except ContractLogicError as e:
+                logger.error(
+                    f"Contract logic error: {e}. Attempt {attempt} of {self.retry_attempts}"
+                )
+                break  # Likely won't succeed on retry
             except Exception as e:
                 logger.error(
-                     f"Error executing transaction: {e}. Attempt {attempt} of {self.retry_attempts} "
+                    f"Error executing transaction: {e}. Attempt {attempt} of {self.retry_attempts}"
                 )
                 if attempt < self.retry_attempts:
                     sleep_time = self.retry_delay * attempt
                     logger.warning(f"Retrying in {sleep_time} seconds...")
                     await asyncio.sleep(sleep_time)
-        logger.warning(f"failed to execute transaction after multiple attempts. !")
+        logger.warning("Failed to execute transaction after multiple attempts.")
         return None
 
     async def sign_transaction(self, transaction: Dict[str, Any]) -> bytes:
+        """
+        Sign a transaction with the account's private key.
+
+        :param transaction: Transaction dictionary.
+        :return: Signed transaction bytes.
+        """
         try:
             signed_tx = self.web3.eth.account.sign_transaction(
                 transaction,
-                private_key=self.account.key,   
+                private_key=self.account.key,
             )
             logger.info(
-                f"Transaction signed successfully: Nonce {transaction['nonce']}. "
+                f"Transaction signed successfully: Nonce {transaction['nonce']}."
             )
             return signed_tx.rawTransaction
+        except KeyError as e:
+            logger.error(f"Missing transaction parameter for signing: {e}")
+            raise
         except Exception as e:
-            logger.error(f"Error signing transaction: {e} ")
+            logger.error(f"Error signing transaction: {e}")
             raise
 
     async def handle_eth_transaction(self, target_tx: Dict[str, Any]) -> bool:
+        """
+        Handle an ETH transfer transaction.
+
+        :param target_tx: Target transaction dictionary.
+        :return: True if successful, else False.
+        """
         tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Handling ETH transaction {tx_hash} ")
+        logger.debug(f"Handling ETH transaction {tx_hash}")
         try:
             eth_value = target_tx.get("value", 0)
+            if eth_value <= 0:
+                logger.debug("Transaction value is zero or negative. Skipping.")
+                return False
+
             tx_details = {
-                "data": target_tx.get("input", "0x"),
-                "chainId": await self.web3.eth.chain_id,
                 "to": target_tx.get("to", ""),
                 "value": eth_value,
                 "gas": 21_000,
                 "nonce": await self.nonce_core.get_nonce(),
+                "chainId": await self.web3.eth.chain_id,
                 "from": self.account.address,
             }
             original_gas_price = int(target_tx.get("gasPrice", 0))
+            if original_gas_price <= 0:
+                logger.warning("Original gas price is zero or negative. Skipping.")
+                return False
             tx_details["gasPrice"] = int(
-                original_gas_price * 1.1
+                original_gas_price * 1.1  # Increase gas price by 10%
             )
-            eth_value_ether = await self.web3.from_wei(eth_value, "ether")
+
+            eth_value_ether = self.web3.from_wei(eth_value, "ether")
             logger.info(
                 f"Building ETH front-run transaction for {eth_value_ether} ETH to {tx_details['to']}"
             )
             tx_hash_executed = await self.execute_transaction(tx_details)
             if tx_hash_executed:
                 logger.info(
-                     f"Successfully executed ETH transaction with hash: {tx_hash_executed} "
+                    f"Successfully executed ETH transaction with hash: {tx_hash_executed}"
                 )
                 return True
             else:
-                logger.warning(f"failed to execute ETH transaction. !")
+                logger.warning("Failed to execute ETH transaction.")
                 return False
+        except KeyError as e:
+            logger.error(f"Missing required transaction parameter: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Error handling ETH transaction: {e} !")
+            logger.error(f"Error handling ETH transaction: {e}")
             return False
 
     def calculate_flashloan_amount(self, target_tx: Dict[str, Any]) -> int:
+        """
+        Calculate the flashloan amount based on estimated profit.
+
+        :param target_tx: Target transaction dictionary.
+        :return: Flashloan amount in Wei.
+        """
         estimated_profit = target_tx.get("profit", 0)
         if estimated_profit > 0:
             flashloan_amount = int(
-                Decimal(estimated_profit) * Decimal("0.8")
-            )
+                Decimal(estimated_profit) * Decimal("0.8") * Decimal("1e18")
+            )  # Convert ETH to Wei
             logger.debug(
-                f"Calculated flashloan amount: {flashloan_amount} Wei based on estimated profit. "
+                f"Calculated flashloan amount: {flashloan_amount} Wei based on estimated profit."
             )
             return flashloan_amount
         else:
-            logger.debug(f"No estimated profit. Setting flashloan amount to 0. ")
+            logger.debug("No estimated profit. Setting flashloan amount to 0.")
             return 0
 
     async def simulate_transaction(self, transaction: Dict[str, Any]) -> bool:
+        """
+        Simulate a transaction to check if it will succeed.
+
+        :param transaction: Transaction dictionary.
+        :return: True if simulation succeeds, else False.
+        """
         logger.debug(
-            f"Simulating transaction with nonce {transaction.get('nonce', 'Unknown')}. 🔍"
+            f"Simulating transaction with nonce {transaction.get('nonce', 'Unknown')}."
         )
         try:
             await self.web3.eth.call(transaction, block_identifier="pending")
-            logger.debug(f"Transaction simulation succeeded. ")
+            logger.debug("Transaction simulation succeeded.")
             return True
+        except ContractLogicError as e:
+            logger.debug(f"Transaction simulation failed due to contract logic error: {e}")
+            return False
         except Exception as e:
-            logger.debug(f"Transaction simulation failed: {e} !")
+            logger.debug(f"Transaction simulation failed: {e}")
             return False
 
     async def prepare_flashloan_transaction(
         self, flashloan_asset: str, flashloan_amount: int
     ) -> Optional[Dict[str, Any]]:
+        """
+        Prepare a flashloan transaction.
+
+        :param flashloan_asset: Asset address to borrow.
+        :param flashloan_amount: Amount to borrow in Wei.
+        :return: Transaction dictionary if successful, else None.
+        """
         if flashloan_amount <= 0:
             logger.debug(
-                "Flashloan amount is 0 or less, skipping flashloan transaction preparation. "
+                "Flashloan amount is 0 or less, skipping flashloan transaction preparation."
             )
             return None
         try:
-            flashloan_function = self.flashloan_contract.functions.fn_RequestFlashLoan(
-                await self.web3.to_checksum_address(flashloan_asset), flashloan_amount
+            flashloan_function = self.flashloan_contract.functions.RequestFlashLoan(
+                self.web3.to_checksum_address(flashloan_asset), flashloan_amount
             )
             logger.debug(
-                f"Preparing flashloan transaction for {flashloan_amount} of {flashloan_asset}. "
+                f"Preparing flashloan transaction for {flashloan_amount} Wei of {flashloan_asset}."
             )
-            return await self.build_transaction(flashloan_function)
+            flashloan_tx = await self.build_transaction(flashloan_function)
+            return flashloan_tx
         except ContractLogicError as e:
-            logger.debug(
-                f"Contract logic error preparing flashloan transaction: {e} !"
+            logger.error(
+                f"Contract logic error preparing flashloan transaction: {e}"
             )
             return None
         except Exception as e:
-            logger.debug(f"Error preparing flashloan transaction: {e} !")
+            logger.error(f"Error preparing flashloan transaction: {e}")
             return None
 
     async def send_bundle(self, transactions: List[Dict[str, Any]]) -> bool:
+        """
+        Send a bundle of transactions to MEV relays.
+
+        :param transactions: List of transaction dictionaries.
+        :return: True if bundle sent successfully, else False.
+        """
         try:
-            signed_txs = [self.sign_transaction(tx) for tx in transactions]
-            base_bundle_payload = {
-                "jsonrpc": "2.0", 
+            signed_txs = [await self.sign_transaction(tx) for tx in transactions]
+            bundle_payload = {
+                "jsonrpc": "2.0",
                 "id": 1,
                 "method": "eth_sendBundle",
                 "params": [
@@ -1487,33 +1646,8 @@ class Transaction_Core:
                     "url": "https://relay.flashbots.net",
                     "auth_header": "X-Flashbots-Signature"
                 },
-                {
-                    "name": "Beaverbuild", 
-                    "url": "https://rpc.beaverbuild.org",
-                    "auth_header": "X-BeaverBuild-Signature"
-                },
-                {
-                    "name": "Titanbuilder",
-                    "url": "https://rpc.titanbuilder.xyz",
-                    "auth_header": "X-Titanbuilder-Signature" 
-                },
-                {
-                    "name": "MEVBoost",
-                    "url": "https://boost-relay.flashbots.net",
-                    "auth_header": "X-MEVBoost-Signature"
-                },
-                {
-                    "name": "BuilderAPI",
-                    "url": "https://builder-relay-mainnet.blocknative.com",
-                    "auth_header": "X-Builder-API-Signature"
-                }
+                # Add other builders as needed...
             ]
-
-            # Sign the bundle message
-            message = json.dumps(base_bundle_payload["params"][0])
-            signed_message = await self.web3.eth.account.sign_message(
-                message, private_key=self.account.key
-            )
 
             # Track successful submissions
             successes = []
@@ -1522,45 +1656,49 @@ class Transaction_Core:
             for builder in mev_builders:
                 headers = {
                     "Content-Type": "application/json",
-                    builder["auth_header"]: f"{self.account.address}:{signed_message.signature.hex()}",
+                    builder["auth_header"]: f"{self.account.address}:{self.account.key.hex()}",
                 }
 
                 for attempt in range(1, self.retry_attempts + 1):
                     try:
-                        logger.debug(f"Attempt {attempt} to send bundle via {builder['name']}. ")
+                        logger.debug(f"Attempt {attempt} to send bundle via {builder['name']}.")
                         async with aiohttp.ClientSession() as session:
                             async with session.post(
                                 builder["url"],
-                                json=base_bundle_payload,
+                                json=bundle_payload,
                                 headers=headers,
                                 timeout=30,
                             ) as response:
                                 response.raise_for_status()
                                 response_data = await response.json()
-                                
+
                                 if "error" in response_data:
                                     logger.error(
-                                        f"Bundle submission error via {builder['name']}: {response_data['error']} "
+                                        f"Bundle submission error via {builder['name']}: {response_data['error']}"
                                     )
                                     raise ValueError(response_data["error"])
-                                    
-                                logger.info(f"Bundle sent successfully via {builder['name']}. ")
+
+                                logger.info(f"Bundle sent successfully via {builder['name']}.")
                                 successes.append(builder['name'])
                                 break  # Success, move to next builder
-                                
+
                     except aiohttp.ClientResponseError as e:
                         logger.error(
-                            f"Error sending bundle via {builder['name']}: {e}. Retrying... "
+                            f"HTTP error sending bundle via {builder['name']}: {e}. Attempt {attempt} of {self.retry_attempts}"
                         )
                         if attempt < self.retry_attempts:
                             sleep_time = self.retry_delay * attempt
+                            logger.warning(f"Retrying in {sleep_time} seconds...")
                             await asyncio.sleep(sleep_time)
                     except ValueError as e:
-                        logger.error(f"Bundle submission error via {builder['name']}: {e} ")
+                        logger.error(f"Bundle submission error via {builder['name']}: {e}")
                         break  # Move to next builder
                     except Exception as e:
-                        logger.error(f"Unexpected error with {builder['name']}: {e} !")
-                        break  # Move to next builder
+                        logger.error(f"Unexpected error with {builder['name']}: {e}. Attempt {attempt} of {self.retry_attempts}")
+                        if attempt < self.retry_attempts:
+                            sleep_time = self.retry_delay * attempt
+                            logger.warning(f"Retrying in {sleep_time} seconds...")
+                            await asyncio.sleep(sleep_time)
 
             # Update nonce if any submissions succeeded
             if successes:
@@ -1568,287 +1706,286 @@ class Transaction_Core:
                 logger.info(f"Bundle successfully sent to builders: {', '.join(successes)}")
                 return True
             else:
-                logger.warning(f"failed to send bundle to any MEV builders !")
+                logger.warning("Failed to send bundle to any MEV builders.")
                 return False
 
         except Exception as e:
-            logger.warning(f"Unexpected error in send_bundle: {e} !")
+            logger.error(f"Unexpected error in send_bundle: {e}")
             return False
 
     async def front_run(self, target_tx: Dict[str, Any]) -> bool:
-        """Execute a front-run transaction with proper validation and error handling."""
+        """
+        Execute a front-run transaction with proper validation and error handling.
+
+        :param target_tx: Target transaction dictionary.
+        :return: True if successful, else False.
+        """
         if not isinstance(target_tx, dict):
-            logger.debug(f"Invalid transaction format provided !")
+            logger.debug("Invalid transaction format provided!")
             return False
 
         tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Attempting front-run on target transaction: {tx_hash} ")
+        logger.debug(f"Attempting front-run on target transaction: {tx_hash}")
 
         # Validate required transaction parameters
-        if not all(k in target_tx for k in ["input", "to", "value"]):
-            logger.debug(f"Missing required transaction parameters !")
+        required_fields = ["input", "to", "value", "gasPrice"]
+        if not all(field in target_tx for field in required_fields):
+            missing = [field for field in required_fields if field not in target_tx]
+            logger.debug(f"Missing required transaction parameters: {missing}. Skipping...")
             return False
 
         try:
             # Decode transaction input with validation
             decoded_tx = await self.decode_transaction_input(
-                target_tx.get("input", "0x"), 
+                target_tx.get("input", "0x"),
                 self.web3.to_checksum_address(target_tx.get("to", ""))
             )
             if not decoded_tx or "params" not in decoded_tx:
-                logger.debug(f"failed to decode transaction input for front-run ")
+                logger.debug("Failed to decode transaction input for front-run.")
                 return False
 
             # Extract and validate path parameter
             path = decoded_tx["params"].get("path", [])
-            if not path:
-                logger.debug(f"No valid path found in transaction parameters !")
+            if not path or not isinstance(path, list) or len(path) < 2:
+                logger.debug("Transaction has invalid or no path parameter. Skipping...")
                 return False
 
             # Prepare flashloan
             try:
-                flashloan_asset = await self.web3.to_checksum_address(path[0])
+                flashloan_asset = self.web3.to_checksum_address(path[0])
                 flashloan_amount = self.calculate_flashloan_amount(target_tx)
-                
+
                 if flashloan_amount <= 0:
-                    logger.debug(f"Insufficient flashloan amount calculated ")
+                    logger.debug("Insufficient flashloan amount calculated.")
                     return False
 
                 flashloan_tx = await self.prepare_flashloan_transaction(
                     flashloan_asset, flashloan_amount
                 )
                 if not flashloan_tx:
-                    logger.debug(f"failed to prepare flashloan transaction !")
+                    logger.debug("Failed to prepare flashloan transaction!")
                     return False
-                
+
             except (ValueError, IndexError) as e:
-                logger.error(f"Error preparing flashloan: {str(e)} !")
+                logger.error(f"Error preparing flashloan: {str(e)}")
                 return False
 
             # Prepare front-run transaction
             front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
             if not front_run_tx_details:
-                logger.warning(f"failed to prepare front-run transaction !")
+                logger.warning("Failed to prepare front-run transaction!")
                 return False
 
             # Simulate transactions
-            try:
-                simulation_success = await asyncio.gather(
-                    self.simulate_transaction(flashloan_tx),
-                    self.simulate_transaction(front_run_tx_details)
-                )
-                
-                if not all(simulation_success):
-                    logger.error(f"Transaction simulation failed !")
-                    return False
-                    
-            except Exception as e:
-                logger.error(f"Simulation error: {str(e)} !")
+            simulation_success = await asyncio.gather(
+                self.simulate_transaction(flashloan_tx),
+                self.simulate_transaction(front_run_tx_details)
+            )
+
+            if not all(simulation_success):
+                logger.error("Transaction simulation failed!")
                 return False
 
             # Send transaction bundle
-            try:
-                if await self.send_bundle([flashloan_tx, front_run_tx_details]):
-                    logger.info(f"Front-run transaction bundle sent successfully ")
-                    return True
-                else:
-                    logger.warning(f"failed to send front-run transaction bundle !")
-                    return False
-                    
-            except Exception as e:
-                logger.error(f"Bundle submission error: {str(e)} !")
+            if await self.send_bundle([flashloan_tx, front_run_tx_details]):
+                logger.info("Front-run transaction bundle sent successfully.")
+                return True
+            else:
+                logger.warning("Failed to send front-run transaction bundle!")
                 return False
 
+        except KeyError as e:
+            logger.error(f"Missing required transaction parameter: {e}")
+            return False
         except Exception as e:
-            logger.warning(f"Unexpected error in front-run execution: {str(e)} !")
+            logger.error(f"Unexpected error in front-run execution: {str(e)}")
             return False
 
     async def back_run(self, target_tx: Dict[str, Any]) -> bool:
-        """Execute a back-run transaction with enhanced validation and error handling."""
+        """
+        Execute a back-run transaction with proper validation and error handling.
+
+        :param target_tx: Target transaction dictionary.
+        :return: True if successful, else False.
+        """
         if not isinstance(target_tx, dict):
-            logger.debug(f"Invalid transaction format provided !")
+            logger.debug("Invalid transaction format provided!")
             return False
 
         tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Attempting back-run on target transaction: {tx_hash} ")
+        logger.debug(f"Attempting back-run on target transaction: {tx_hash}")
+
+        # Validate required transaction parameters
+        required_fields = ["input", "to", "value", "gasPrice"]
+        if not all(field in target_tx for field in required_fields):
+            missing = [field for field in required_fields if field not in target_tx]
+            logger.debug(f"Missing required transaction parameters: {missing}. Skipping...")
+            return False
 
         try:
-            # Input validation
-            if not all(k in target_tx for k in ["input", "to"]):
-                logger.debug(f"Missing required transaction parameters !")
-                return False
-
-            # Decode transaction with proper validation
+            # Decode transaction input with validation
             decoded_tx = await self.decode_transaction_input(
                 target_tx.get("input", "0x"),
                 self.web3.to_checksum_address(target_tx.get("to", ""))
             )
             if not decoded_tx or "params" not in decoded_tx:
-                logger.warning(f"failed to decode transaction input for back-run ")
+                logger.debug("Failed to decode transaction input for back-run.")
                 return False
 
             # Extract and validate path parameter
             path = decoded_tx["params"].get("path", [])
-            if not path or len(path) < 2:
-                logger.debug(f"Invalid path in transaction parameters !")
+            if not path or not isinstance(path, list) or len(path) < 2:
+                logger.debug("Transaction has invalid or no path parameter. Skipping...")
                 return False
 
-            try:
-                # Validate flashloan parameters
-                flashloan_asset = await self.web3.to_checksum_address(path[-1])
-                flashloan_amount = self.calculate_flashloan_amount(target_tx)
-                
-                if flashloan_amount <= 0:
-                    logger.debug(f"Insufficient flashloan amount calculated ")
-                    return False
+            # Reverse the path for back-run
+            reversed_path = path[::-1]
+            decoded_tx["params"]["path"] = reversed_path
 
-                # Prepare flashloan with validation
-                flashloan_tx = await self.prepare_flashloan_transaction(
-                    flashloan_asset, flashloan_amount
-                )
-                if not flashloan_tx:
-                    logger.warning(f"failed to prepare flashloan transaction !")
-                    return False
-                
-            except ValueError as e:
-                logger.debug(f"Invalid address or amount: {str(e)} !")
-                return False
-
-            # Prepare back-run transaction with validation
-            back_run_tx_details = await self._prepare_back_run_transaction(target_tx)
+            # Prepare back-run transaction
+            back_run_tx_details = await self._prepare_back_run_transaction(target_tx, decoded_tx)
             if not back_run_tx_details:
-                logger.warning(f"failed to prepare back-run transaction !")
+                logger.warning("Failed to prepare back-run transaction!")
                 return False
 
-            # Simulate transactions with detailed error handling
+            # Simulate back-run transaction
+            simulation_success = await self.simulate_transaction(back_run_tx_details)
+
+            if not simulation_success:
+                logger.error("Back-run transaction simulation failed!")
+                return False
+
+            # Send back-run transaction
+            if await self.send_bundle([back_run_tx_details]):
+                logger.info("Back-run transaction bundle sent successfully.")
+                return True
+            else:
+                logger.warning("Failed to send back-run transaction bundle!")
+                return False
+
+        except KeyError as e:
+            logger.error(f"Missing required transaction parameter: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error in back-run execution: {str(e)}")
+            return False
+
+    async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
+        """
+        Execute a sandwich attack on the target transaction.
+
+        :param target_tx: Target transaction dictionary.
+        :return: True if successful, else False.
+        """
+        if not isinstance(target_tx, dict):
+            logger.debug("Invalid transaction format provided!")
+            return False
+
+        tx_hash = target_tx.get("tx_hash", "Unknown")
+        logger.debug(f"Attempting sandwich attack on target transaction: {tx_hash}")
+
+        # Validate required transaction parameters
+        required_fields = ["input", "to", "value", "gasPrice"]
+        if not all(field in target_tx for field in required_fields):
+            missing = [field for field in required_fields if field not in target_tx]
+            logger.debug(f"Missing required transaction parameters: {missing}. Skipping...")
+            return False
+
+        try:
+            # Decode transaction input with validation
+            decoded_tx = await self.decode_transaction_input(
+                target_tx.get("input", "0x"),
+                self.web3.to_checksum_address(target_tx.get("to", ""))
+            )
+            if not decoded_tx or "params" not in decoded_tx:
+                logger.debug("Failed to decode transaction input for sandwich attack.")
+                return False
+
+            # Extract and validate path parameter
+            path = decoded_tx["params"].get("path", [])
+            if not path or not isinstance(path, list) or len(path) < 2:
+                logger.debug("Transaction has invalid or no path parameter. Skipping...")
+                return False
+
+            flashloan_asset = self.web3.to_checksum_address(path[0])
+            flashloan_amount = self.calculate_flashloan_amount(target_tx)
+
+            if flashloan_amount <= 0:
+                logger.debug("Insufficient flashloan amount calculated.")
+                return False
+
+            # Prepare flashloan transaction
+            flashloan_tx = await self.prepare_flashloan_transaction(
+                flashloan_asset, flashloan_amount
+            )
+            if not flashloan_tx:
+                logger.debug("Failed to prepare flashloan transaction!")
+                return False
+
+            # Prepare front-run transaction
+            front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
+            if not front_run_tx_details:
+                logger.warning("Failed to prepare front-run transaction!")
+                return False
+
+            # Prepare back-run transaction
+            back_run_tx_details = await self._prepare_back_run_transaction(target_tx, decoded_tx)
+            if not back_run_tx_details:
+                logger.warning("Failed to prepare back-run transaction!")
+                return False
+
+            # Simulate all transactions
             simulation_results = await asyncio.gather(
                 self.simulate_transaction(flashloan_tx),
+                self.simulate_transaction(front_run_tx_details),
                 self.simulate_transaction(back_run_tx_details),
                 return_exceptions=True
             )
 
             if any(isinstance(result, Exception) for result in simulation_results):
-                logger.warning(f"Transaction simulation failed !")
+                logger.warning("One or more transaction simulations failed!")
                 return False
 
             if not all(simulation_results):
-                logger.warning(f"Simulation returned unsuccessful result !")
+                logger.warning("Not all transaction simulations were successful!")
                 return False
 
-            # Execute transaction bundle with retry logic
-            for attempt in range(3):
-                try:
-                    if await self.send_bundle([flashloan_tx, back_run_tx_details]):
-                        logger.info(f"Back-run transaction bundle sent successfully ")
-                        return True
-                    
-                    if attempt < 2:  # Don't wait after last attempt
-                        await asyncio.sleep(1 * (attempt + 1))
-                        
-                except Exception as e:
-                    if attempt == 2:
-                        logger.warning(f"Bundle submission failed: {str(e)} !")
-                        return False
-                    continue
-
-            logger.warning(f"failed to send back-run transaction bundle !")
-            return False
-
-        except Exception as e:
-            logger.error(f"Unexpected error in back-run execution: {str(e)} !")
-            return False
-
-    async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
-        tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(
-            f"Attempting sandwich attack on target transaction: {tx_hash} "
-        )
-        decoded_tx = await self.decode_transaction_input(
-             target_tx.get("input", "0x"), self.web3.to_checksum_address(target_tx.get("to", ""))
-       )
-        if not decoded_tx:
-            logger.warning(
-                "Failed to decode target transaction input for sandwich attack. "
-            )
-            return False
-        try:
-            # Get the parameters for the sandwich attack
-            path = decoded_tx["params"].get("path", [])
-            if not path:
-                logger.warning(f"No path found in transaction parameters for sandwich attack. !")
-                return False
-            flashloan_asset = path[0]
-            flashloan_amount = self.calculate_flashloan_amount(target_tx)
-            # Prepare the flashloan transaction
-            flashloan_tx = await self.prepare_flashloan_transaction(
-                flashloan_asset, flashloan_amount
-            )
-            if not flashloan_tx:
-                logger.warning(
-                    "Failed to prepare flashloan transaction for sandwich attack. Aborting. "
-                )
-                return False
-            # Prepare the front-run transaction
-            front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
-            if not front_run_tx_details:
-                logger.debug(
-                    "Failed to prepare front-run transaction for sandwich attack. Aborting. "
-                )
-                return False
-            # Prepare the back-run transaction
-            back_run_tx_details = await self._prepare_back_run_transaction(target_tx)
-            if not back_run_tx_details:
-                logger.debug(
-                    "Failed to prepare back-run transaction for sandwich attack. Aborting. "
-                )
-                return False
-            # Simulate transactions
-            if not (
-                await self.simulate_transaction(flashloan_tx)
-                and await self.simulate_transaction(front_run_tx_details)
-                and await self.simulate_transaction(back_run_tx_details)
-            ):
-                logger.debug(
-                    "Simulation of one or more transactions failed during sandwich attack. Aborting. "
-                )
-                return False
-            # Execute all three transactions as a bundle
-            if await self.send_bundle(
-                [flashloan_tx, front_run_tx_details, back_run_tx_details]
-            ):
-                logger.info(
-                    "Sandwich attack transaction bundle sent successfully. "
-                )
+            # Execute transaction bundle
+            if await self.send_bundle([flashloan_tx, front_run_tx_details, back_run_tx_details]):
+                logger.info("Sandwich attack transaction bundle sent successfully.")
                 return True
             else:
-                logger.debug(
-                    "Failed to send sandwich attack transaction bundle. "
-                )
+                logger.warning("Failed to send sandwich attack transaction bundle!")
                 return False
+
+        except KeyError as e:
+            logger.error(f"Missing required transaction parameter: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Error executing sandwich attack: {e} !")
+            logger.error(f"Unexpected error in sandwich attack execution: {e}")
             return False
 
     async def _prepare_front_run_transaction(
         self, target_tx: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        if not isinstance(target_tx, dict) or not target_tx.get("to") or not target_tx.get("input"):
-            logger.debug(f"Invalid transaction format or missing required fields !")
-            return None
+        """
+        Prepare the front-run transaction based on the target transaction.
 
+        :param target_tx: Target transaction dictionary.
+        :return: Front-run transaction dictionary if successful, else None.
+        """
         try:
             decoded_tx = await self.decode_transaction_input(
-                 target_tx.get("input", "0x"), await self.web3.to_checksum_address(target_tx.get("to", ""))
-          )
+                target_tx.get("input", "0x"),
+                self.web3.to_checksum_address(target_tx.get("to", ""))
+            )
             if not decoded_tx:
-                logger.debug(
-                    "Failed to decode target transaction input for front-run preparation. "
-                )
+                logger.debug("Failed to decode target transaction input for front-run.")
                 return None
 
             function_name = decoded_tx.get("function_name")
             if not function_name:
-                logger.debug(f"Missing function name in decoded transaction !")
+                logger.debug("Missing function name in decoded transaction.")
                 return None
 
             function_params = decoded_tx.get("params", {})
@@ -1863,70 +2000,58 @@ class Transaction_Core:
             }
 
             if to_address not in routers:
-                logger.warning(f"Unknown router address {to_address}. Cannot determine exchange. !")
+                logger.warning(f"Unknown router address {to_address}. Cannot determine exchange.")
                 return None
 
             router_contract, exchange_name = routers[to_address]
             if not router_contract:
-                logger.warning(f"Router contract not initialized for {exchange_name} !")
+                logger.warning(f"Router contract not initialized for {exchange_name}.")
                 return None
 
             # Get the function object by name
-            front_run_function = getattr(router_contract.functions, function_name)(**function_params)
-            # Build the transaction
-            front_run_tx = await self.build_transaction(front_run_function)
-            logger.info(f"Prepared front-run transaction on {exchange_name} successfully. ")
-            return front_run_tx
-
-        except ValueError as e:
-            logger.warning(f"Invalid address format: {e} !")
-            return None
-        except AttributeError as e:
-            logger.debug(f"Function {function_name} not found in router abi: {e} !")
-            return None
-        except Exception as e:
-            logger.error(f"Error preparing front-run transaction: {e} !")
-            return None
-  
-    async def _prepare_back_run_transaction(
-        self, target_tx: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        if not isinstance(target_tx, dict) or not target_tx.get("to") or not target_tx.get("input"):
-            logger.debug(f"Invalid transaction format or missing required fields !")
-            return None
-
-        try:
-            decoded_tx = await self.decode_transaction_input(
-                target_tx.get("input", "0x"), target_tx.get("to", "")
-            )
-            if not decoded_tx:
-                logger.debug(
-                    "Failed to decode target transaction input for back-run preparation. "
-                )
+            try:
+                front_run_function = getattr(router_contract.functions, function_name)(**function_params)
+            except AttributeError:
+                logger.debug(f"Function {function_name} not found in {exchange_name} router ABI.")
                 return None
 
+            # Build the transaction
+            front_run_tx = await self.build_transaction(front_run_function)
+            logger.info(f"Prepared front-run transaction on {exchange_name} successfully.")
+            return front_run_tx
+
+        except Exception as e:
+            logger.error(f"Error preparing front-run transaction: {e}")
+            return None
+
+    async def _prepare_back_run_transaction(
+        self, target_tx: Dict[str, Any], decoded_tx: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Prepare the back-run transaction based on the target transaction.
+
+        :param target_tx: Target transaction dictionary.
+        :param decoded_tx: Decoded target transaction dictionary.
+        :return: Back-run transaction dictionary if successful, else None.
+        """
+        try:
             function_name = decoded_tx.get("function_name")
             if not function_name:
-                logger.debug(f"Missing function name in decoded transaction !")
+                logger.debug("Missing function name in decoded transaction.")
                 return None
 
             function_params = decoded_tx.get("params", {})
 
             # Handle path parameter for back-run
             path = function_params.get("path", [])
-            if not path:
-                logger.debug(f"Transaction has no path parameter for back-run preparation. ")
-                return None
-
-            # Verify path array content
-            if not all(isinstance(addr, str) for addr in path):
-                logger.debug(f"Invalid path array format !")
+            if not path or not isinstance(path, list) or len(path) < 2:
+                logger.debug("Transaction has invalid or no path parameter for back-run.")
                 return None
 
             # Reverse the path for back-run
-            function_params["path"] = path[::-1]
+            reversed_path = path[::-1]
+            function_params["path"] = reversed_path
 
-            # Determine which router to use based on the target address
             to_address = self.web3.to_checksum_address(target_tx.get("to", ""))
 
             # Router address mapping
@@ -1938,79 +2063,168 @@ class Transaction_Core:
             }
 
             if to_address not in routers:
-                logger.debug(f"Unknown router address {to_address}. Cannot determine exchange. !")
+                logger.debug(f"Unknown router address {to_address}. Cannot determine exchange.")
                 return None
 
             router_contract, exchange_name = routers[to_address]
             if not router_contract:
-                logger.debug(f"Router contract not initialized for {exchange_name} !")
+                logger.debug(f"Router contract not initialized for {exchange_name}.")
                 return None
 
             # Get the function object by name
-            back_run_function = getattr(router_contract.functions, function_name)(
-                **function_params
-            )
+            try:
+                back_run_function = getattr(router_contract.functions, function_name)(**function_params)
+            except AttributeError:
+                logger.debug(f"Function {function_name} not found in {exchange_name} router ABI.")
+                return None
+
             # Build the transaction
             back_run_tx = await self.build_transaction(back_run_function)
-            logger.info(
-                f"Prepared back-run transaction on {exchange_name} successfully. "
-            )
+            logger.info(f"Prepared back-run transaction on {exchange_name} successfully.")
             return back_run_tx
 
-        except AttributeError as e:
-            logger.debug(
-                f"Function {function_name} not found in router abi: {str(e)} !"
-            )
-            return None
         except Exception as e:
-            logger.error(f"Error preparing back-run transaction: {e} !")
+            logger.error(f"Error preparing back-run transaction: {e}")
             return None
 
-    async def decode_transaction_input(
-        self, input_data: str, to_address: str
-    ) -> Optional[Dict[str, Any]]:
+    async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
+        """
+        Execute a sandwich attack on the target transaction.
+
+        :param target_tx: Target transaction dictionary.
+        :return: True if successful, else False.
+        """
+        if not isinstance(target_tx, dict):
+            logger.debug("Invalid transaction format provided!")
+            return False
+
+        tx_hash = target_tx.get("tx_hash", "Unknown")
+        logger.debug(f"Attempting sandwich attack on target transaction: {tx_hash}")
+
+        # Validate required transaction parameters
+        required_fields = ["input", "to", "value", "gasPrice"]
+        if not all(field in target_tx for field in required_fields):
+            missing = [field for field in required_fields if field not in target_tx]
+            logger.debug(f"Missing required transaction parameters: {missing}. Skipping...")
+            return False
+
         try:
-            to_address = await self.web3.to_checksum_address(to_address)
-            if to_address == self.configuration.UNISWAP_ROUTER_ADDRESS:
-                abi = self.configuration.UNISWAP_ROUTER_ABI
-                exchange_name = "Uniswap"
-            elif to_address == self.configuration.SUSHISWAP_ROUTER_ADDRESS:
-                abi = self.configuration.SUSHISWAP_ROUTER_ABI
-                exchange_name = "Sushiswap"
-            elif to_address == self.configuration.PANCAKESWAP_ROUTER_ADDRESS:
-                abi = self.configuration.PANCAKESWAP_ROUTER_ABI
-                exchange_name = "Pancakeswap"
-            elif to_address == self.configuration.BALANCER_ROUTER_ADDRESS:
-                abi = self.configuration.BALANCER_ROUTER_ABI
-                exchange_name = "Balancer"
+            # Decode transaction input with validation
+            decoded_tx = await self.decode_transaction_input(
+                target_tx.get("input", "0x"),
+                self.web3.to_checksum_address(target_tx.get("to", ""))
+            )
+            if not decoded_tx or "params" not in decoded_tx:
+                logger.debug("Failed to decode transaction input for sandwich attack.")
+                return False
+
+            # Extract and validate path parameter
+            path = decoded_tx["params"].get("path", [])
+            if not path or not isinstance(path, list) or len(path) < 2:
+                logger.debug("Transaction has invalid or no path parameter. Skipping...")
+                return False
+
+            flashloan_asset = self.web3.to_checksum_address(path[0])
+            flashloan_amount = self.calculate_flashloan_amount(target_tx)
+
+            if flashloan_amount <= 0:
+                logger.debug("Insufficient flashloan amount calculated.")
+                return False
+
+            # Prepare flashloan transaction
+            flashloan_tx = await self.prepare_flashloan_transaction(
+                flashloan_asset, flashloan_amount
+            )
+            if not flashloan_tx:
+                logger.debug("Failed to prepare flashloan transaction!")
+                return False
+
+            # Prepare front-run transaction
+            front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
+            if not front_run_tx_details:
+                logger.warning("Failed to prepare front-run transaction!")
+                return False
+
+            # Prepare back-run transaction
+            back_run_tx_details = await self._prepare_back_run_transaction(target_tx, decoded_tx)
+            if not back_run_tx_details:
+                logger.warning("Failed to prepare back-run transaction!")
+                return False
+
+            # Simulate all transactions
+            simulation_results = await asyncio.gather(
+                self.simulate_transaction(flashloan_tx),
+                self.simulate_transaction(front_run_tx_details),
+                self.simulate_transaction(back_run_tx_details),
+                return_exceptions=True
+            )
+
+            if any(isinstance(result, Exception) for result in simulation_results):
+                logger.warning("One or more transaction simulations failed!")
+                return False
+
+            if not all(simulation_results):
+                logger.warning("Not all transaction simulations were successful!")
+                return False
+
+            # Send transaction bundle
+            if await self.send_bundle([flashloan_tx, front_run_tx_details, back_run_tx_details]):
+                logger.info("Sandwich attack transaction bundle sent successfully.")
+                return True
             else:
-                logger.debug(
-                    "Unknown router address. Cannot determine abi for decoding. !"
-                )
-                return None
-            contract = self.web3.eth.contract(address=to_address, abi=abi)
-            function_obj, function_params = await contract.functions.decode_function_input(input_data)
+                logger.warning("Failed to send sandwich attack transaction bundle!")
+                return False
+
+        except KeyError as e:
+            logger.error(f"Missing required transaction parameter: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error in sandwich attack execution: {e}")
+            return False
+
+    async def decode_transaction_input(
+        self, input_data: str, contract_address: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Decode the input data of a transaction.
+
+        :param input_data: Hexadecimal input data of the transaction.
+        :param contract_address: Address of the contract being interacted with.
+        :return: Dictionary containing function name and parameters if successful, else None.
+        """
+        try:
+            # Load the contract ABI
+            contract = self.web3.eth.contract(address=contract_address, abi=self.erc20_abi)
+            function_obj, function_params = contract.decode_function_input(input_data)
             decoded_data = {
                 "function_name": function_obj.fn_name,
                 "params": function_params,
             }
             logger.debug(
-                f"Decoded transaction input using {exchange_name} abi: {decoded_data}"
+                f"Decoded transaction input: {decoded_data}"
             )
             return decoded_data
+        except ContractLogicError as e:
+            logger.debug(f"Contract logic error during decoding: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Error decoding transaction input: {e} !")
+            logger.error(f"Error decoding transaction input: {e}")
             return None
 
     async def cancel_transaction(self, nonce: int) -> bool:
+        """
+        Cancel a stuck transaction by sending a zero-value transaction with the same nonce.
+
+        :param nonce: Nonce of the transaction to cancel.
+        :return: True if cancellation was successful, else False.
+        """
         cancel_tx = {
-            "data": "0x",
-            "chainId": await self.web3.eth.chain_id,
-            "nonce": nonce,
             "to": self.account.address,
             "value": 0,
             "gas": 21_000,
             "gasPrice": self.web3.to_wei("150", "gwei"),  # Higher than the stuck transaction
+            "nonce": nonce,
+            "chainId": await self.web3.eth.chain_id,
             "from": self.account.address,
         }
         try:
@@ -2022,89 +2236,127 @@ class Transaction_Core:
                 else tx_hash
             )
             logger.debug(
-                f"Cancellation transaction sent successfully: {tx_hash_hex} "
+                f"Cancellation transaction sent successfully: {tx_hash_hex}"
             )
             return True
         except Exception as e:
-            logger.warning(f"failed to cancel transaction: {e} !")
+            logger.warning(f"Failed to cancel transaction: {e}")
             return False
 
     async def estimate_gas_limit(self, tx: Dict[str, Any]) -> int:
+        """
+        Estimate the gas limit for a transaction.
+
+        :param tx: Transaction dictionary.
+        :return: Estimated gas limit.
+        """
         try:
             gas_estimate = await self.web3.eth.estimate_gas(tx)
-            logger.debug(f"Estimated gas: {gas_estimate} ")
+            logger.debug(f"Estimated gas: {gas_estimate}")
             return gas_estimate
         except Exception as e:
             logger.debug(
-                f"Gas estimation failed: {e}. Using default gas limit of 100000 "
+                f"Gas estimation failed: {e}. Using default gas limit of 100000."
             )
             return 100_000  # Default gas limit
 
     async def get_current_profit(self) -> Decimal:
+        """
+        Fetch the current profit from the safety net.
+
+        :return: Current profit as Decimal.
+        """
         try:
             current_profit = await self.safety_net.get_balance(self.account)
             self.current_profit = Decimal(current_profit)
-            logger.debug(f"Current profit: {self.current_profit} ETH ")
+            logger.debug(f"Current profit: {self.current_profit} ETH")
             return self.current_profit
         except Exception as e:
-            logger.error(f"error fetching current profit: {e} !")
+            logger.error(f"Error fetching current profit: {e}")
             return Decimal("0")
 
     async def withdraw_eth(self) -> bool:
+        """
+        Withdraw ETH from the flashloan contract.
+
+        :return: True if successful, else False.
+        """
         try:
-            withdraw_function = await self.flashloan_contract.find_functions_by_name()
+            withdraw_function = self.flashloan_contract.functions.withdrawETH()
             tx = await self.build_transaction(withdraw_function)
             tx_hash = await self.execute_transaction(tx)
             if tx_hash:
                 logger.debug(
-                     f"ETH withdrawal transaction sent with hash: {tx_hash} "
+                    f"ETH withdrawal transaction sent with hash: {tx_hash}"
                 )
                 return True
             else:
-                logger.warning(f"failed to send ETH withdrawal transaction. !")
+                logger.warning("Failed to send ETH withdrawal transaction.")
                 return False
+        except ContractLogicError as e:
+            logger.error(f"Contract logic error during ETH withdrawal: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Error withdrawing ETH: {e} !")
+            logger.error(f"Error withdrawing ETH: {e}")
             return False
 
     async def withdraw_token(self, token_address: str) -> bool:
+        """
+        Withdraw a specific token from the flashloan contract.
+
+        :param token_address: Address of the token to withdraw.
+        :return: True if successful, else False.
+        """
         try:
-            withdraw_function = await self.flashloan_contract.find_functions_by_name(
+            withdraw_function = self.flashloan_contract.functions.withdrawToken(
                 self.web3.to_checksum_address(token_address)
             )
             tx = await self.build_transaction(withdraw_function)
             tx_hash = await self.execute_transaction(tx)
             if tx_hash:
                 logger.debug(
-                     f"Token withdrawal transaction sent with hash: {tx_hash} "
+                    f"Token withdrawal transaction sent with hash: {tx_hash}"
                 )
                 return True
             else:
-                logger.warning(f"failed to send token withdrawal transaction. !")
+                logger.warning("Failed to send token withdrawal transaction.")
                 return False
-        except Exception as e:
-            logger.error(f"Error withdrawing token: {e} !")
+        except ContractLogicError as e:
+            logger.error(f"Contract logic error during token withdrawal: {e}")
             return False
-    
+        except Exception as e:
+            logger.error(f"Error withdrawing token: {e}")
+            return False
+
     async def transfer_profit_to_account(self, amount: Decimal, account: str) -> bool:
+        """
+        Transfer profit to another account.
+
+        :param amount: Amount of ETH to transfer.
+        :param account: Recipient account address.
+        :return: True if successful, else False.
+        """
         try:
-            transfer_function = self.flashloan_contract.find_functions_by_name(
-                await self.flashloan_contract.find_functions_by_name(self.web3.to_checksum_address(account), amount)
+            transfer_function = self.flashloan_contract.functions.transfer(
+                self.web3.to_checksum_address(account), int(amount * Decimal("1e18"))
             )
             tx = await self.build_transaction(transfer_function)
             tx_hash = await self.execute_transaction(tx)
             if tx_hash:
                 logger.debug(
-                     f"Profit transfer transaction sent with hash: {tx_hash} "
+                    f"Profit transfer transaction sent with hash: {tx_hash}"
                 )
                 return True
             else:
-                logger.warning(f"failed to send profit transfer transaction. !")
+                logger.warning("Failed to send profit transfer transaction.")
                 return False
-        except Exception as e:
-            logger.error(f"Error transferring profit: {e} !")
+        except ContractLogicError as e:
+            logger.error(f"Contract logic error during profit transfer: {e}")
             return False
-        
+        except Exception as e:
+            logger.error(f"Error transferring profit: {e}")
+            return False
+
     async def stop(self) -> None:
         try:
             await self.safety_net.stop()
@@ -3005,7 +3257,7 @@ class Main_Core:
                 strategy_type = tx.get('strategy_type', 'Unknown')
                 logger.debug(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
 
-                success = await strategy.execute_strategy_for_transaction(tx)
+                success = await strategy.execute_best_strategy(tx)
 
                 if success:
                     logger.debug(f"Strategy execution successful for tx: {tx_hash} ")

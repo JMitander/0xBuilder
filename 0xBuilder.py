@@ -240,6 +240,7 @@ class Nonce_Core:
         self.last_sync = time.monotonic()
         self.pending_transactions = set()
         self._initialized = False
+        self.configuration = configuration
 
     async def initialize(self) -> None:
         """Initialize the nonce manager with error recovery."""
@@ -387,7 +388,7 @@ class Nonce_Core:
 #//////////////////////////////////////////////////////////////////////////////
 
 class API_Config:
-    def __init__(self, Configuration: Any):
+    def __init__(self):
         self.configuration = Configuration
         self.session = aiohttp.ClientSession()
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes

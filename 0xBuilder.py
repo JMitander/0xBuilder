@@ -17,7 +17,6 @@ from sklearn.linear_model import LinearRegression
 from decimal import Decimal
 from typing import List, Dict, Any, Optional, Tuple, Union
 
-from web3.contract import Contract
 from eth_account import Account
 from web3 import AsyncWeb3
 from web3.providers import AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider
@@ -388,7 +387,7 @@ class Nonce_Core:
 #//////////////////////////////////////////////////////////////////////////////
 
 class API_Config:
-    def __init__(self):
+    def __init__(self, Configuration: Any):
         self.configuration = Configuration
         self.session = aiohttp.ClientSession()
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
@@ -935,6 +934,7 @@ class Mempool_Monitor:
             while not self.task_queue.empty():
                 await asyncio.sleep(0.1)
             logger.info("Mempool monitoring stopped gracefully.")
+            sys.exit(0)
         except Exception as e:
             logger.error(f"Error during monitoring shutdown: {e}")
 
@@ -3213,17 +3213,19 @@ class Main_Core:
                 await self.components['mempool_monitor'].stop_monitoring()
 
             if self.components['transaction_core']:
-                await self.components['transaction_core'].stop()
+                await self.components[Any].stop()
             
             if self.components['nonce_core']:
-                await self.components['nonce_core'].stop()
+                await self.components[Any].stop()
 
-            logger.debug(f"Shutdown complete ")
-        except Exception as e:
+            if self.web3: # Close Web3 connection
+                await self.web3.close(any=True)
+                
+        except Exception as e: 
             logger.error(f"Error during shutdown: {e}")
         finally:
             sys.exit(0)
-
+                
     async def _process_profitable_transactions(self) -> None:
         """Process profitable transactions from the queue."""
         monitor = self.components['mempool_monitor']

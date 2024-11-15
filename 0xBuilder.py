@@ -232,8 +232,8 @@ class Nonce_Core:
         address: str,
         configuration: Configuration
     ):
-        self.web3 = web3
-        self.address = self.web3.to_checksum_address(address)
+        self.pending_transactions = set()
+        self.web3 = web3.to_checksum_address(address)
         self.lock = asyncio.Lock()
         self.nonce_cache = TTLCache(maxsize=1, ttl=self.CACHE_TTL)
         self.last_sync = time.monotonic()
@@ -847,13 +847,13 @@ class Safety_Net:
             return 0.5  # Assume medium congestion if unknown
 
     async def stop(self) -> None:
-        """Gracefully stop the safety net."""
-        try:
+         """Stops the 0xBuilder gracefully."""
+         try:
             await self.api_config.close()
             logger.debug("Safety Net stopped successfully.")
-        except Exception as e:
-            logger.error(f"Error stopping safety net: {e}")
-            raise
+         except Exception as e:
+             logger.error(f"Error stopping safety net: {e}")
+             raise
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -1213,7 +1213,7 @@ class Mempool_Monitor:
 
 class Transaction_Core:
     """
-    Transaction_Core class builds and executes transactions, including front-run,
+    Builds and executes transactions, including front-run, back-run, and sandwich attack strategies.
     back-run, and sandwich attack strategies. It interacts with smart contracts,
     manages transaction signing, gas price estimation, and handles flashloans.
     """
@@ -1228,10 +1228,10 @@ class Transaction_Core:
         aave_flashloan_abi: List[Dict[str, Any]],
         aave_lending_pool_address: str,
         aave_lending_pool_abi: List[Dict[str, Any]],
-        api_config: API_Config,  # Should be an instance of API_Config
-        monitor: Mempool_Monitor,      # Should be an instance of Mempool_Monitor
-        nonce_core: Nonce_Core,   # Should be an instance of Nonce_Core
-        safety_net: Safety_Net,   # Should be an instance of Safety_Net
+        api_config: API_Config,
+        monitor: Mempool_Monitor,
+        nonce_core: Nonce_Core,
+        safety_net: Safety_Net,
         configuration: Configuration,  # Configuration object containing ABIs and other settings
         gas_price_multiplier: float = 1.1,
         erc20_abi: Optional[List[Dict[str, Any]]] = None,
@@ -1244,8 +1244,8 @@ class Transaction_Core:
         self.nonce_core = nonce_core
         self.safety_net = safety_net
         self.gas_price_multiplier = gas_price_multiplier
-        self.retry_attempts = self.MAX_RETRIES
-        self.retry_delay = self.RETRY_DELAY
+        self.RETRY_ATTEMPTS = self.MAX_RETRIES
+        self.RETRY_DELAY = self.RETRY_DELAY
         self.erc20_abi = erc20_abi or []
         self.current_profit = Decimal("0")
         self.aave_flashloan_address = aave_flashloan_address
@@ -1254,7 +1254,7 @@ class Transaction_Core:
         self.aave_lending_pool_abi = aave_lending_pool_abi
 
     async def initialize(self):
-        """Initialize all required contracts."""
+        """Initializes all required contracts."""
         self.flashloan_contract = await self._initialize_contract(
             self.aave_flashloan_address,
             self.aave_flashloan_abi,
@@ -1294,7 +1294,7 @@ class Transaction_Core:
         contract_abi: List[Dict[str, Any]],
         contract_name: str,
     ) -> Any:
-        """Initialize a contract instance with proper error handling."""
+        """Initializes a contract instance with proper error handling."""
         try:
             # Load ABI from file if it's a string path
             if isinstance(contract_abi, str):
@@ -1342,7 +1342,7 @@ class Transaction_Core:
         self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Build a transaction dictionary from a contract function call.
+        Builds a transaction dictionary from a contract function call.
 
         :param function_call: Contract function call object.
         :param additional_params: Additional transaction parameters.
@@ -1369,7 +1369,7 @@ class Transaction_Core:
 
     async def get_dynamic_gas_price(self) -> Dict[str, int]:
         """
-        Get dynamic gas price adjusted by the multiplier.
+        Gets dynamic gas price adjusted by the multiplier.
 
         :return: Dictionary containing 'gasPrice'.
         """
@@ -1389,7 +1389,7 @@ class Transaction_Core:
 
     async def estimate_gas_smart(self, tx: Dict[str, Any]) -> int:
         """
-        Estimate gas with fallback to a default value.
+        Estimates gas with fallback to a default value.
 
         :param tx: Transaction dictionary.
         :return: Estimated gas.
@@ -1410,7 +1410,7 @@ class Transaction_Core:
 
     async def execute_transaction(self, tx: Dict[str, Any]) -> Optional[str]:
         """
-        Execute a transaction with retries.
+        Executes a transaction with retries.
 
         :param tx: Transaction dictionary.
         :return: Transaction hash if successful, else None.
@@ -1451,7 +1451,7 @@ class Transaction_Core:
 
     async def sign_transaction(self, transaction: Dict[str, Any]) -> bytes:
         """
-        Sign a transaction with the account's private key.
+        Signs a transaction with the account's private key.
 
         :param transaction: Transaction dictionary.
         :return: Signed transaction bytes.
@@ -1474,7 +1474,7 @@ class Transaction_Core:
 
     async def handle_eth_transaction(self, target_tx: Dict[str, Any]) -> bool:
         """
-        Handle an ETH transfer transaction.
+        Handles an ETH transfer transaction.
 
         :param target_tx: Target transaction dictionary.
         :return: True if successful, else False.
@@ -1525,7 +1525,7 @@ class Transaction_Core:
 
     def calculate_flashloan_amount(self, target_tx: Dict[str, Any]) -> int:
         """
-        Calculate the flashloan amount based on estimated profit.
+        Calculates the flashloan amount based on estimated profit.
 
         :param target_tx: Target transaction dictionary.
         :return: Flashloan amount in Wei.
@@ -1545,7 +1545,7 @@ class Transaction_Core:
 
     async def simulate_transaction(self, transaction: Dict[str, Any]) -> bool:
         """
-        Simulate a transaction to check if it will succeed.
+        Simulates a transaction to check if it will succeed.
 
         :param transaction: Transaction dictionary.
         :return: True if simulation succeeds, else False.
@@ -1568,7 +1568,7 @@ class Transaction_Core:
         self, flashloan_asset: str, flashloan_amount: int
     ) -> Optional[Dict[str, Any]]:
         """
-        Prepare a flashloan transaction.
+        Prepares a flashloan transaction.
 
         :param flashloan_asset: Asset address to borrow.
         :param flashloan_amount: Amount to borrow in Wei.
@@ -1599,7 +1599,7 @@ class Transaction_Core:
 
     async def send_bundle(self, transactions: List[Dict[str, Any]]) -> bool:
         """
-        Send a bundle of transactions to MEV relays.
+        Sends a bundle of transactions to MEV relays.
 
         :param transactions: List of transaction dictionaries.
         :return: True if bundle sent successfully, else False.
@@ -1694,7 +1694,7 @@ class Transaction_Core:
 
     async def front_run(self, target_tx: Dict[str, Any]) -> bool:
         """
-        Execute a front-run transaction with proper validation and error handling.
+        Executes a front-run transaction with proper validation and error handling.
 
         :param target_tx: Target transaction dictionary.
         :return: True if successful, else False.
@@ -1782,7 +1782,7 @@ class Transaction_Core:
 
     async def back_run(self, target_tx: Dict[str, Any]) -> bool:
         """
-        Execute a back-run transaction with proper validation and error handling.
+        Executes a back-run transaction with proper validation and error handling.
 
         :param target_tx: Target transaction dictionary.
         :return: True if successful, else False.
@@ -1851,7 +1851,7 @@ class Transaction_Core:
 
     async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
         """
-        Execute a sandwich attack on the target transaction.
+        Executes a sandwich attack on the target transaction.
 
         :param target_tx: Target transaction dictionary.
         :return: True if successful, else False.
@@ -1948,7 +1948,7 @@ class Transaction_Core:
         self, target_tx: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """
-        Prepare the front-run transaction based on the target transaction.
+        Prepares the front-run transaction based on the target transaction.
 
         :param target_tx: Target transaction dictionary.
         :return: Front-run transaction dictionary if successful, else None.
@@ -2003,6 +2003,9 @@ class Transaction_Core:
             logger.error(f"Error preparing front-run transaction: {e}")
             return None
 
+    """
+    Prepares the back-run transaction based on the target transaction.
+    """
     async def _prepare_back_run_transaction(
         self, target_tx: Dict[str, Any], decoded_tx: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
@@ -2158,14 +2161,13 @@ class Transaction_Core:
             logger.error(f"Missing required transaction parameter: {e}")
             return False
         except Exception as e:
+
             logger.error(f"Unexpected error in sandwich attack execution: {e}")
             return False
-
-    async def decode_transaction_input(
-        self, input_data: str, contract_address: str
-    ) -> Optional[Dict[str, Any]]:
+        
+    async def decode_transaction_input(self, input_data: str, contract_address: str) -> Optional[Dict[str, Any]]:
         """
-        Decode the input data of a transaction.
+        Decodes the input data of a transaction.
 
         :param input_data: Hexadecimal input data of the transaction.
         :param contract_address: Address of the contract being interacted with.
@@ -2189,42 +2191,46 @@ class Transaction_Core:
         except Exception as e:
             logger.error(f"Error decoding transaction input: {e}")
             return None
+        except Exception as e:
+            logger.error(f"Error decoding transaction input: {e}")
+            return None
 
     async def cancel_transaction(self, nonce: int) -> bool:
-        """
-        Cancel a stuck transaction by sending a zero-value transaction with the same nonce.
-
-        :param nonce: Nonce of the transaction to cancel.
-        :return: True if cancellation was successful, else False.
-        """
-        cancel_tx = {
-            "to": self.account.address,
-            "value": 0,
-            "gas": 21_000,
-            "gasPrice": self.web3.to_wei("150", "gwei"),  # Higher than the stuck transaction
-            "nonce": nonce,
-            "chainId": await self.web3.eth.chain_id,
-            "from": self.account.address,
-        }
-        try:
-            signed_cancel_tx = await self.sign_transaction(cancel_tx)
-            tx_hash = await self.web3.eth.send_raw_transaction(signed_cancel_tx)
-            tx_hash_hex = (
-                tx_hash.hex()
-                if isinstance(tx_hash, hexbytes.HexBytes)
-                else tx_hash
-            )
-            logger.debug(
-                f"Cancellation transaction sent successfully: {tx_hash_hex}"
-            )
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to cancel transaction: {e}")
-            return False
+            """
+            Cancels a stuck transaction by sending a zero-value transaction with the same nonce.
+    
+            :param nonce: Nonce of the transaction to cancel.
+            :return: True if cancellation was successful, else False.
+            """
+            cancel_tx = {
+                "to": self.account.address,
+                "value": 0,
+                "gas": 21_000,
+                "gasPrice": self.web3.to_wei("150", "gwei"),  # Higher than the stuck transaction
+                "nonce": nonce,
+                "chainId": await self.web3.eth.chain_id,
+                "from": self.account.address,
+            }
+            
+            try:
+                signed_cancel_tx = await self.sign_transaction(cancel_tx)
+                tx_hash = await self.web3.eth.send_raw_transaction(signed_cancel_tx)
+                tx_hash_hex = (
+                    tx_hash.hex()
+                    if isinstance(tx_hash, hexbytes.HexBytes)
+                    else tx_hash
+                )
+                logger.debug(
+                    f"Cancellation transaction sent successfully: {tx_hash_hex}"
+                )
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to cancel transaction: {e}")
+                return False
 
     async def estimate_gas_limit(self, tx: Dict[str, Any]) -> int:
         """
-        Estimate the gas limit for a transaction.
+        Estimates the gas limit for a transaction.
 
         :param tx: Transaction dictionary.
         :return: Estimated gas limit.
@@ -2241,7 +2247,7 @@ class Transaction_Core:
 
     async def get_current_profit(self) -> Decimal:
         """
-        Fetch the current profit from the safety net.
+        Fetches the current profit from the safety net.
 
         :return: Current profit as Decimal.
         """
@@ -2256,7 +2262,7 @@ class Transaction_Core:
 
     async def withdraw_eth(self) -> bool:
         """
-        Withdraw ETH from the flashloan contract.
+        Withdraws ETH from the flashloan contract.
 
         :return: True if successful, else False.
         """
@@ -2281,7 +2287,7 @@ class Transaction_Core:
 
     async def withdraw_token(self, token_address: str) -> bool:
         """
-        Withdraw a specific token from the flashloan contract.
+        Withdraws a specific token from the flashloan contract.
 
         :param token_address: Address of the token to withdraw.
         :return: True if successful, else False.
@@ -2309,7 +2315,7 @@ class Transaction_Core:
 
     async def transfer_profit_to_account(self, amount: Decimal, account: str) -> bool:
         """
-        Transfer profit to another account.
+        Transfers profit to another account.
 
         :param amount: Amount of ETH to transfer.
         :param account: Recipient account address.

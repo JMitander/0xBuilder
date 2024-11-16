@@ -2988,13 +2988,13 @@ class Main_Core:
         self.web3: Optional[AsyncWeb3] = None
         self.account: Optional[Account] = None
         self.components: Dict[str, Any] = {
-            'api_config': None,
-            'nonce_core': None,
-            'safety_net': None,
-            'market_monitor': None,
-            'mempool_monitor': None,
-            'transaction_core': None,
-            'strategy_net': None
+            'api_config': API_Config, 
+            'nonce_core': Nonce_Core,
+            'safety_net': Safety_Net,
+            'market_monitor': Market_Monitor,
+            'mempool_monitor': Mempool_Monitor,
+            'transaction_core': Transaction_Core,
+            'strategy_net': Strategy_Net,
         }
         logger.info(f"Main Core initialized successfully. ")
 
@@ -3241,7 +3241,7 @@ class Main_Core:
                 strategy_type = tx.get('strategy_type', 'Unknown')
                 logger.debug(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
 
-                success = await strategy.execute_best_strategy(tx)
+                success = await strategy.execute_best_strategy(tx, strategy_type)
 
                 if success:
                     logger.debug(f"Strategy execution successful for tx: {tx_hash} ")

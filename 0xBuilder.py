@@ -7,7 +7,9 @@ import sys
 import dotenv
 import time
 import json
+# if exc is needed, import it like this: from exc import Exception
 import asyncio
+import exc
 import aiofiles
 import aiohttp
 import numpy as np
@@ -16,12 +18,11 @@ from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
 from typing import List, Dict, Any, Optional, Tuple, Union
-
-from eth_account import Account
 from web3 import AsyncWeb3
+from web3.exceptions import TransactionNotFound, ContractLogicError
+from eth_account import Account
 from web3.providers import AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider
 from web3.middleware import ExtraDataToPOAMiddleware
-from web3.exceptions import TransactionNotFound, ContractLogicError
 from web3.eth import AsyncEth
 
 
@@ -232,16 +233,16 @@ class Nonce_Core:
         self,
         web3: AsyncWeb3,
         address: str,
-        configuration: Configuration
+        configuration: Configuration,
     ):
         self.pending_transactions = set()
-        self.web3 = web3.to_checksum_address(address)
+        self.web3 = web3
+        self.configuration = configuration
+        self.address = address
         self.lock = asyncio.Lock()
         self.nonce_cache = TTLCache(maxsize=1, ttl=self.CACHE_TTL)
         self.last_sync = time.monotonic()
-        self.pending_transactions = set()
         self._initialized = False
-        self.configuration = configuration
 
     async def initialize(self) -> None:
         """Initialize the nonce manager with error recovery."""
@@ -391,9 +392,17 @@ class Nonce_Core:
 class API_Config:
     def __init__(self, Configuration: Any):
         self.configuration = Configuration
-        self.session = aiohttp.ClientSession()
+        self.session = None
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
         self.token_symbol_cache = TTLCache(maxsize=1000, ttl=86400)  # Cache for 1 day
+
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self):
+        if self.session:
+            await self.session.close()
 
         # API configuration
         self.api_configs = {
@@ -518,22 +527,24 @@ class API_Config:
     ) -> Any:
         """Make HTTP request with exponential backoff and rate limit per provider."""
         rate_limiter = self.rate_limiters.get(provider_name)
+        
         if rate_limiter is None:
             rate_limiter = asyncio.Semaphore(10)
             self.rate_limiters[provider_name] = rate_limiter
+        
         async with rate_limiter:
             for attempt in range(max_attempts):
                 try:
                     timeout = aiohttp.ClientTimeout(total=10 * (attempt + 1))
-                    async with aiohttp.ClientSession(timeout=timeout) as session:
-                        async with session.get(url, params=params, headers=headers) as response:
-                            if response.status == 429:
-                                wait_time = backoff_factor ** attempt
-                                logger.warning(f"Rate limit exceeded for {provider_name}, retrying in {wait_time}s...")
-                                await asyncio.sleep(wait_time)
-                                continue
-                            response.raise_for_status()
-                            return await response.json()
+                    async with self.session.get(url, params=params, headers=headers, timeout=timeout) as response:
+                        if response.status == 429:
+                            wait_time = backoff_factor ** attempt
+                            logger.warning(f"Rate limit exceeded for {provider_name}, retrying in {wait_time}s...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        response.raise_for_status()
+                        return await response.json()
+
                 except aiohttp.ClientResponseError as e:
                     if attempt == max_attempts - 1:
                         logger.error(f"Request failed after {max_attempts} attempts: {e}")
@@ -668,14 +679,15 @@ class Safety_Net:
         self,
         web3: AsyncWeb3,
         configuration: Configuration,
+        address: str,
         account: Any,
         api_config: API_Config,
     ):
         self.web3 = web3
+        self.address = address
         self.configuration = configuration
         self.account = account
         self.api_config = api_config
-
         self.price_cache = TTLCache(maxsize=1000, ttl=self.CACHE_TTL)
         self.gas_price_cache = TTLCache(maxsize=1, ttl=self.GAS_PRICE_CACHE_TTL)
 
@@ -1492,8 +1504,8 @@ class Transaction_Core:
                 "value": eth_value,
                 "gas": 21_000,
                 "nonce": await self.nonce_core.get_nonce(),
-                 "chainId": self.web3.eth.chain_id,
-               "from": self.account.address,
+                "chainId": self.web3.eth.chain_id,
+                "from": self.account.address,
             }
             original_gas_price = int(target_tx.get("gasPrice", 0))
             if original_gas_price <= 0:
@@ -2003,9 +2015,7 @@ class Transaction_Core:
             logger.error(f"Error preparing front-run transaction: {e}")
             return None
 
-    """
-    Prepares the back-run transaction based on the target transaction.
-    """
+
     async def _prepare_back_run_transaction(
         self, target_tx: Dict[str, Any], decoded_tx: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
@@ -2068,102 +2078,6 @@ class Transaction_Core:
         except Exception as e:
             logger.error(f"Error preparing back-run transaction: {e}")
             return None
-
-    async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Execute a sandwich attack on the target transaction.
-
-        :param target_tx: Target transaction dictionary.
-        :return: True if successful, else False.
-        """
-        if not isinstance(target_tx, dict):
-            logger.debug("Invalid transaction format provided!")
-            return False
-
-        tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Attempting sandwich attack on target transaction: {tx_hash}")
-
-        # Validate required transaction parameters
-        required_fields = ["input", "to", "value", "gasPrice"]
-        if not all(field in target_tx for field in required_fields):
-            missing = [field for field in required_fields if field not in target_tx]
-            logger.debug(f"Missing required transaction parameters: {missing}. Skipping...")
-            return False
-
-        try:
-            # Decode transaction input with validation
-            decoded_tx = await self.decode_transaction_input(
-                target_tx.get("input", "0x"),
-                self.web3.to_checksum_address(target_tx.get("to", ""))
-            )
-            if not decoded_tx or "params" not in decoded_tx:
-                logger.debug("Failed to decode transaction input for sandwich attack.")
-                return False
-
-            # Extract and validate path parameter
-            path = decoded_tx["params"].get("path", [])
-            if not path or not isinstance(path, list) or len(path) < 2:
-                logger.debug("Transaction has invalid or no path parameter. Skipping...")
-                return False
-
-            flashloan_asset = self.web3.to_checksum_address(path[0])
-            flashloan_amount = self.calculate_flashloan_amount(target_tx)
-
-            if flashloan_amount <= 0:
-                logger.debug("Insufficient flashloan amount calculated.")
-                return False
-
-            # Prepare flashloan transaction
-            flashloan_tx = await self.prepare_flashloan_transaction(
-                flashloan_asset, flashloan_amount
-            )
-            if not flashloan_tx:
-                logger.debug("Failed to prepare flashloan transaction!")
-                return False
-
-            # Prepare front-run transaction
-            front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
-            if not front_run_tx_details:
-                logger.warning("Failed to prepare front-run transaction!")
-                return False
-
-            # Prepare back-run transaction
-            back_run_tx_details = await self._prepare_back_run_transaction(target_tx, decoded_tx)
-            if not back_run_tx_details:
-                logger.warning("Failed to prepare back-run transaction!")
-                return False
-
-            # Simulate all transactions
-            simulation_results = await asyncio.gather(
-                self.simulate_transaction(flashloan_tx),
-                self.simulate_transaction(front_run_tx_details),
-                self.simulate_transaction(back_run_tx_details),
-                return_exceptions=True
-            )
-
-            if any(isinstance(result, Exception) for result in simulation_results):
-                logger.warning("One or more transaction simulations failed!")
-                return False
-
-            if not all(simulation_results):
-                logger.warning("Not all transaction simulations were successful!")
-                return False
-
-            # Send transaction bundle
-            if await self.send_bundle([flashloan_tx, front_run_tx_details, back_run_tx_details]):
-                logger.info("Sandwich attack transaction bundle sent successfully.")
-                return True
-            else:
-                logger.warning("Failed to send sandwich attack transaction bundle!")
-                return False
-
-        except KeyError as e:
-            logger.error(f"Missing required transaction parameter: {e}")
-            return False
-        except Exception as e:
-
-            logger.error(f"Unexpected error in sandwich attack execution: {e}")
-            return False
         
     async def decode_transaction_input(self, input_data: str, contract_address: str) -> Optional[Dict[str, Any]]:
         """

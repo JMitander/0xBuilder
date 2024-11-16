@@ -216,7 +216,6 @@ class Configuration:
         }
         return abi_paths.get(abi_name.lower(), "")
 
-
 #//////////////////////////////////////////////////////////////////////////////
 
 class Nonce_Core:
@@ -1221,7 +1220,6 @@ class Mempool_Monitor:
             logger.debug(
                 f"Error logging transaction details for {tx.hash.hex()}: {e}"
             )
-
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -2490,7 +2488,6 @@ class Market_Monitor:
             logger.warning(f"failed in decoding transaction input: {e}")
             return None
 
-
 #//////////////////////////////////////////////////////////////////////////////
 
 class Strategy_Net:
@@ -2942,7 +2939,6 @@ class Strategy_Net:
         logger.debug("Conditions unfavorable for sandwich attack. Skipping.")
         return False
 
-
 #//////////////////////////////////////////////////////////////////////////////
 
 class Main_Core:
@@ -3230,8 +3226,8 @@ class Main_Core:
         except Exception as e:
             logger.warning(f"Failed to load abi from {abi_path}: {e} !")
             raise
-# ////////////////////////////////////////////////////////////////////////////
 
+# ////////////////////////////////////////////////////////////////////////////
 
 async def main():
     """Main entry point with proper setup and error handling."""

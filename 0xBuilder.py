@@ -24,6 +24,8 @@ from web3.middleware import ExtraDataToPOAMiddleware
 from web3.exceptions import TransactionNotFound, ContractLogicError
 from web3.eth import AsyncEth
 
+
+
 #//////////////////////////////////////////////////////////////////////////////
 # ANSI color codes for different log levels
 COLORS = {

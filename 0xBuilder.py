@@ -1216,8 +1216,7 @@ class Mempool_Monitor:
 class Transaction_Core:
     """
     Builds and executes transactions, including front-run, back-run, and sandwich attack strategies.
-    back-run, and sandwich attack strategies. It interacts with smart contracts,
-    manages transaction signing, gas price estimation, and handles flashloans.
+    It interacts with smart contracts, manages transaction signing, gas price estimation, and handles flashloans.
     """
     MAX_RETRIES = 3
     RETRY_DELAY = 1.0  # Base delay in seconds for retries
@@ -1247,7 +1246,6 @@ class Transaction_Core:
         self.safety_net = safety_net
         self.gas_price_multiplier = gas_price_multiplier
         self.RETRY_ATTEMPTS = self.MAX_RETRIES
-        self.RETRY_DELAY = self.RETRY_DELAY
         self.erc20_abi = erc20_abi or []
         self.current_profit = Decimal("0")
         self.aave_flashloan_address = aave_flashloan_address
@@ -1417,8 +1415,8 @@ class Transaction_Core:
         :param tx: Transaction dictionary.
         :return: Transaction hash if successful, else None.
         """
-        for attempt in range(1, self.retry_attempts + 1):
-            try:
+        try:
+            for attempt in range(1, self.MAX_RETRIES + 1):
                 signed_tx = await self.sign_transaction(tx)
                 tx_hash = await self.web3.eth.send_raw_transaction(signed_tx)
                 tx_hash_hex = (
@@ -1431,25 +1429,25 @@ class Transaction_Core:
                 )
                 await self.nonce_core.refresh_nonce()
                 return tx_hash_hex
-            except TransactionNotFound as e:
+        except TransactionNotFound as e:
                 logger.error(
                     f"Transaction not found: {e}. Attempt {attempt} of {self.retry_attempts}"
                 )
-            except ContractLogicError as e:
+        except ContractLogicError as e:
                 logger.error(
                     f"Contract logic error: {e}. Attempt {attempt} of {self.retry_attempts}"
                 )
-                break  # Likely won't succeed on retry
-            except Exception as e:
+                
+        except Exception as e:
                 logger.error(
                     f"Error executing transaction: {e}. Attempt {attempt} of {self.retry_attempts}"
                 )
-                if attempt < self.retry_attempts:
-                    sleep_time = self.retry_delay * attempt
+                if attempt < self.MAX_RETRIES:
+                    sleep_time = self.RETRY_DELAY * attempt
                     logger.warning(f"Retrying in {sleep_time} seconds...")
                     await asyncio.sleep(sleep_time)
-        logger.warning("Failed to execute transaction after multiple attempts.")
-        return None
+                    logger.warning("Failed to execute transaction after multiple attempts.")
+                    return None
 
     async def sign_transaction(self, transaction: Dict[str, Any]) -> bytes:
         """
@@ -1494,8 +1492,8 @@ class Transaction_Core:
                 "value": eth_value,
                 "gas": 21_000,
                 "nonce": await self.nonce_core.get_nonce(),
-                "chainId": await self.web3.eth.chain_id,
-                "from": self.account.address,
+                 "chainId": self.web3.eth.chain_id,
+               "from": self.account.address,
             }
             original_gas_price = int(target_tx.get("gasPrice", 0))
             if original_gas_price <= 0:
@@ -1637,8 +1635,8 @@ class Transaction_Core:
             for builder in mev_builders:
                 headers = {
                     "Content-Type": "application/json",
-                    builder["auth_header"]: f"{self.account.address}:{self.account.key.hex()}",
-                }
+                     builder["auth_header"]: f"{self.account.address}:{self.account.key}",
+               }
 
                 for attempt in range(1, self.retry_attempts + 1):
                     try:
@@ -2189,9 +2187,6 @@ class Transaction_Core:
             return decoded_data
         except ContractLogicError as e:
             logger.debug(f"Contract logic error during decoding: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error decoding transaction input: {e}")
             return None
         except Exception as e:
             logger.error(f"Error decoding transaction input: {e}")

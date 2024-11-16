@@ -1227,8 +1227,9 @@ class Mempool_Monitor:
 
 class Transaction_Core:
     """
+    Transaction_Core is the main transaction engine that handles all transaction-related
     Builds and executes transactions, including front-run, back-run, and sandwich attack strategies.
-    It interacts with smart contracts, manages transaction signing, gas price estimation, and handles flashloans.
+    It interacts with smart contracts, manages transaction signing, gas price estimation, and handles flashloans
     """
     MAX_RETRIES = 3
     RETRY_DELAY = 1.0  # Base delay in seconds for retries
@@ -1245,7 +1246,7 @@ class Transaction_Core:
         monitor: Mempool_Monitor,
         nonce_core: Nonce_Core,
         safety_net: Safety_Net,
-        configuration: Configuration,  # Configuration object containing ABIs and other settings
+        configuration: Configuration, 
         gas_price_multiplier: float = 1.1,
         erc20_abi: Optional[List[Dict[str, Any]]] = None,
     ):
@@ -2283,7 +2284,12 @@ class Market_Monitor:
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
 
     async def check_market_conditions(self, token_address: str) -> Dict[str, Any]:
-        """Check various market conditions for a given token."""
+        """
+        Check various market conditions for a given token
+
+        :param token_address: Address of the token to check
+        :return: Dictionary of market conditions
+        """
         market_conditions = {
             "high_volatility": False,
             "bullish_trend": False,
@@ -2318,13 +2324,24 @@ class Market_Monitor:
         return market_conditions
 
     def _calculate_volatility(self, prices: List[float]) -> float:
-        """Calculate the volatility of a list of prices."""
+        """
+        Calculate the volatility of a list of prices.
+
+        :param prices: List of prices
+        :return: Volatility as standard deviation of returns
+        """
         prices_array = np.array(prices)
         returns = np.diff(prices_array) / prices_array[:-1]
         return np.std(returns)
 
     async def fetch_historical_prices(self, token_symbol: str, days: int = 30) -> List[float]:
-        """Fetch historical price data for a given token symbol."""
+        """
+        Fetch historical price data for a given token symbol.
+
+        :param token_symbol: Token symbol to fetch prices for
+        :param days: Number of days to fetch prices for
+        :return: List of historical prices
+        """
         cache_key = f"historical_prices_{token_symbol}_{days}"
         if cache_key in self.price_cache:
             logger.debug(f"Returning cached historical prices for {token_symbol}.")
@@ -2339,7 +2356,12 @@ class Market_Monitor:
         return prices or []
 
     async def get_token_volume(self, token_symbol: str) -> float:
-        """Get the 24-hour trading volume for a given token symbol."""
+        """
+        Get the 24-hour trading volume for a given token symbol.
+
+        :param token_symbol: Token symbol to fetch volume for
+        :return: 24-hour trading volume
+        """
         cache_key = f"token_volume_{token_symbol}"
         if cache_key in self.price_cache:
             logger.debug(f"Returning cached trading volume for {token_symbol}.")
@@ -2354,7 +2376,13 @@ class Market_Monitor:
         return volume or 0.0
 
     async def _fetch_from_services(self, fetch_func, description: str):
-        """Helper method to fetch data from multiple services."""
+        """
+        Helper method to fetch data from multiple services.
+
+        :param fetch_func: Function to fetch data from a service
+        :param description: Description of the data being fetched
+        :return: Fetched data or None
+        """
         for service in self.api_config.api_configs.keys():
             try:
                 logger.debug(f"Fetching {description} using {service}...")
@@ -2381,7 +2409,11 @@ class Market_Monitor:
         return float(predicted_price)
 
     async def _update_price_model(self, token_symbol: str):
-        """Update the price prediction model."""
+        """
+        Update the price prediction model.
+
+        :param token_symbol: Token symbol to update the model for
+        """
         prices = await self.fetch_historical_prices(token_symbol)
         if len(prices) > 10:
             X = np.arange(len(prices)).reshape(-1, 1)
@@ -2390,7 +2422,13 @@ class Market_Monitor:
             self.model_last_updated = time.time()
 
     async def is_arbitrage_opportunity(self, target_tx: Dict[str, Any]) -> bool:
-        """Check if there's an arbitrage opportunity based on the target transaction."""
+        """
+        Check if there's an arbitrage opportunity based on the target transaction.
+
+        :param target_tx: Target transaction dictionary
+        :return: True if arbitrage opportunity detected, else False
+        """
+
         decoded_tx = await self.decode_transaction_input(target_tx["input"], target_tx["to"])
         if not decoded_tx:
             return False
@@ -2417,7 +2455,12 @@ class Market_Monitor:
         return False
 
     async def _get_prices_from_services(self, token_symbol: str) -> List[float]:
-        """Get real-time prices from different services."""
+        """
+        Get real-time prices from different services.
+
+        :param token_symbol: Token symbol to get prices for
+        :return: List of real-time prices
+        """
         prices = []
         for service in self.api_config.api_configs.keys():
             try:
@@ -2431,7 +2474,13 @@ class Market_Monitor:
     async def decode_transaction_input(
         self, input_data: str, contract_address: str
     ) -> Optional[Dict[str, Any]]:
-        """Decode the input data of a transaction."""
+        """
+        Decode the input data of a transaction.
+
+        :param input_data: Hexadecimal input data of the transaction.
+        :param contract_address: Address of the contract being interacted with.
+        :return: Dictionary containing function name and parameters if successful, else None.
+        """
         try:
             erc20_abi = await self.api_config._load_abi(self.configuration.ERC20_ABI)
             contract = self.web3.eth.contract(address=contract_address, abi=erc20_abi)
@@ -2488,7 +2537,13 @@ class Strategy_Net:
     async def execute_best_strategy(
         self, target_tx: Dict[str, Any], strategy_type: str
     ) -> bool:
-        """Execute the best strategy for the given strategy type."""
+        """
+        Execute the best strategy for the given strategy type.
+
+        :param target_tx: Target transaction dictionary.
+        :param strategy_type: Type of strategy to execute
+        :return: True if successful, else False.
+        """
         strategies = self.get_strategies(strategy_type)
         if not strategies:
             logger.debug(f"No strategies available for type: {strategy_type}")

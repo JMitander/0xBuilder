@@ -7,9 +7,7 @@ import sys
 import dotenv
 import time
 import json
-# if exc is needed, import it like this: from exc import Exception
 import asyncio
-import exc
 import aiofiles
 import aiohttp
 import numpy as np

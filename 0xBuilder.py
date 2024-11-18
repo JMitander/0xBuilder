@@ -899,7 +899,6 @@ class Mempool_Monitor:
 
         # Monitoring state
         self.running = False
-        self.stop = False
         self.pending_transactions = asyncio.Queue()
         self.monitored_tokens = set(monitored_tokens or [])
         self.profitable_transactions = asyncio.Queue()

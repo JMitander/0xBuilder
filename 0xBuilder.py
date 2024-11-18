@@ -1,4 +1,4 @@
-"""0xBuilder project"""
+#========================= 0xBuilder - By NordChain (github.com/user/JMitander) =========================#
 
 import os
 import logging
@@ -12,6 +12,9 @@ import aiofiles
 import aiohttp
 import numpy as np
 import hexbytes
+import psutil
+import traceback
+
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
@@ -22,11 +25,13 @@ from web3 import AsyncWeb3
 from web3.exceptions import TransactionNotFound, ContractLogicError
 from eth_account import Account
 from web3.providers import AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider
-from web3.middleware import ExtraDataToPOAMiddleware
+from web3.middleware import ExtraDataToPOAMiddleware, SignAndSendRawMiddlewareBuilder
 from web3.eth import AsyncEth
 
 
-#//////////////////////////////////////////////////////////////////////////////
+
+#========================== Logging and console output ==========================
+
 # ANSI color codes for different log levels
 COLORS = {
     "DEBUG": "\033[94m",     # Blue
@@ -108,7 +113,7 @@ async def loading_bar(
     except Exception:
         raise
 
-# ////////////////////////////////////////////////////////////////////////////
+#========================== Environment variable configuration ==========================
 
 class Configuration:
     """
@@ -215,7 +220,7 @@ class Configuration:
         }
         return abi_paths.get(abi_name.lower(), "")
 
-#//////////////////////////////////////////////////////////////////////////////
+#========================== Nonce management system for Ethereum transactions ==========================
 
 class Nonce_Core:
     """
@@ -385,7 +390,7 @@ class Nonce_Core:
             logger.error(f"Error stopping nonce core: {e}")
             raise
 
-#//////////////////////////////////////////////////////////////////////////////
+#================================= API setup and configuration =================================#
 
 class API_Config:
     def __init__(self, configuration: Optional[Configuration] = None):
@@ -648,7 +653,7 @@ class API_Config:
         """Close the aiohttp session."""
         await self.session.close()
 
-#//////////////////////////////////////////////////////////////////////////////
+#=========================== 0xBuilder's Safety controller and risk management Engine ===========================#
 
 class Safety_Net:
     """
@@ -867,7 +872,7 @@ class Safety_Net:
              logger.error(f"Error stopping safety net: {e}")
              raise
 
-#//////////////////////////////////////////////////////////////////////////////
+#=============================== Txpool/Mempool Monitoring ===============================
 
 class Mempool_Monitor:
     """
@@ -1221,7 +1226,7 @@ class Mempool_Monitor:
                 f"Error logging transaction details for {tx.hash.hex()}: {e}"
             )
 
-#//////////////////////////////////////////////////////////////////////////////
+#============================= Transaction Orchestrator and Core =============================
 
 class Transaction_Core:
     """
@@ -2261,7 +2266,8 @@ class Transaction_Core:
             logger.error(f"Error stopping 0xBuilder: {e} !")
             raise
 
-#//////////////////////////////////////////////////////////////////////////////
+
+#================================== Market Metrics and Monitoring ==================================#
 
 class Market_Monitor:
     MODEL_UPDATE_INTERVAL = 3600  # Update model every hour
@@ -2388,8 +2394,8 @@ class Market_Monitor:
                 if result:
                     return result
             except Exception as e:
-                logger.warning(f"failed to fetch {description} using {service}: {e}")
-        logger.warning(f"failed to fetch {description}.")
+                logger.warning(f"Failed to fetch {description} using {service}: {e}")
+        logger.warning(f"Failed to fetch {description}.")
         return None
 
     async def predict_price_movement(self, token_symbol: str) -> float:
@@ -2466,7 +2472,7 @@ class Market_Monitor:
                 if price is not None:
                     prices.append(price)
             except Exception as e:
-                logger.warning(f"failed to get price from {service}: {e}")
+                logger.warning(f"Failed to get price from {service}: {e}")
         return prices
 
     async def decode_transaction_input(
@@ -2485,10 +2491,12 @@ class Market_Monitor:
             function_abi, params = contract.decode_function_input(input_data)
             return {"function_name": function_abi["name"], "params": params}
         except Exception as e:
-            logger.warning(f"failed in decoding transaction input: {e}")
+            logger.warning(f"Failed in decoding transaction input: {e}")
             return None
 
 #//////////////////////////////////////////////////////////////////////////////
+
+#============================= Strategy Orchestrator =============================
 
 @dataclass
 class StrategyPerformanceMetrics:
@@ -2513,15 +2521,14 @@ class StrategyExecutionError(Exception):
 
     def __str__(self) -> str:
         return self.message
-    
 
 class Strategy_Net:
     def __init__(
         self,
-        transaction_core: Optional[Any],
-        market_monitor: Optional[Any],
-        safety_net: Optional[Any],
-        api_config: Optional[Any],
+        transaction_core: Optional['Transaction_Core'] = None,
+        market_monitor: Optional[Market_Monitor] = None,
+        safety_net: Optional['Safety_Net'] = None,
+        api_config: Optional[API_Config] = None,
     ) -> None:
         self.transaction_core = transaction_core
         self.market_monitor = market_monitor
@@ -2572,7 +2579,7 @@ class Strategy_Net:
             ],
         }
 
-        logger.debug("StrategyNet initialized with enhanced configuration")
+        logger.debug("Strategy_Net initialized with enhanced configuration")
 
     def register_strategy(self, strategy_type: str, strategy_func: Callable[[Dict[str, Any]], asyncio.Future]) -> None:
         """Register a new strategy dynamically."""
@@ -2974,7 +2981,7 @@ class Strategy_Net:
                 return False
 
             # Check if it's a known token or DEX contract
-            token_symbols = await self.configuration.get_token_symbols()
+            token_symbols = await self.api_config.get_token_symbols()
             if to_address not in token_symbols:
                 logger.warning(f"Address {to_address} not in known token list")
                 return False
@@ -3597,37 +3604,36 @@ class Strategy_Net:
     # ========================= End of Strategy Implementations =========================
 
 
-#//////////////////////////////////////////////////////////////////////////////
 
+    # ========================= Main Execution Loop =========================
 class Main_Core:
     """
     Builds and manages the entire MEV bot, initializing all components,
     managing connections, and orchestrating the main execution loop.
     """
 
-    def __init__(self, configuration: Configuration) -> None:
-        
+    def __init__(self, configuration: Optional[Configuration] = None) -> None:
         self.configuration = configuration
         self.web3: Optional[AsyncWeb3] = None
         self.account: Optional[Account] = None
         self.components: Dict[str, Any] = {
-            'api_config': API_Config, 
-            'nonce_core': Nonce_Core,
-            'safety_net': Safety_Net,
-            'market_monitor': Market_Monitor,
-            'mempool_monitor': Mempool_Monitor,
-            'transaction_core': Transaction_Core,
-            'strategy_net': Strategy_Net,
+            'api_config': None, 
+            'nonce_core': None,
+            'safety_net': None,
+            'market_monitor': None,
+            'mempool_monitor': None,
+            'transaction_core': None,
+            'strategy_net': None,
         }
-        logger.info(f"Main Core initialized successfully. ")
+        logger.info("Main_Core initialized successfully.")
 
     async def initialize(self) -> None:
-        """Initialize all components with  error handling."""
+        """Initialize all components with error handling."""
         try:
             # Initialize account first
             wallet_key = self.configuration.WALLET_KEY
             if not wallet_key:
-                raise ValueError("Key in .env is not set")
+                raise ValueError("Wallet key is not set in configuration.")
 
             try:
                 # Remove '0x' prefix if present and ensure the key is valid hex
@@ -3650,16 +3656,16 @@ class Main_Core:
 
             await self._check_account_balance()
             await self._initialize_components()
-            logger.info(f"All components initialized successfully. ")
+            logger.info("All components initialized successfully.")
         except Exception as e:
-            logger.error(f"Fatal error during initialization: {e} !")
+            logger.error(f"Fatal error during initialization: {e}!")
             await self.stop()
 
     async def _initialize_web3(self) -> Optional[AsyncWeb3]:
         """Initialize Web3 connection with multiple provider fallback."""
         providers = self._get_providers()
         if not providers:
-            logger.error(f"No valid endpoints provided. !")
+            logger.error("No valid endpoints provided.")
             return None
 
         for provider_name, provider in providers:
@@ -3688,14 +3694,13 @@ class Main_Core:
             providers.append(("WebSocket", WebSocketProvider(self.configuration.WEBSOCKET_ENDPOINT)))
         return providers
 
-
     async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
         """Test Web3 connection with retries."""
         for attempt in range(3):
             try:
                 if await web3.is_connected():
                     chain_id = await web3.eth.chain_id
-                    logger.info(f"Connected to network {name} (Chain ID: {chain_id}) ")
+                    logger.info(f"Connected to network {name} (Chain ID: {chain_id})")
                     return True
             except Exception as e:
                 logger.error(f"Connection attempt {attempt + 1} failed: {e}")
@@ -3708,48 +3713,47 @@ class Main_Core:
             chain_id = await web3.eth.chain_id
             if chain_id in {99, 100, 77, 7766, 56}:  # POA networks
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-                logger.debug(f"Injected POA middleware.")
+                logger.debug("Injected POA middleware.")
             elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
-                logger.debug(f"No middleware required for ETH network.")
-                pass
+                web3.middleware_onion.add(SignAndSendRawMiddlewareBuilder(self.account))
+                logger.debug("Injected middleware for ETH network.")
             else:
-                logger.warning(f"Unknown network; no middleware injected.")
+                logger.warning("Unknown network; no middleware injected.")
         except Exception as e:
             logger.error(f"Middleware configuration failed: {e}")
             raise
 
     async def _check_account_balance(self) -> None:
-        """Check the Ethereum account balancer_router_abi."""
+        """Check the Ethereum account balance."""
         try:
             if not self.account:
                 raise ValueError("Account not initialized")
 
-            balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
-            balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
+            balance = await self.web3.eth.get_balance(self.account.address)
+            balance_eth = self.web3.from_wei(balance, 'ether')
 
             logger.info(f"Account {self.account.address} initialized")
             logger.debug(f"Balance: {balance_eth:.4f} ETH")
 
             if balance_eth < 0.01:
-                logger.warning(f"Low account balance (<0.01 ETH)")
+                logger.warning("Low account balance (<0.01 ETH)")
 
         except Exception as e:
             logger.error(f"Balance check failed: {e}")
             raise
 
     async def _initialize_components(self) -> None:
-        """Initialize all bot components with  error handling."""
+        """Initialize all bot components with error handling."""
         try:
             # Initialize core components
+            self.components['api_config'] = API_Config(self.configuration)
             self.components['nonce_core'] = Nonce_Core(
                 self.web3, self.account.address, self.configuration
             )
             await self.components['nonce_core'].initialize()
 
-            api_config = API_Config(self.configuration)
-
             self.components['safety_net'] = Safety_Net(
-                self.web3, self.configuration, self.account, api_config
+                self.web3, self.configuration, self.account, self.components['api_config']
             )
 
             # Load contract ABIs
@@ -3759,7 +3763,7 @@ class Main_Core:
 
             # Initialize analysis components
             self.components['market_monitor'] = Market_Monitor(
-                self.web3, self.configuration, api_config
+                self.web3, self.configuration, self.components['api_config']
             )
 
             # Initialize monitoring components
@@ -3767,8 +3771,7 @@ class Main_Core:
                 web3=self.web3,
                 safety_net=self.components['safety_net'],
                 nonce_core=self.components['nonce_core'],
-                api_config=api_config,
-                
+                api_config=self.components['api_config'],
                 monitored_tokens=await self.configuration.get_token_addresses(),
                 erc20_abi=erc20_abi,
                 configuration=self.configuration
@@ -3785,9 +3788,8 @@ class Main_Core:
                 monitor=self.components['mempool_monitor'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
-                api_config=api_config,
+                api_config=self.components['api_config'],
                 configuration=self.configuration,
-                
                 erc20_abi=erc20_abi
             )
             await self.components['transaction_core'].initialize()
@@ -3797,8 +3799,7 @@ class Main_Core:
                 transaction_core=self.components['transaction_core'],
                 market_monitor=self.components['market_monitor'],
                 safety_net=self.components['safety_net'],
-                api_config=api_config,
-                
+                api_config=self.components['api_config'],
             )
 
         except Exception as e:
@@ -3807,45 +3808,49 @@ class Main_Core:
 
     async def run(self) -> None:
         """Main execution loop with improved error handling."""
-        logger.debug(f"Starting 0xBuilder... ")
+        logger.debug("Starting Main_Core...")
 
         try:
-            if 'mempool_monitor' in self.components and self.components['mempool_monitor'] is not None:
-                await self.components['mempool_monitor'].start_monitoring()
-            else:
-                raise RuntimeError("Mempool monitor not ly initialized")
+            required_components = ['mempool_monitor', 'strategy_net', 'transaction_core']
+            if not all(component in self.components and self.components[component] for component in required_components):
+                raise RuntimeError("Required components are not properly initialized")
+
+            await self.components['mempool_monitor'].start_monitoring()
 
             while True:
                 try:
                     await self._process_profitable_transactions()
                     await asyncio.sleep(1)
                 except asyncio.CancelledError:
+                    logger.info("Received cancellation signal")
                     break
                 except Exception as e:
                     logger.error(f"Error in main loop: {e}")
                     await asyncio.sleep(5)  # Back off on error
 
         except KeyboardInterrupt:
-            logger.warning(f"Received shutdown signal...")
+            logger.warning("Received shutdown signal...")
+        except Exception as e:
+            logger.error(f"Critical error in main loop: {e}")
         finally:
             await self.stop()
 
     async def stop(self) -> None:
         """Graceful shutdown of all components."""
-        logger.warning(f"Shutting down Core...")
+        logger.warning("Shutting down Main_Core...")
 
         try:
-            if self.components['mempool_monitor']:
+            if 'mempool_monitor' in self.components and self.components['mempool_monitor']:
                 await self.components['mempool_monitor'].stop()
 
-            if self.components['transaction_core']:
-                await self.components[Any].stop()
+            if 'transaction_core' in self.components and self.components['transaction_core']:
+                await self.components['transaction_core'].stop()
             
-            if self.components['nonce_core']:
-                await self.components[Any].stop()
+            if 'nonce_core' in self.components and self.components['nonce_core']:
+                await self.components['nonce_core'].stop()
 
-            if self.web3: # Close Web3 connection
-                await self.web3.close(any=True)
+            if self.web3:  # Close Web3 connection
+                await self.web3.provider.disconnect()
                 
         except Exception as e: 
             logger.error(f"Error during shutdown: {e}")
@@ -3853,42 +3858,157 @@ class Main_Core:
             sys.exit(0)
                 
     async def _process_profitable_transactions(self) -> None:
-        """Process profitable transactions from the queue."""
+        """
+        Process profitable transactions from the queue with enhanced validation,
+        performance monitoring, and error recovery.
+        """
         monitor = self.components['mempool_monitor']
         strategy = self.components['strategy_net']
-
+        
         while not monitor.profitable_transactions.empty():
+            start_time = time.time()
+            tx = None
+            
             try:
-                tx = await monitor.profitable_transactions.get()
+                # Get transaction with timeout
+                tx = await asyncio.wait_for(
+                    monitor.profitable_transactions.get(), 
+                    timeout=5.0
+                )
+                
+                # Validate transaction format
+                if not self._validate_transaction(tx):
+                    logger.warning("Invalid transaction format, skipping...")
+                    continue
+                    
                 tx_hash = tx.get('tx_hash', 'Unknown')[:10]
-                strategy_type = tx.get('strategy_type', 'Unknown')
-                logger.debug(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
+                strategy_type = self._determine_strategy_type(tx)
+                
+                # Log detailed transaction info
+                logger.debug(
+                    f"Processing Transaction:\n"
+                    f"Hash: {tx_hash}\n"
+                    f"Strategy: {strategy_type}\n"
+                    f"Value: {self.web3.from_wei(tx.get('value', 0), 'ether'):.4f} ETH\n"
+                    f"Gas Price: {self.web3.from_wei(tx.get('gasPrice', 0), 'gwei'):.1f} Gwei"
+                )
 
-                success = await strategy.execute_best_strategy(tx, strategy_type)
+                # Check if transaction is still valid
+                if not await self._is_tx_still_valid(tx):
+                    logger.debug(f"Transaction {tx_hash} is no longer valid, skipping...")
+                    continue
+
+                # Execute strategy with timeout
+                success = await asyncio.wait_for(
+                    strategy.execute_best_strategy(tx, strategy_type),
+                    timeout=30.0
+                )
+
+                # Log execution metrics
+                execution_time = time.time() - start_time
+                self._log_execution_metrics(tx_hash, success, execution_time)
 
                 if success:
-                    logger.debug(f"Strategy execution successful for tx: {tx_hash} ")
+                    logger.info(
+                        f"Successfully executed strategy for {tx_hash} "
+                        f"({execution_time:.2f}s)"
+                    )
                 else:
-                    logger.warning(f"Strategy execution failed for tx: {tx_hash} !")
+                    logger.warning(
+                        f"Strategy execution failed for {tx_hash} "
+                        f"({execution_time:.2f}s)"
+                    )
 
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Timeout processing transaction after {time.time() - start_time:.2f}s"
+                )
+                
             except Exception as e:
-                logger.error(f"Error processing transaction: {e}")
+                tx_hash = tx.get('tx_hash', 'Unknown')[:10] if tx else 'Unknown'
+                logger.error(
+                    f"Error processing tx {tx_hash}: {str(e)}\n"
+                    f"Stack trace: {traceback.format_exc()}"
+                )
+                
+            finally:
+                # Always mark task as done
+                if tx:
+                    monitor.profitable_transactions.task_done()
+                    
+        # Log queue statistics
+        logger.debug(
+            f"Queue status: {monitor.profitable_transactions.qsize()} transactions remaining"
+        )
+
+    def _validate_transaction(self, tx: Dict[str, Any]) -> bool:
+        """Validate transaction format and required fields."""
+        required_fields = ['tx_hash', 'value', 'gasPrice', 'to']
+        return (
+            isinstance(tx, dict) 
+            and all(field in tx for field in required_fields)
+            and all(tx[field] is not None for field in required_fields)
+        )
+
+    def _determine_strategy_type(self, tx: Dict[str, Any]) -> str:
+        """Determine best strategy type based on transaction properties."""
+        if tx.get('value', 0) > 0:
+            return 'eth_transaction'
+        elif self._is_token_swap(tx):
+            if tx.get('gasPrice', 0) > self.web3.to_wei('200', 'gwei'):
+                return 'back_run'
+            else:
+                return 'front_run' 
+        return 'sandwich_attack'
+
+    async def _is_tx_still_valid(self, tx: Dict[str, Any]) -> bool:
+        """Check if transaction is still valid and pending."""
+        try:
+            tx_hash = tx.get('tx_hash')
+            if not tx_hash:
+                return False
+            tx_status = await self.web3.eth.get_transaction(tx_hash)
+            return tx_status is not None and tx_status.blockNumber is None
+        except Exception:
+            return False
+
+    def _is_token_swap(self, tx: Dict[str, Any]) -> bool:
+        """Check if transaction is a token swap."""
+        return (
+            len(tx.get('input', '0x')) > 10 
+            and tx.get('value', 0) == 0
+        )
+
+    def _log_execution_metrics(self, tx_hash: str, success: bool, execution_time: float) -> None:
+        """Log detailed execution metrics."""
+        try:
+            import psutil
+            memory_usage = psutil.Process().memory_info().rss / 1024 / 1024
+        except ImportError:
+            memory_usage = 0.0  # psutil not available
+
+        logger.debug(
+            f"Execution Metrics for {tx_hash}:\n"
+            f"Success: {success}\n"
+            f"Execution Time: {execution_time:.2f}s\n"
+            f"Memory Usage: {memory_usage:.1f}MB"
+        )
 
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         """Load contract abi from a file."""
         try:
             with open(abi_path, 'r') as file:
                 abi = json.load(file)
-            await loading_bar(f"Loaded abi from {abi_path} successfully.", 0.1)
+            await loading_bar(f"Loaded ABI from {abi_path} successfully.", 0.1)
             return abi
         except Exception as e:
-            logger.warning(f"Failed to load abi from {abi_path}: {e} !")
+            logger.warning(f"Failed to load ABI from {abi_path}: {e}!")
             raise
 
 # ////////////////////////////////////////////////////////////////////////////
 
 async def main():
-    """Main entry point with  setup and error handling."""
+    """Main entry point with setup and error handling."""
     global logger
     try:
         # Initialize configuration

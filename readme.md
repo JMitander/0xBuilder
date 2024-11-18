@@ -109,7 +109,7 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 ├── Contracts/
 │   └── SimpleFlashLoan.sol     # Flashloan smart contract
 ├── Logs/
-│   └── 0xplorer_log.txt        # Logs bot activities
+│   └── 0xBuilder_log.txt        # Logs bot activities
 ├── .env                        # Environment variables
 ├── 0xBuilder.py                 # All-in-one 
 ├── requirements.txt            # Python dependencies
@@ -428,7 +428,7 @@ CRYPTOCOMPARE_API_KEY=your_key
 
 ### Monitoring
 
-- Check `Logs/0xplorer_log.txt` for detailed operation logs
+- Check `Logs/0xBuilder_log.txt` for detailed operation logs
 - Monitor console output for real-time status
 - Use `Ctrl+C` for graceful shutdown
 
@@ -459,7 +459,7 @@ CRYPTOCOMPARE_API_KEY=your_key
 
 ## Logging
 
-The bot maintains detailed logs in `Logs/0xplorer_log.txt`, including:
+The bot maintains detailed logs in `Logs/0xBuilder_log.txt`, including:
 
 - Profitable transaction detection events
 - Strategy execution metrics

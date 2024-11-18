@@ -1,6 +1,6 @@
 /.env
 /.vscode
-/0xplorer_log.txt
+/0xBuilder_log.txt
 /ethereum
 /geth.ipc
 /myenv

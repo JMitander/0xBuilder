@@ -1,25 +1,25 @@
-# 0xBuilder MEV Bot
-
+# 0xBuilder
 
 [![License](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-white.svg)](CONTRIBUTING.md)
-##
+
 [![Python Version](https://img.shields.io/badge/Python-3.12.*-blue.svg)](https://www.python.org/downloads/release/python-3120/)
-[![geth](https://img.shields.io/badge/Geth-v1.14.*-blue.svg)](https://geth.ethereum.org/)
+[![Node.js Version](https://img.shields.io/badge/Node.js-18.*-blue.svg)](https://nodejs.org/en/download/)
+[![Solidity Version](https://img.shields.io/badge/Solidity-v0.8.*-blue.svg)](https://docs.soliditylang.org/en/v0.8.19/)
+[![Geth](https://img.shields.io/badge/Geth-v1.14.*-blue.svg)](https://geth.ethereum.org/)
 [![Remix](https://img.shields.io/badge/Remix-IDE-blue.svg)](https://remix.ethereum.org/) 
-##
+
 [![AAVE](https://img.shields.io/badge/Aave-v3-orange.svg)](https://aave.com/)
 [![Uniswap](https://img.shields.io/badge/Uniswap-v2.0-orange.svg)](https://uniswap.org/)
 [![Sushiswap](https://img.shields.io/badge/Sushiswap-v2-orange.svg)](https://sushiswap_router_abi.fi/)
 [![PancakeSwap](https://img.shields.io/badge/PancakeSwap-v2/v3-orange.svg)](https://pancakeswap_router_abi.finance/)
 [![Balancer](https://img.shields.io/badge/Balancer-v3-orange.svg)](https://balancer.finance/)
-##
-[![Infura](https://img.shields.io/badge/Infura-API-red.svg)](https://infura.io/)
-[![CoinGecko](https://img.shields.io/badge/Coingecko-API-red.svg)](https://www.coingecko.com/en/api)
-[![CoinMarketCap](https://img.shields.io/badge/CoinMarketcap-API-red.svg)](https://coinmarketcap.com/api/)
-[![CryptoCompare](https://img.shields.io/badge/Cryptocompare-API-red.svg)](https://min-api.cryptocompare.com/)
-[![Etherscan](https://img.shields.io/badge/Etherscan-API-red.svg)](https://etherscan.io/apis)
 
+[![Infura](https://img.shields.io/badge/Infura-API-red.svg)](https://infura.io/)
+[![CoinGecko](https://img.shields.io/badge/CoinGecko-API-red.svg)](https://www.coingecko.com/en/api)
+[![CoinMarketCap](https://img.shields.io/badge/CoinMarketCap-API-red.svg)](https://coinmarketcap.com/api/)
+[![CryptoCompare](https://img.shields.io/badge/CryptoCompare-API-red.svg)](https://min-api.cryptocompare.com/)
+[![Etherscan](https://img.shields.io/badge/Etherscan-API-red.svg)](https://etherscan.io/apis)
 
 ## Table of Contents
 
@@ -32,14 +32,16 @@
   - [Ethereum Node Setup](#ethereum-node-setup)
 - [Installation](#installation)
   - [Cloning the Repository](#cloning-the-repository)
-  - [Setting up Virtual Environment](#setting-up-virtual-environment)
-  - [Installing Dependencies](#installing-dependencies)
-- [Configurationsuration](#configuration)
+  - [Setting up Python Environment](#setting-up-python-environment)
+  - [Setting up JavaScript Environment](#setting-up-javascript-environment)
+- [Configuration](#configuration)
   - [Environment Variables](#environment-variables)
-  - [Configurationsuration Files](#configuration-files)
+  - [Configuration Files](#configuration-files)
 - [Deploying the Flashloan Contract](#deploying-the-flashloan-contract)
 - [Obtaining API Keys](#obtaining-api-keys)
 - [Running the Bot](#running-the-bot)
+  - [Python Bot](#python-bot)
+  - [JavaScript Bot](#javascript-bot)
 - [Strategies](#strategies)
 - [Logging](#logging)
 - [Troubleshooting](#troubleshooting)
@@ -47,11 +49,9 @@
 - [License](#license)
 - [Disclaimer](#disclaimer)
 
-
-
 ## Introduction
 
-**0xBuilder** is an advanced Ethereum trading bot designed for high-frequency trading and MEV (Maximal Extractable Value) opportunities. It implements strategies like front-running, back-running, sandwich attacks, and flashloan executions using Python, Geth, Remix, and AsyncWeb3.py. The bot continuously monitors the Ethereum mempool for profitable transactions and executes trades automatically.
+**0xBuilder** is an advanced Ethereum trading bot designed for high-frequency trading and MEV (Maximal Extractable Value) opportunities. It implements strategies like front-running, back-running, sandwich attacks, and flashloan executions using both Python and JavaScript. The bot continuously monitors the Ethereum mempool for profitable transactions and executes trades automatically.
 
 The bot is highly configurable, allowing users to adjust parameters, strategies, and risk levels based on their preferences. It supports multiple wallets, tokens, and trading pairs, with real-time market analysis and safety checks. The bot can be run on any Ethereum-compatible network, with support for various APIs and external data sources.
 
@@ -69,53 +69,94 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 - **Smart Contract Interactions**: Interacts with various DeFi protocols, including Uniswap, Aave, Sushiswap, PancakeSwap, and Balancer.
 - **Transaction Bundling**: Groups multiple transactions into a single block for efficiency.
 - **API Integration**: Connects to various APIs for blockchain data, pricing, and market data.
-- **Configurationsurable Parameters**: Allows users to adjust parameters, strategies, and risk levels based on preferences.
+- **Configurable Parameters**: Allows users to adjust parameters, strategies, and risk levels based on preferences.
 - **Detailed Logging**: Provides detailed logs of bot activities, transactions, and strategies for analysis and debugging.
 - **Customizable**: Supports multiple wallets, tokens, and trading pairs, with the ability to add new strategies and features.
+- **Dual Language Support**: Available in both Python and JavaScript for flexibility and integration with different systems.
 
 ![0xBuilder-flow](https://github.com/user-attachments/assets/29e3da12-d253-4304-acb1-f2d74f407bf1)
-
 
 ## Project Structure
 
 ```
 /0xBuilder/
-├── Configuration/
-│   └── Configuration.py               # Configurationsuration management
-|   └── DataApiClient.py            # API client for external data sources
-├── Core/
-│   ├── Main_Core.py             # Main bot script
-│   ├── Nonce_Core.py         # Manages Ethereum nonces
-│   ├── Strategy_Net.py      # Handles trading strategies
-│   └── Transaction_Core.py     # Builds and sends transaction bundles
-├── Utils/
-│   ├── token_addresses.json    # List of monitored token addresses
-│   ├── token_symbols.json      # Mapping of token addresses to symbols
-│   └── erc20_signatures.json   # ERC20 function signatures
-├── abi/
-│   ├── erc20_abi.json
-│   ├── aave_flashloan_abi.json
-│   ├── aave_lending_pool_abi.json
-│   ├── uniswap_router_abi.json
-│   ├── sushiswap_router_abi.json
-│   ├── pancakeswap_router_abi.json
-│   └── balancer_router_abi.json
-├── Contracts/
-│   └── SimpleFlashLoan.sol     # Flashloan smart contract
-├── Analysis/
-│   ├── Market_Monitor.py       # Analyzes market data
-│   ├── Mempool_Monitor.py         # Monitors mempool for transactions
-│   └── Safety_Net.py            # Safety checks and validations
-├── Contracts/
-│   └── SimpleFlashLoan.sol     # Flashloan smart contract
-├── Logs/
-│   └── 0xBuilder_log.txt        # Logs bot activities
-├── .env                        # Environment variables
-├── 0xBuilder.py                 # All-in-one 
-├── requirements.txt            # Python dependencies
-├── LICENSE                     # License information
-├── CONTRIBUTING.md             # Contribution guidelines
-└── README.md                   # Project documentation
+├── Python/
+│   ├── Configuration/
+│   │   └── Configuration.py               # Configuration management
+│   │   └── DataApiClient.py               # API client for external data sources
+│   ├── Core/
+│   │   ├── Main_Core.py                   # Main bot script
+│   │   ├── Nonce_Core.py                  # Manages Ethereum nonces
+│   │   ├── Strategy_Net.py                # Handles trading strategies
+│   │   └── Transaction_Core.py            # Builds and sends transaction bundles
+│   ├── Utils/
+│   │   ├── token_addresses.json           # List of monitored token addresses
+│   │   ├── token_symbols.json             # Mapping of token addresses to symbols
+│   │   └── erc20_signatures.json          # ERC20 function signatures
+│   ├── abi/
+│   │   ├── erc20_abi.json
+│   │   ├── aave_flashloan_abi.json
+│   │   ├── aave_lending_pool_abi.json
+│   │   ├── uniswap_router_abi.json
+│   │   ├── sushiswap_router_abi.json
+│   │   ├── pancakeswap_router_abi.json
+│   │   └── balancer_router_abi.json
+│   ├── Contracts/
+│   │   └── SimpleFlashLoan.sol             # Flashloan smart contract
+│   ├── Analysis/
+│   │   ├── Market_Monitor.py              # Analyzes market data
+│   │   ├── Mempool_Monitor.py             # Monitors mempool for transactions
+│   │   └── Safety_Net.py                   # Safety checks and validations
+│   ├── Logs/
+│   │   └── 0xBuilder_log.txt               # Logs bot activities
+│   ├── .env                               # Environment variables
+│   ├── 0xBuilder.py                        # All-in-one
+│   ├── requirements.txt                    # Python dependencies
+│   ├── LICENSE                             # License information
+│   ├── CONTRIBUTING.md                     # Contribution guidelines
+│   └── README.md                           # Project documentation
+├── JavaScript/
+│   ├── Configuration/
+│   │   └── Configuration.js                # Configuration management
+│   │   └── DataApiClient.js                # API client for external data sources
+│   ├── Core/
+│   │   ├── Main_Core.js                    # Main bot script
+│   │   ├── Nonce_Core.js                   # Manages Ethereum nonces
+│   │   ├── Strategy_Net.js                 # Handles trading strategies
+│   │   └── Transaction_Core.js             # Builds and sends transaction bundles
+│   ├── Utils/
+│   │   ├── token_addresses.json            # List of monitored token addresses
+│   │   ├── token_symbols.json              # Mapping of token addresses to symbols
+│   │   └── erc20_signatures.json           # ERC20 function signatures
+│   ├── abi/
+│   │   ├── erc20_abi.json
+│   │   ├── aave_flashloan_abi.json
+│   │   ├── aave_lending_pool_abi.json
+│   │   ├── uniswap_router_abi.json
+│   │   ├── sushiswap_router_abi.json
+│   │   ├── pancakeswap_router_abi.json
+│   │   └── balancer_router_abi.json
+│   ├── Contracts/
+│   │   └── SimpleFlashLoan.sol              # Flashloan smart contract
+│   ├── Analysis/
+│   │   ├── Market_Monitor.js               # Analyzes market data
+│   │   ├── Mempool_Monitor.js              # Monitors mempool for transactions
+│   │   └── Safety_Net.js                    # Safety checks and validations
+│   ├── Logs/
+│   │   └── 0xBuilder_log.txt                # Logs bot activities
+│   ├── .env                                # Environment variables
+│   ├── index.js                              # Main entry point
+│   ├── package.json                         # JavaScript dependencies
+│   ├── LICENSE                              # License information
+│   ├── CONTRIBUTING.md                      # Contribution guidelines
+│   └── README.md                            # Project documentation
+├── Shared/
+│   ├── Errors.js                            # Custom error classes
+│   ├── Logger.js                            # Logging utility
+│   ├── Semaphore.js                         # Concurrency control utility
+│   ├── StrategyConfiguration.js             # Strategy configuration parameters
+│   └── StrategyPerformanceMetrics.js        # Tracks strategy performance metrics
+└── README.md                                # Updated Project documentation
 ```
 
 ## Prerequisites
@@ -125,43 +166,55 @@ Before running 0xBuilder, ensure you have the following:
 ### System Requirements
 
 - **Operating System**: Ubuntu 22.04 LTS or later (Windows 11 and macOS Ventura also supported)
-- **Python**: Version 3.12 or higher
-- **Node.js**: Version 18 LTS or higher (required for smart contract deployment)
-- **Geth**: Latest stable version for running a full Ethereum node
-- **Internet**: High-speed connection with minimum 50Mbps upload/download
 - **Hardware**:
-   - CPU: 4+ cores, 3.0GHz or faster
-   - RAM: 16GB minimum, 32GB recommended
-   - Storage: 2TB NVMe SSD recommended
-   - Network: Low-latency ethernet connection
+  - CPU: 4+ cores, 3.0GHz or faster
+  - RAM: 16GB minimum, 32GB recommended
+  - Storage: 2TB NVMe SSD recommended
+  - Network: High-speed, low-latency internet connection with minimum 50Mbps upload/download
 
 ### Software Dependencies
 
-Primary Components:
-- **Execution Client**: Latest version of Geth, Nethermind, or Besu
-- **Consensus Client**: Latest version of Prysm or Lighthouse
-- **Development Tools**:
-   - solc v0.8.19 or higher
-   - web3.py v6.0 or higher
-   - ethers.js v6.0 or higher
-   - All Python packages from requirements.txt
+#### Common Dependencies
 
-Additional Requirements:
-- **Git**: Latest stable version for version control
-- **Docker**: Latest stable version (optional, for containerization)
-- **Build Tools**: make, gcc, and platform-specific compilers
+- **Ethereum Node**: Geth, Nethermind, or Besu (latest stable version)
+- **Solidity Compiler**: solc v0.8.19 or higher
+- **Development Tools**:
+  - **Python Bot**:
+    - Python 3.12 or higher
+    - Virtual environment tool (venv)
+    - Python packages listed in `Python/requirements.txt`
+  - **JavaScript Bot**:
+    - Node.js v18.x or higher
+    - npm (comes with Node.js) or yarn
+    - JavaScript packages listed in `JavaScript/package.json`
+
+#### Specific Dependencies
+
+- **Python**:
+  - `web3.py`
+  - `asyncio`
+  - `winston` (for logging)
+  - Additional Python libraries as listed in `Python/requirements.txt`
+
+- **JavaScript**:
+  - `web3.js`
+  - `axios`
+  - `winston` (for logging)
+  - `ml-regression`
+  - `ttl-cache`
+  - Additional JavaScript libraries as listed in `JavaScript/package.json`
 
 ### Ethereum Node Setup
 
 Choose and set up an execution client (EL) compatible with the Ethereum network:
 
-| Client | Language | OS Support | Networks | Sync Methods |
-|--------|----------|------------|----------|--------------|
-| [Geth](https://geth.ethereum.org/) | Go | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Full |
-| [Nethermind](https://www.nethermind.io/) | C#/.NET | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Fast, Full |
-| [Besu](https://besu.hyperledger.org/) | Java | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Snap, Fast, Full |
-| [Erigon](https://github.com/ledgerwatch/erigon) | Go | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Full |
-| [Reth](https://reth.rs/) | Rust | Linux, Windows, macOS | Mainnet, Sepolia, Holesky | Full |
+| Client         | Language | OS Support           | Networks                  | Sync Methods     |
+|----------------|----------|----------------------|---------------------------|------------------|
+| [Geth](https://geth.ethereum.org/)         | Go       | Linux, Windows, macOS    | Mainnet, Sepolia, Holesky | Snap, Full       |
+| [Nethermind](https://www.nethermind.io/)   | C#/.NET  | Linux, Windows, macOS    | Mainnet, Sepolia, Holesky | Snap, Fast, Full |
+| [Besu](https://besu.hyperledger.org/)       | Java     | Linux, Windows, macOS    | Mainnet, Sepolia, Holesky | Snap, Fast, Full |
+| [Erigon](https://github.com/ledgerwatch/erigon) | Go    | Linux, Windows, macOS    | Mainnet, Sepolia, Holesky | Full             |
+| [Reth](https://reth.rs/)                    | Rust     | Linux, Windows, macOS    | Mainnet, Sepolia, Holesky | Full             |
 | [EthereumJS](https://github.com/ethereumjs/ethereumjs-monorepo) | TypeScript | Linux, Windows, macOS | Sepolia, Holesky | Full |
 
 #### Geth Configurationsuration
@@ -198,17 +251,6 @@ For PoS consensus layer, install either:
 - [Prysm](https://docs.prylabs.network/docs/getting-started)
 - [Lighthouse](https://lighthouse-book.sigmaprime.io/installation.html)
 
-### Required API Keys
-
-Create accounts and obtain API keys from:
-
-- [Infura](https://infura.io/) - RPC endpoints
-- [Etherscan](https://etherscan.io/) - Transaction data
-- [CoinGecko](https://www.coingecko.com/api) - Price feeds
-- [CoinMarketCap](https://coinmarketcap.com/api/) - Market data
-- [CryptoCompare](https://min-api.cryptocompare.com/) - Real-time prices
-
-Ensure that all API keys are stored securely and not shared publicly.
 ## Installation
 
 ### Cloning the Repository
@@ -218,37 +260,40 @@ git clone https://github.com/jmitander/0xbuilder.git
 cd 0xBuilder
 ```
 
-### Setting up Virtual Environment
+### Setting up Python Environment
 
-Using a virtual environment is strongly recommended to manage dependencies and avoid conflicts:
+Using a virtual environment is strongly recommended to manage dependencies and avoid conflicts.
 
-For Linux/MacOS:
+#### For Linux/MacOS:
 
 ```bash
+# Navigate to Python directory
+cd Python
+
 # Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
-# Verify activation
-which python
+# Upgrade pip to latest version
+pip install --upgrade pip
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify installations
+pip list
 ```
 
-For Windows:
+#### For Windows:
 
 ```powershell
+# Navigate to Python directory
+cd Python
+
 # Create and activate virtual environment
 python -m venv venv
 .\venv\Scripts\activate
 
-# Verify activation
-where python
-```
-
-### Installing Dependencies
-
-Install required packages:
-
-```bash
 # Upgrade pip to latest version
 python -m pip install --upgrade pip
 
@@ -259,37 +304,46 @@ pip install -r requirements.txt
 pip list
 ```
 
-## Configurationsuration
+### Setting up JavaScript Environment
+
+Ensure you have Node.js v18.x or higher installed.
+
+```bash
+# Navigate to JavaScript directory
+cd ../JavaScript
+
+# Initialize npm and install dependencies
+npm install
+
+# Alternatively, if using yarn:
+# yarn install
+```
+
+Verify installations:
+
+```bash
+npm list --depth=0
+```
+
+## Configuration
 
 ### Environment Variables
 
-1. Create a `.env` file in the project root:
+1. **Create a `.env` file** in both the Python and JavaScript directories by copying from the example files.
 
 ```bash
-# Linux/MacOS
+# For Python
+cd ../Python
 cp .env.example .env
 
-# Windows
-copy .env.example .env
+# For JavaScript
+cd ../JavaScript
+cp .env.example .env
 ```
 
-2. Configurationsure the environment variables in `.env`:
-   - Add API keys from various services
-   - Configurationsure node endpoints
-   - Set up wallet details
-   - Define smart contract addresses
+2. **Configure the `.env` files** with your API keys and other necessary configurations.
 
-3. Validate the configuration:
-
-```bash
-# Verify .env file exists and permissions
-ls -la .env
-
-# Set secure file permissions (Linux/MacOS)
-chmod 600 .env
-```
-
-Example `.env` configuration:
+**Example `.env` configuration:**
 
 ```ini
 # API Configurationsuration
@@ -319,7 +373,7 @@ SUSHISWAP_ROUTER=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
 PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
 BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
 
-# abi Paths
+# ABI Paths
 UNISWAP_ABI=abi/uniswap_router_abi.json
 SUSHISWAP_ABI=abi/sushiswap_router_abi.json
 PANCAKESWAP_ABI=abi/pancakeswap_router_abi.json
@@ -330,17 +384,28 @@ ERC20_ABI=abi/erc20_abi.json
 AAVE_FLASHLOAN_ADDRESS=0xYourFlashloanContractAddress
 AAVE_LENDING_POOL=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
 ```
-### Configurationsuration Files
 
-Essential JSON configuration files must be present in the `Utils` directory:
+3. **Secure the `.env` files** to prevent unauthorized access.
 
-| File | Description | Format |
-|------|-------------|--------|
-| `token_addresses.json` | Actively monitored token contracts | `{"symbol": "address"}` |
-| `token_symbols.json` | Token address to symbol mapping | `{"address": "symbol"}` |
-| `erc20_signatures.json` | Common ERC20 function signatures | `{"name": "signature"}` |
+```bash
+# For Linux/MacOS
+chmod 600 .env
 
-Verify all configuration files are ly formatted and contain valid data before starting the bot.
+# For Windows
+# Right-click the .env file > Properties > Security > Edit permissions
+```
+
+### Configuration Files
+
+Ensure that essential JSON configuration files are present in the `Utils` directory for both Python and JavaScript:
+
+| File                  | Description                             | Format            |
+|-----------------------|-----------------------------------------|-------------------|
+| `token_addresses.json`| Actively monitored token contracts      | `{"symbol": "address"}` |
+| `token_symbols.json`  | Token address to symbol mapping         | `{"address": "symbol"}` |
+| `erc20_signatures.json`| Common ERC20 function signatures      | `{"name": "signature"}` |
+
+Verify all configuration files are properly formatted and contain valid data before starting the bot.
 
 ## Deploying the Flashloan Contract
 
@@ -350,46 +415,46 @@ Deploy a flashloan contract compatible with Aave V3 or your preferred protocol t
 
 #### Using Remix IDE (Recommended)
 
-1. Launch [Remix IDE](https://remix.ethereum.org/)
-2. Create `SimpleFlashLoan.sol`
-3. Implement flashloan logic following Aave's specifications
-4. Compile:
+1. **Launch Remix IDE**: [Remix IDE](https://remix.ethereum.org/)
+2. **Create Contract**: Create `SimpleFlashLoan.sol`
+3. **Implement Flashloan Logic**: Follow Aave's specifications for flashloans.
+4. **Compile**:
    - Select Solidity compiler v0.8.19+
-   - Verify successful compilation
-5. Deploy:
+   - Ensure successful compilation without errors.
+5. **Deploy**:
    - Connect MetaMask via "Injected Web3"
-   - Supply constructor arguments
-   - Confirm deployment transaction
-6. Update `.env` with contract address
+   - Supply necessary constructor arguments.
+   - Confirm the deployment transaction.
+6. **Update `.env`**: Add the deployed contract address to your `.env` files.
 
 #### Using Development Frameworks
 
-1. Install framework:
+1. **Install Framework**:
    ```bash
    # Hardhat
    npm install --save-dev hardhat
    # or Truffle
    npm install -g truffle
    ```
-2. Compile contract:
+2. **Compile Contract**:
    ```bash
    # Hardhat
    npx hardhat compile
    # or Truffle
    truffle compile
    ```
-3. Deploy:
+3. **Deploy**:
    ```bash
    # Hardhat
-   npx hardhat run scripts/deploy.js
+   npx hardhat run scripts/deploy.js --network mainnet
    # or Truffle
-   truffle migrate
+   truffle migrate --network mainnet
    ```
-4. Update `.env` configuration
+4. **Update `.env`**: Add the deployed contract address to your `.env` files.
 
-## API Key Setup
+## Obtaining API Keys
 
-Register and obtain API keys from:
+Register and obtain API keys from the following services:
 
 1. [Etherscan](https://etherscan.io/apis)
 2. [Infura](https://infura.io/register)
@@ -397,123 +462,187 @@ Register and obtain API keys from:
 4. [CoinMarketCap](https://pro.coinmarketcap.com/signup)
 5. [CryptoCompare](https://www.cryptocompare.com/cryptopian/api-keys)
 
-Add keys to `.env`:
-```ini
-ETHERSCAN_API_KEY=your_key
-INFURA_PROJECT_ID=your_id
-COINGECKO_API_KEY=your_key
-COINMARKETCAP_API_KEY=your_key
-CRYPTOCOMPARE_API_KEY=your_key
-```
+**Important:** Store all API keys securely and do not share them publicly.
 
-## Bot Operation
+## Running the Bot
 
-### Prerequisites
-- Synchronized Ethereum node
-- Active beacon node
-- Configurationsured environment variables
-- Valid API keys
+You can run the 0xBuilder MEV Bot in both Python and JavaScript. Follow the respective sections below to start the bot in your preferred language.
 
-### Launch Sequence
+### Python Bot
 
-1. Activate environment:
+1. **Activate Virtual Environment**:
+
    ```bash
-   source venv/bin/activate
+   # Navigate to Python directory
+   cd Python
+
+   # Activate virtual environment
+   source venv/bin/activate  # For Linux/MacOS
+   # or
+   .\venv\Scripts\activate   # For Windows
    ```
 
-2. Start bot:
+2. **Start the Bot**:
+
    ```bash
-   python Core/0xBuilder.py
+   python 0xBuilder.py
    ```
 
-### Monitoring
+3. **Monitor Logs**:
 
-- Check `Logs/0xBuilder_log.txt` for detailed operation logs
-- Monitor console output for real-time status
-- Use `Ctrl+C` for graceful shutdown
+   - Check `Python/Logs/0xBuilder_log.txt` for detailed logs.
+   - Real-time status is displayed in the console.
 
-### Performance Optimization
+4. **Graceful Shutdown**:
 
-- Keep node fully synced
-- Monitor API rate limits
-- Maintain sufficient ETH balancer_router_abi
-- Regularly check log files
-- Update dependencies as needed
+   - Press `Ctrl+C` to stop the bot gracefully.
+
+### JavaScript Bot
+
+1. **Navigate to JavaScript Directory**:
+
+   ```bash
+   cd ../JavaScript
+   ```
+
+2. **Start the Bot**:
+
+   ```bash
+   node index.js
+   ```
+
+   - Alternatively, if using npm scripts:
+     ```bash
+     npm start
+     ```
+
+3. **Monitor Logs**:
+
+   - Check `JavaScript/Logs/0xBuilder_log.txt` for detailed logs.
+   - Real-time status is displayed in the console.
+
+4. **Graceful Shutdown**:
+
+   - Press `Ctrl+C` to stop the bot gracefully.
 
 ## Strategies
 
 0xBuilder implements several sophisticated trading strategies to capitalize on profitable opportunities within the Ethereum network:
 
 ### Core Strategies
-- **Front-Running**: Executes higher-priority transactions ahead of detected profitable transactions
-- **Back-Running**: Places transactions immediately after identified profitable transactions
-- **Sandwich Attacks**: Employs coordinated front-running and back-running around target transactions
-- **Flashloan Arbitrage**: Leverages borrowed assets for zero-capital arbitrage opportunities
+
+- **Front-Running**: Executes higher-priority transactions ahead of detected profitable transactions.
+- **Back-Running**: Places transactions immediately after identified profitable transactions.
+- **Sandwich Attacks**: Employs coordinated front-running and back-running around target transactions.
+- **Flashloan Arbitrage**: Leverages borrowed assets for zero-capital arbitrage opportunities.
 
 ### Technical Components
-- **Nonce Management System**: Maintains precise transaction ordering while preventing nonce collisions
-- **Dynamic Gas Optimization**: Automatically adjusts gas prices based on network conditions
-- **Real-time Market Analysis**: Processes market data to identify profitable trading opportunities
-- **Multi-layer Safety Protocol**: Implements comprehensive transaction validation and risk assessment
-- **Transaction Bundling Engine**: Optimizes efficiency by grouping multiple transactions per block
+
+- **Nonce Management System**: Maintains precise transaction ordering while preventing nonce collisions.
+- **Dynamic Gas Optimization**: Automatically adjusts gas prices based on network conditions.
+- **Real-time Market Analysis**: Processes market data to identify profitable trading opportunities.
+- **Multi-layer Safety Protocol**: Implements comprehensive transaction validation and risk assessment.
+- **Transaction Bundling Engine**: Optimizes efficiency by grouping multiple transactions per block.
+- **Dual Language Support**: Strategies are implemented in both Python and JavaScript for flexibility.
 
 ## Logging
 
-The bot maintains detailed logs in `Logs/0xBuilder_log.txt`, including:
+The bot maintains detailed logs in both the Python and JavaScript directories:
+
+- **Python**: `Python/Logs/0xBuilder_log.txt`
+- **JavaScript**: `JavaScript/Logs/0xBuilder_log.txt`
+
+Logs include:
 
 - Profitable transaction detection events
 - Strategy execution metrics
 - System errors and exceptions
 - Detailed transaction results
 
-Logging configuration can be customized in `Core/0xBuilder.py` through the `setup_logging()` function.
+**Logging Configuration**: Customize logging settings in `Logger.js` within the `Shared` directory.
 
 ## Troubleshooting
 
 ### Common Issues and Solutions
 
-| Issue | Solution |
-|-------|----------|
-| Node Connection Failures | Verify Ethereum node status and endpoint configuration |
-| API Rate Limit Exceeded | Implement request throttling or upgrade API tier |
-| Insufficient Gas Balance | Maintain adequate ETH for transaction fees |
-| Nonce Synchronization | Reset nonce manager or manually synchronize |
-| Node Sync Status | Ensure full node synchronization before operation |
+| Issue                     | Solution                                                          |
+|---------------------------|-------------------------------------------------------------------|
+| Node Connection Failures  | Verify Ethereum node status and endpoint configuration.           |
+| API Rate Limit Exceeded  | Implement request throttling or upgrade API tier.                 |
+| Insufficient Gas Balance | Maintain adequate ETH for transaction fees.                      |
+| Nonce Synchronization     | Reset nonce manager or manually synchronize.                      |
+| Node Sync Status          | Ensure full node synchronization before operation.                |
+| Contract Deployment Issues | Verify contract code and deployment parameters.                   |
 
 ### Debug Tips
 
-1. Enable verbose logging for detailed debugging
-2. Maintain updated dependencies
-3. Verify smart contract deployment on block explorers
-4. Test thoroughly on testnets before mainnet deployment
+1. **Enable Verbose Logging**: Adjust logging levels in `Logger.js` for more detailed output.
+2. **Check Configuration Files**: Ensure all `.env` and JSON configuration files are correctly set up.
+3. **Validate Smart Contracts**: Use block explorers like Etherscan to verify deployed contracts.
+4. **Test on Testnets**: Deploy and run the bot on Ethereum testnets (e.g., Sepolia) before mainnet deployment.
+5. **Monitor Resource Usage**: Ensure your system meets the hardware requirements and monitor CPU/RAM usage.
 
 ## Contributing
 
-We welcome contributions! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please follow the guidelines below to contribute to 0xBuilder MEV Bot.
 
 ### Contribution Process
-1. Fork the repository
-2. Create a feature branch
-3. Follow PEP 8 style guidelines
-4. Include unit tests
-5. Submit pull request
+
+1. **Fork the Repository**: Click the "Fork" button on GitHub to create your own copy.
+2. **Clone Your Fork**:
+   ```bash
+   git clone https://github.com/your_username/0xbuilder.git
+   cd 0xbuilder
+   ```
+3. **Create a Feature Branch**:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+4. **Implement Your Changes**:
+   - Follow coding standards and best practices for both Python and JavaScript.
+   - Include unit tests for new features or bug fixes.
+5. **Commit Your Changes**:
+   ```bash
+   git add .
+   git commit -m "Add your descriptive commit message"
+   ```
+6. **Push to Your Fork**:
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+7. **Create a Pull Request**:
+   - Navigate to the original repository and click "Compare & pull request."
+   - Provide a clear description of your changes and the problem they solve.
+
+### Coding Standards
+
+- **Python**: Follow [PEP 8](https://pep8.org/) style guidelines.
+- **JavaScript**: Follow [Airbnb JavaScript Style Guide](https://github.com/airbnb/javascript).
+
+### Reporting Issues
+
+If you encounter any bugs or have feature requests, please open an issue in the [GitHub Issues](https://github.com/jmitander/0xbuilder/issues) section.
 
 ## License
 
-Licensed under the [MIT License](LICENSE). See LICENSE file for details.
+Licensed under the [MIT License](LICENSE). See the LICENSE file for details.
 
 ## Disclaimer
 
 **IMPORTANT**: This software is provided for educational and research purposes only. Use at your own risk.
 
 ### Risk Factors
-- Trading strategies may be considered aggressive or unethical
-- Cryptocurrency trading carries significant financial risk
-- Smart contract interactions may contain unforeseen vulnerabilities
+
+- Trading strategies may be considered aggressive or unethical.
+- Cryptocurrency trading carries significant financial risk.
+- Smart contract interactions may contain unforeseen vulnerabilities.
 
 ### Security Notice
-- Protect private keys. Share them only with your dog. but never your cat! Cats cannot be trusted. 🐕 🐱! 
-- Test thoroughly with small amounts first
-- Consider regulatory compliance in your jurisdiction
+
+- **Protect Private Keys**: Store private keys securely and never share them publicly.
+- **Test Thoroughly**: Use small amounts and test on testnets before mainnet deployment.
+- **Regulatory Compliance**: Ensure compliance with relevant laws and regulations in your jurisdiction.
+
+**Note**: 0xBuilder is intended for knowledgeable users who understand the risks associated with MEV trading and smart contract interactions.
 
 [logo]: 0xBuilder.png

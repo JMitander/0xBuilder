@@ -21,7 +21,7 @@ class Main_Core:
         logger.debug(f"Main_Core core initialized successfully. ")
 
     async def initialize(self) -> None:
-        """Initialize all components with proper error handling."""
+        """Initialize all components with  error handling."""
         try:
             # Initialize account first
             wallet_key = self.configuration.WALLET_KEY
@@ -137,7 +137,7 @@ class Main_Core:
             raise
 
     async def _initialize_components(self) -> None:
-        """Initialize all bot components with proper error handling."""
+        """Initialize all bot components with  error handling."""
         try:
             # Initialize core components
             self.components['nonce_core'] = Nonce_Core(
@@ -280,7 +280,7 @@ class Main_Core:
 #//////////////////////////////////////////////////////////////////////////////
 
 async def main():
-    """Main entry point with proper setup and error handling."""
+    """Main entry point with  setup and error handling."""
     logger = None
     try:
         # Setup logging

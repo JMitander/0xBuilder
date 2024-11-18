@@ -389,7 +389,7 @@ class Transaction_Core:
             return False
 
     async def front_run(self, target_tx: Dict[str, Any]) -> bool:
-        """Execute a front-run transaction with proper validation and error handling."""
+        """Execute a front-run transaction with  validation and error handling."""
         if not isinstance(target_tx, dict):
             logger.debug(f"Invalid transaction format provided !")
             return False
@@ -491,7 +491,7 @@ class Transaction_Core:
                 logger.debug(f"Missing required transaction parameters !")
                 return False
 
-            # Decode transaction with proper validation
+            # Decode transaction with  validation
             decoded_tx = await self.decode_transaction_input(
                 target_tx.get("input", "0x"),
                 self.web3.to_checksum_address(target_tx.get("to", ""))

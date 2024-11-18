@@ -340,7 +340,7 @@ Essential JSON configuration files must be present in the `Utils` directory:
 | `token_symbols.json` | Token address to symbol mapping | `{"address": "symbol"}` |
 | `erc20_signatures.json` | Common ERC20 function signatures | `{"name": "signature"}` |
 
-Verify all configuration files are properly formatted and contain valid data before starting the bot.
+Verify all configuration files are ly formatted and contain valid data before starting the bot.
 
 ## Deploying the Flashloan Contract
 

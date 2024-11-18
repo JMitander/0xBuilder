@@ -387,7 +387,7 @@ class Nonce_Core:
 #//////////////////////////////////////////////////////////////////////////////
 
 class API_Config:
-    def __init__(self, Configuration: Any):
+    def __init__(self, Configuration: Optional[Configuration] = None):
         self.configuration = Configuration
         self.session = None
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
@@ -675,10 +675,10 @@ class Safety_Net:
     def __init__(
         self,
         web3: AsyncWeb3,
-        configuration: Configuration,
-        address: str,
-        account: Any,
-        api_config: API_Config,
+        configuration: Optional[Configuration] = None,
+        address: Optional[str] = None,
+        account: Optional[Account] = None,
+        api_config: Optional[API_Config] = None,
     ):
         self.web3 = web3
         self.address = address
@@ -1238,11 +1238,11 @@ class Transaction_Core:
         aave_flashloan_abi: List[Dict[str, Any]],
         aave_lending_pool_address: str,
         aave_lending_pool_abi: List[Dict[str, Any]],
-        api_config: API_Config,
-        monitor: Mempool_Monitor,
-        nonce_core: Nonce_Core,
-        safety_net: Safety_Net,
-        configuration: Configuration, 
+        api_config: Optional[API_Config] = None,
+        monitor: Optional[Mempool_Monitor] = None,
+        nonce_core: Optional[Nonce_Core] = None,
+        safety_net: Optional[Safety_Net] = None,
+        configuration: Optional[Configuration] = None,
         gas_price_multiplier: float = 1.1,
         erc20_abi: Optional[List[Dict[str, Any]]] = None,
     ):
@@ -1303,7 +1303,7 @@ class Transaction_Core:
         contract_abi: List[Dict[str, Any]],
         contract_name: str,
     ) -> Any:
-        """Initializes a contract instance with proper error handling."""
+        """Initializes a contract instance with  error handling."""
         try:
             # Load ABI from file if it's a string path
             if isinstance(contract_abi, str):
@@ -1703,7 +1703,7 @@ class Transaction_Core:
 
     async def front_run(self, target_tx: Dict[str, Any]) -> bool:
         """
-        Executes a front-run transaction with proper validation and error handling.
+        Executes a front-run transaction with  validation and error handling.
 
         :param target_tx: Target transaction dictionary.
         :return: True if successful, else False.
@@ -1791,7 +1791,7 @@ class Transaction_Core:
 
     async def back_run(self, target_tx: Dict[str, Any]) -> bool:
         """
-        Executes a back-run transaction with proper validation and error handling.
+        Executes a back-run transaction with validation and error handling.
 
         :param target_tx: Target transaction dictionary.
         :return: True if successful, else False.
@@ -2269,8 +2269,8 @@ class Market_Monitor:
     def __init__(
         self,
         web3: AsyncWeb3,
-        configuration: Configuration,
-        api_config: API_Config,
+        configuration: Optional[Configuration],
+        api_config: Optional[API_Config],
     ):
         self.web3 = web3
         self.configuration = configuration
@@ -2491,10 +2491,10 @@ class Market_Monitor:
 class Strategy_Net:
     def __init__(
         self,
-        transaction_core: Transaction_Core,
-        market_monitor: Market_Monitor,
-        safety_net: Safety_Net,
-        api_config: API_Config,
+        transaction_core: Optional[Transaction_Core],
+        market_monitor: Optional[Market_Monitor],
+        safety_net: Optional[Safety_Net],
+        api_config: Optional[API_Config],
     ) -> None:
         self.transaction_core = transaction_core
         self.market_monitor = market_monitor
@@ -2962,7 +2962,7 @@ class Main_Core:
         logger.info(f"Main Core initialized successfully. ")
 
     async def initialize(self) -> None:
-        """Initialize all components with proper error handling."""
+        """Initialize all components with  error handling."""
         try:
             # Initialize account first
             wallet_key = self.configuration.WALLET_KEY
@@ -3078,7 +3078,7 @@ class Main_Core:
             raise
 
     async def _initialize_components(self) -> None:
-        """Initialize all bot components with proper error handling."""
+        """Initialize all bot components with  error handling."""
         try:
             # Initialize core components
             self.components['nonce_core'] = Nonce_Core(
@@ -3153,7 +3153,7 @@ class Main_Core:
             if 'mempool_monitor' in self.components and self.components['mempool_monitor'] is not None:
                 await self.components['mempool_monitor'].start_monitoring()
             else:
-                raise RuntimeError("Mempool monitor not properly initialized")
+                raise RuntimeError("Mempool monitor not ly initialized")
 
             while True:
                 try:
@@ -3228,7 +3228,7 @@ class Main_Core:
 # ////////////////////////////////////////////////////////////////////////////
 
 async def main():
-    """Main entry point with proper setup and error handling."""
+    """Main entry point with  setup and error handling."""
     global logger
     try:
         # Initialize configuration

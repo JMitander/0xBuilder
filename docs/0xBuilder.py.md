@@ -491,7 +491,7 @@ __init__(
     safety_net: Safety_Net,
     nonce_core: Nonce_Core,
     api_config: API_Config,
-    monitored_tokens: Optional[List[str]] = None,
+    token_symbols: Optional[List[str]] = None,
     erc20_abi: List[Dict[str, Any]] = None,
     configuration: Optional[Configuration] = None
 )

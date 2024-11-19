@@ -72,7 +72,7 @@ class Market_Monitor:
             )
             return self.price_cache[cache_key]
 
-        for service in self.api_config.api_configs.keys():
+        for service in self.api_config.api_config.keys():
             try:
                 logger.debug(
                      f"Fetching historical prices for {token_symbol} using {service}... "
@@ -98,7 +98,7 @@ class Market_Monitor:
             )
             return self.price_cache[cache_key]
 
-        for service in self.api_config.api_configs.keys():
+        for service in self.api_config.api_config.keys():
             try:
                 logger.debug(
                      f"Fetching volume for {token_symbol} using {service}. "

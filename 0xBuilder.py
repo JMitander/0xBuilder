@@ -20,7 +20,7 @@ from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
 from typing import List, Dict, Any, Optional, Tuple, Union, Callable
-from dataclasses import *
+from dataclasses import dataclass
 
 from web3 import AsyncWeb3
 from web3.exceptions import TransactionNotFound, ContractLogicError
@@ -611,7 +611,7 @@ class Nonce_Core:
 
 #================================= API setup and configuration =================================#
 
-class API_Config:
+class API_Config: 
     """
     The API_Config class manages interactions with various cryptocurrency and market data APIs.
     It handles API requests, caching of responses, and implements rate limiting and failover mechanisms
@@ -633,7 +633,8 @@ class API_Config:
             configuration (Optional[Configuration], optional): The configuration instance containing API keys and settings.
                 Defaults to None.
         """
-        self.configuration = Configuration  # Configuration settings
+        self.api_config = {}  # Configuration settings for different API providers
+        self.configuration = configuration  # Configuration settings
         self.session = None  # aiohttp ClientSession for making HTTP requests
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for real-time prices (5 minutes)
         self.token_symbol_cache = TTLCache(maxsize=1000, ttl=86400)  # Cache for token symbols (1 day)
@@ -653,7 +654,7 @@ class API_Config:
             await self.session.close()
 
         # API configuration detailing different API providers and their settings
-        self.api_configs = {
+        self.api_config = {
             "binance": {
                 "base_url": "https://api.binance.com/api/v3",
                 "success_rate": 1.0,
@@ -687,7 +688,7 @@ class API_Config:
         self.api_lock = asyncio.Lock()  # Lock to manage concurrent API access
         self.rate_limiters = {
             provider: asyncio.Semaphore(config.get("rate_limit", 10))
-            for provider, config in self.api_configs.items()
+            for provider, config in self.api_config.items()
         }
 
     async def get_token_symbol(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
@@ -735,7 +736,7 @@ class API_Config:
         prices = []
         weights = []
         async with self.api_lock:
-            for source, config in self.api_configs.items():
+            for source, config in self.api_config.items():
                 try:
                     price = await self._fetch_price(source, token, vs_currency)
                     if price:
@@ -764,7 +765,7 @@ class API_Config:
         Returns:
             Optional[Decimal]: The price if fetched successfully, else None.
         """
-        config = self.api_configs.get(source)
+        config = self.api_config.get(source)
         if not config:
             logger.debug(f"API configuration for {source} not found.")
             return None
@@ -897,7 +898,7 @@ class API_Config:
         Returns:
             Optional[List[float]]: A list of historical prices if successful, else None.
         """
-        config = self.api_configs.get(source)
+        config = self.api_config.get(source)
         if not config:
             logger.debug(f"API configuration for {source} not found.")
             return None
@@ -944,7 +945,7 @@ class API_Config:
         Returns:
             Optional[float]: The trading volume if fetched successfully, else None.
         """
-        config = self.api_configs.get(source)
+        config = self.api_config.get(source)
         if not config:
             logger.debug(f"API configuration for {source} not found.")
             return None
@@ -968,7 +969,7 @@ class API_Config:
         Returns:
             Any: The fetched data if successful, else None.
         """
-        for service in self.api_configs.keys():
+        for service in self.api_config.keys():
             try:
                 logger.debug(f"Fetching {description} using {service}...")
                 result = await fetch_func(service)
@@ -1887,7 +1888,7 @@ class Mempool_Monitor:
         Returns:
             Any: The fetched data if successful, else None.
         """
-        for service in self.api_configs.keys():
+        for service in self.api_config.keys():
             try:
                 logger.debug(f"Fetching {description} using {service}...")
                 result = await fetch_func(service)
@@ -1928,6 +1929,33 @@ class Mempool_Monitor:
         Closes any open resources, such as the aiohttp session, to free up system resources.
         """
         await self.api_config.close()
+
+    async def _log_transaction_details(self, tx: Any, is_eth: bool = False) -> None:
+        """
+        Logs detailed information about a transaction for auditing and debugging purposes.
+    
+        Args:
+            tx (Any): The transaction object to log.
+            is_eth (bool, optional): True if the transaction is an ETH transfer. Defaults to False.
+        """
+        if is_eth:
+            logger.debug(
+                f"ETH Transaction Details:\n"
+                f"Hash: {tx.hash.hex()}\n"
+                f"Value: {self.web3.from_wei(tx.value, 'ether')} ETH\n"
+                f"To: {tx.to}\n"
+                f"From: {tx['from']}\n"
+                f"Gas Price: {self.web3.from_wei(tx.gasPrice, 'gwei')} Gwei"
+            )
+        else:
+            logger.debug(
+                f"Token Transaction Details:\n"
+                f"Hash: {tx.hash.hex()}\n"
+                f"Value: {self.web3.from_wei(tx.value, 'ether')} ETH\n"
+                f"To: {tx.to}\n"
+                f"Input: {tx.input}\n"
+                f"Gas Price: {self.web3.from_wei(tx.gasPrice, 'gwei')} Gwei"
+            )
 
 
 #============================= Transaction Orchestrator and Core =============================
@@ -3265,7 +3293,7 @@ class Market_Monitor:
         Returns:
             Any: The fetched data or None if all services fail.
         """
-        for service in self.api_config.api_configs.keys():
+        for service in self.api_config.api_config.keys():
             try:
                 logger.debug(f"Fetching {description} using {service}...")
                 result = await fetch_func(service)
@@ -3354,7 +3382,7 @@ class Market_Monitor:
             List[float]: A list of real-time prices from various services.
         """
         prices = []
-        for service in self.api_config.api_configs.keys():
+        for service in self.api_config.api_config.keys():
             try:
                 price = await self.api_config.get_real_time_price(token_symbol)
                 if price is not None:
@@ -3395,15 +3423,16 @@ class Market_Monitor:
 @dataclass
 class StrategyPerformanceMetrics:
     """
-    Dataclass to track performance metrics of different strategies.
+    Dataclass to track performance metrics for each strategy type.
     """
-    successes: int = 0
-    failures: int = 0
-    profit: Decimal = Decimal("0")
     avg_execution_time: float = 0.0
     success_rate: float = 0.0
     total_executions: int = 0
+    successes: int = 0
+    failures: int = 0
+    profit: Decimal = Decimal("0.0")
 
+# ========================= StrategyConfiguration =========================
 
 @dataclass
 class StrategyConfiguration:
@@ -3415,6 +3444,7 @@ class StrategyConfiguration:
     learning_rate: float = 0.01
     exploration_rate: float = 0.1
 
+# ========================= StrategyExecutionError =========================
 
 @dataclass
 class StrategyExecutionError(Exception):
@@ -3426,6 +3456,7 @@ class StrategyExecutionError(Exception):
     def __str__(self) -> str:
         return self.message
 
+# ========================= Strategy_Net Class =========================
 
 class Strategy_Net:
     """
@@ -3455,6 +3486,7 @@ class Strategy_Net:
         self.safety_net = safety_net
         self.api_config = api_config
         self.configuration = configuration
+        self._strategy_registry: Dict[str, List[Callable[[Dict[str, Any]], asyncio.Future]]] = {}
 
         # Define the types of strategies available
         self.strategy_types = [
@@ -4298,7 +4330,7 @@ class Strategy_Net:
     async def _calculate_volatility_score(
         self,
         historical_prices: List[float],
-        current_price: float,
+        _: float,  # current_price is unused but kept for interface compatibility
         market_conditions: Dict[str, bool]
     ) -> float:
         """
@@ -4347,22 +4379,19 @@ class Strategy_Net:
         logger.debug(f"Calculated volatility score: {score}/100")
         return score
 
-    async def advanced_front_run(self, target_tx: Dict[str, Any]) -> bool:
+    async def advanced_front_run(self, _: Dict[str, Any]) -> bool:
         """
         Execute the Advanced Front-Run Strategy with comprehensive analysis,
         risk management, and multi-factor decision making.
 
         Args:
-            target_tx (Dict[str, Any]): The target transaction dictionary.
+            _ (Dict[str, Any]): The target transaction dictionary (currently unused).
 
         Returns:
             bool: True if the strategy was executed successfully, else False.
         """
         logger.debug("Initiating Advanced Front-Run Strategy...")
-
-        # Implementation of advanced front-run strategy
-        # Similar to other strategies with additional checks and logic
-        # For brevity, returning False here
+        # TODO: Implement advanced front-run strategy
         return False
 
     async def price_dip_back_run(self, target_tx: Dict[str, Any]) -> bool:
@@ -5233,4 +5262,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

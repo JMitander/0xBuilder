@@ -1,5 +1,8 @@
 # 0xBuilder
 
+
+
+
 [![License](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-white.svg)](CONTRIBUTING.md)
 
@@ -20,6 +23,7 @@
 [![CoinMarketCap](https://img.shields.io/badge/CoinMarketCap-API-red.svg)](https://coinmarketcap.com/api/)
 [![CryptoCompare](https://img.shields.io/badge/CryptoCompare-API-red.svg)](https://min-api.cryptocompare.com/)
 [![Etherscan](https://img.shields.io/badge/Etherscan-API-red.svg)](https://etherscan.io/apis)
+   
 
 ## Table of Contents
 
@@ -40,8 +44,8 @@
 - [Deploying the Flashloan Contract](#deploying-the-flashloan-contract)
 - [Obtaining API Keys](#obtaining-api-keys)
 - [Running the Bot](#running-the-bot)
-  - [Python Bot](#python-bot)
-  - [JavaScript Bot](#javascript-bot)
+  - [Python](#Python)
+  - [Javascript](#Javascript)
 - [Strategies](#strategies)
 - [Logging](#logging)
 - [Troubleshooting](#troubleshooting)
@@ -74,7 +78,6 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 - **Customizable**: Supports multiple wallets, tokens, and trading pairs, with the ability to add new strategies and features.
 - **Dual Language Support**: Available in both Python and JavaScript for flexibility and integration with different systems.
 
-![0xBuilder-flow](https://github.com/user-attachments/assets/29e3da12-d253-4304-acb1-f2d74f407bf1)
 
 ## Project Structure
 
@@ -159,6 +162,8 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 └── README.md                                # Updated Project documentation
 ```
 
+[![](https://mermaid.ink/img/pako:eNpVkEFrwkAQhf9KmLOC5xyExmBFWiikvbjrYciO2aXJThhniyL-d1ctLZnTvO-9w8y7QMuOoIROcPTFZ21jkefFLE5VCr0j2Rfz-bKozMdZPcf9r_-AK7PFH2xaCaNOjNo0HoXcBK7Nl4b-OGGvZsVRBVud8o154-6OYAYDyYDB5Rsv94gF9TSQhTKvDuXbgo3XnMOk3JxjC6VKohkIp85DecD-mFUaHSrVAfOjwx8dMe6Y_zW5oCzvz0oezVxvqcdazQ?type=png)](https://mermaid.live/edit#pako:eNpVkEFrwkAQhf9KmLOC5xyExmBFWiikvbjrYciO2aXJThhniyL-d1ctLZnTvO-9w8y7QMuOoIROcPTFZ21jkefFLE5VCr0j2Rfz-bKozMdZPcf9r_-AK7PFH2xaCaNOjNo0HoXcBK7Nl4b-OGGvZsVRBVud8o154-6OYAYDyYDB5Rsv94gF9TSQhTKvDuXbgo3XnMOk3JxjC6VKohkIp85DecD-mFUaHSrVAfOjwx8dMe6Y_zW5oCzvz0oezVxvqcdazQ)
+
 ## Prerequisites
 
 Before running 0xBuilder, ensure you have the following:
@@ -179,11 +184,11 @@ Before running 0xBuilder, ensure you have the following:
 - **Ethereum Node**: Geth, Nethermind, or Besu (latest stable version)
 - **Solidity Compiler**: solc v0.8.19 or higher
 - **Development Tools**:
-  - **Python Bot**:
+  - **Python**:
     - Python 3.12 or higher
     - Virtual environment tool (venv)
     - Python packages listed in `Python/requirements.txt`
-  - **JavaScript Bot**:
+  - **Javascript**:
     - Node.js v18.x or higher
     - npm (comes with Node.js) or yarn
     - JavaScript packages listed in `JavaScript/package.json`
@@ -227,11 +232,9 @@ Choose and set up an execution client (EL) compatible with the Ethereum network:
    geth --mainnet \
      --syncmode "snap" \
      --http \
-     --http.api "eth,net,web3,txpool" \
+     --http.api "eth,net,web3,admin" \
      --ws \
-     --ws.api "eth,net,web3,txpool" \
-     --maxpeers 100 \
-     --cache 8192 \
+     --ws.api "eth,net,web3,admin" \
      --ipcpath "/path/to/geth.ipc"
    ```
 
@@ -246,7 +249,7 @@ Choose and set up an execution client (EL) compatible with the Ethereum network:
 
 #### Beacon Node Setup
 
-For PoS consensus layer, install either:
+A consensus layer node is required after the transition to Ethereum 2.0. Set up a beacon node using the following clients:
 
 - [Prysm](https://docs.prylabs.network/docs/getting-started)
 - [Lighthouse](https://lighthouse-book.sigmaprime.io/installation.html)
@@ -397,6 +400,8 @@ chmod 600 .env
 
 ### Configuration Files
 
+[![](https://mermaid.ink/img/pako:eNqN0UtrwzAMAOC_EnRutzJ2ymGH0utO62n2CIqtJF4dy_ixB6X_fdrKNigE6ost6ZMx1hEMW4IWxoRxavY7HRpZ23u1-dhW5y2lW-zdy2-6Wa8fZENFydxtOindvGYOl_VeIb5RN3jMk2cMi9CcoadgXRi7yOwXrVU1uPyOsUtcC6VFSCrXPF1FBxUxGDzQNXhUPXrhQi4lrGCmNKOz8pfH7z4NZaKZNLRytJgOGnQ4icNa-OkzGGhLqrQCuWqcoB3QZ4lqtFho51AGMv9l5ZHPzP8xWVc4PZ5H9zPB0xcM7pb8?type=png)](https://mermaid.live/edit#pako:eNqN0UtrwzAMAOC_EnRutzJ2ymGH0utO62n2CIqtJF4dy_ixB6X_fdrKNigE6ost6ZMx1hEMW4IWxoRxavY7HRpZ23u1-dhW5y2lW-zdy2-6Wa8fZENFydxtOindvGYOl_VeIb5RN3jMk2cMi9CcoadgXRi7yOwXrVU1uPyOsUtcC6VFSCrXPF1FBxUxGDzQNXhUPXrhQi4lrGCmNKOz8pfH7z4NZaKZNLRytJgOGnQ4icNa-OkzGGhLqrQCuWqcoB3QZ4lqtFho51AGMv9l5ZHPzP8xWVc4PZ5H9zPB0xcM7pb8)
+
 Ensure that essential JSON configuration files are present in the `Utils` directory for both Python and JavaScript:
 
 | File                  | Description                             | Format            |
@@ -468,7 +473,7 @@ Register and obtain API keys from the following services:
 
 You can run the 0xBuilder MEV Bot in both Python and JavaScript. Follow the respective sections below to start the bot in your preferred language.
 
-### Python Bot
+### Python
 
 1. **Activate Virtual Environment**:
 
@@ -497,7 +502,7 @@ You can run the 0xBuilder MEV Bot in both Python and JavaScript. Follow the resp
 
    - Press `Ctrl+C` to stop the bot gracefully.
 
-### JavaScript Bot
+### Javascript
 
 1. **Navigate to JavaScript Directory**:
 
@@ -530,6 +535,8 @@ You can run the 0xBuilder MEV Bot in both Python and JavaScript. Follow the resp
 0xBuilder implements several sophisticated trading strategies to capitalize on profitable opportunities within the Ethereum network:
 
 ### Core Strategies
+
+[![](https://mermaid.ink/img/pako:eNqNk99PwjAQx_-Vpr5CAmJM3IMJMH6pqBGe7PZwbMfWMNqlu0WJ8X-3bqRsaiJ9uLT9fj936aX3wSMdI_d4oBIDecrWfqCYXUOxIgOEicQiZN3uLRuJqdGKui-lUlIl4dFXaWMxgmj3p-SLFaj4TUYpGxJZV9GSJ2KaQZFmGhQbmo20RRM8Ouo4qnxT4SNhRGxtQBUQkdQqbBpmYvKOUUnI5jJJ0bAZFK0848o2F4sYFcntga3BJEhhU12I5wwibBZhwy2haWXyK-_dqR_tVLV871rSVus4qTwP4mlDIBVzPQib8tI96Wdnav1RvGAOh190HQs6ZJZkW5ll3kWv1-sUZPQOvYt-v3_cd99kTKl3lb83mZFj-gMHnRIcoUEbGjvopsPOhXwHXZ9daOKYy38Y3uF7NHuQsf3gH985Ak4p7jHgnt3GYHaB_fif1gcl6dVBRdwjU2KHG10mKfe2kBX2VOaxHQVfgp2RvbvNQb1qfTpjLEmbZT1P1Vh9fgFkOg6v?type=png)](https://mermaid.live/edit#pako:eNqNk99PwjAQx_-Vpr5CAmJM3IMJMH6pqBGe7PZwbMfWMNqlu0WJ8X-3bqRsaiJ9uLT9fj936aX3wSMdI_d4oBIDecrWfqCYXUOxIgOEicQiZN3uLRuJqdGKui-lUlIl4dFXaWMxgmj3p-SLFaj4TUYpGxJZV9GSJ2KaQZFmGhQbmo20RRM8Ouo4qnxT4SNhRGxtQBUQkdQqbBpmYvKOUUnI5jJJ0bAZFK0848o2F4sYFcntga3BJEhhU12I5wwibBZhwy2haWXyK-_dqR_tVLV871rSVus4qTwP4mlDIBVzPQib8tI96Wdnav1RvGAOh190HQs6ZJZkW5ll3kWv1-sUZPQOvYt-v3_cd99kTKl3lb83mZFj-gMHnRIcoUEbGjvopsPOhXwHXZ9daOKYy38Y3uF7NHuQsf3gH985Ak4p7jHgnt3GYHaB_fif1gcl6dVBRdwjU2KHG10mKfe2kBX2VOaxHQVfgp2RvbvNQb1qfTpjLEmbZT1P1Vh9fgFkOg6v)
 
 - **Front-Running**: Executes higher-priority transactions ahead of detected profitable transactions.
 - **Back-Running**: Places transactions immediately after identified profitable transactions.
@@ -629,20 +636,14 @@ Licensed under the [MIT License](LICENSE). See the LICENSE file for details.
 
 ## Disclaimer
 
-**IMPORTANT**: This software is provided for educational and research purposes only. Use at your own risk.
+**IMPORTANT**: Contributors or anyone else linked to this project are not responsible for any financial losses or damages caused by the use of 0xBuilder. Use the bot at your own risk and discretion.
 
-### Risk Factors
+**Protect Private Keys**: Store your private keys securely in a safe location. Never share them publicly, and only share them with your loyal dog. 🐕 Dogs are trustworthy and would guard them with their lives.  
 
-- Trading strategies may be considered aggressive or unethical.
-- Cryptocurrency trading carries significant financial risk.
-- Smart contract interactions may contain unforeseen vulnerabilities.
+However, **never** share them with your cat. Cats might sell them for tuna coins or trade them for world domination plans. 🐱 Trust me, they’re plotting something.
 
-### Security Notice
-
-- **Protect Private Keys**: Store private keys securely and never share them publicly.
 - **Test Thoroughly**: Use small amounts and test on testnets before mainnet deployment.
-- **Regulatory Compliance**: Ensure compliance with relevant laws and regulations in your jurisdiction.
 
-**Note**: 0xBuilder is intended for knowledgeable users who understand the risks associated with MEV trading and smart contract interactions.
+**Note**: 0xBuilder is intended for  users who understand the risks.
 
-[logo]: 0xBuilder.png
+![0xBuilder](image.png)

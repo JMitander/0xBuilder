@@ -71,7 +71,7 @@ Main entry point with setup and error handling.
 
 ---
 
-## <kbd>class</kbd> `API_Config`
+## <kbd>class</kbd> `APIConfig`
 
 
 
@@ -261,7 +261,7 @@ Loads the configuration.
 
 ---
 
-## <kbd>class</kbd> `Main_Core`
+## <kbd>class</kbd> `MainCore`
 Builds and manages the entire MEV bot, initializing all components, managing connections, and orchestrating the main execution loop. 
 
 <a href="../0xBuilder.py#L3636"><img align="right" style="float:right;" src="https://img.shields.io/badge/-source-cccccc?style=flat-square"></a>
@@ -318,7 +318,7 @@ Graceful shutdown of all components.
 
 ---
 
-## <kbd>class</kbd> `Market_Monitor`
+## <kbd>class</kbd> `MarketMonitor`
 
 
 
@@ -331,7 +331,7 @@ Graceful shutdown of all components.
 __init__(
     web3: AsyncWeb3,
     configuration: Optional[Configuration],
-    api_config: Optional[API_Config]
+    apiconfig: Optional[APIConfig]
 )
 ```
 
@@ -478,7 +478,7 @@ Start the background task for periodic model training.
 
 ---
 
-## <kbd>class</kbd> `Mempool_Monitor`
+## <kbd>class</kbd> `MempoolMonitor`
 Advanced mempool monitoring system that identifies and analyzes profitable transactions. Includes sophisticated profit estimation, caching, and parallel processing capabilities. 
 
 <a href="../0xBuilder.py#L894"><img align="right" style="float:right;" src="https://img.shields.io/badge/-source-cccccc?style=flat-square"></a>
@@ -488,9 +488,9 @@ Advanced mempool monitoring system that identifies and analyzes profitable trans
 ```python
 __init__(
     web3: AsyncWeb3,
-    safety_net: Safety_Net,
-    nonce_core: Nonce_Core,
-    api_config: API_Config,
+    safetynet: SafetyNet,
+    noncecore: NonceCore,
+    apiconfig: APIConfig,
     token_symbols: Optional[List[str]] = None,
     erc20_abi: List[Dict[str, Any]] = None,
     configuration: Optional[Configuration] = None
@@ -557,7 +557,7 @@ Gracefully stop monitoring activities.
 
 ---
 
-## <kbd>class</kbd> `Nonce_Core`
+## <kbd>class</kbd> `NonceCore`
 
 
 
@@ -608,7 +608,7 @@ stop()
 
 ---
 
-## <kbd>class</kbd> `Safety_Net`
+## <kbd>class</kbd> `SafetyNet`
 
 
 
@@ -622,7 +622,7 @@ __init__(
     web3: AsyncWeb3,
     configuration: Configuration,
     account: Account,
-    api_config: API_Config
+    apiconfig: APIConfig
 )
 ```
 
@@ -677,7 +677,7 @@ StrategyPerformanceMetrics(successes: int = 0, failures: int = 0, profit: decima
 
 ---
 
-## <kbd>class</kbd> `Strategy_Net`
+## <kbd>class</kbd> `StrategyNet`
 
 
 
@@ -688,10 +688,10 @@ StrategyPerformanceMetrics(successes: int = 0, failures: int = 0, profit: decima
 
 ```python
 __init__(
-    transaction_core: Optional[ForwardRef('Transaction_Core')] = None,
-    market_monitor: Optional[Market_Monitor] = None,
-    safety_net: Optional[ForwardRef('Safety_Net')] = None,
-    api_config: Optional[API_Config] = None,
+    transactioncore: Optional[ForwardRef('TransactionCore')] = None,
+    marketmonitor: Optional[MarketMonitor] = None,
+    safetynet: Optional[ForwardRef('SafetyNet')] = None,
+    apiconfig: Optional[APIConfig] = None,
     configuration: Optional[Configuration] = None
 ) → None
 ```
@@ -917,7 +917,7 @@ Execute front-run strategy based on market volatility analysis with  advanced ri
 
 ---
 
-## <kbd>class</kbd> `Transaction_Core`
+## <kbd>class</kbd> `TransactionCore`
 
 
 

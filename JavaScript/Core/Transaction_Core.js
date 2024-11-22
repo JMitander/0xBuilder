@@ -1,4 +1,4 @@
-// Transaction_Core.js
+// TransactionCore.js
 
 import logger from './Logger.js'; // Assuming Logger.js handles logging
 import axios from 'axios';
@@ -6,9 +6,9 @@ import { Decimal } from 'decimal.js';
 import Semaphore from './Semaphore.js';
 import { ContractLogicError, TransactionNotFound } from './Errors.js'; // Custom error classes as needed
 
-class Transaction_Core {
+class TransactionCore {
     /**
-     * Transaction_Core is the main transaction engine that Builds and executes transactions,
+     * TransactionCore is the main transaction engine that Builds and executes transactions,
      * including front-run, back-run, and sandwich attack strategies. It interacts with smart contracts,
      * manages transaction signing, gas price estimation, and handles flashloans.
      *
@@ -19,7 +19,7 @@ class Transaction_Core {
     static RETRY_DELAY = 1000; // Base delay in milliseconds for retries
 
     /**
-     * Initializes the Transaction_Core instance.
+     * Initializes the TransactionCore instance.
      *
      * @param {Web3} web3 - The Web3 instance for blockchain interactions.
      * @param {Object} account - The account object containing address and private key.
@@ -27,10 +27,10 @@ class Transaction_Core {
      * @param {Array<Object>} aave_flashloan_abi - The ABI of the Aave Flashloan contract.
      * @param {string} aave_lending_pool_address - The address of the Aave Lending Pool contract.
      * @param {Array<Object>} aave_lending_pool_abi - The ABI of the Aave Lending Pool contract.
-     * @param {API_Config} api_config - The API configuration instance.
-     * @param {Mempool_Monitor} monitor - The mempool monitor instance.
-     * @param {Nonce_Core} nonce_core - The nonce management instance.
-     * @param {Safety_Net} safety_net - The safety net instance.
+     * @param {APIConfig} apiconfig - The API configuration instance.
+     * @param {MempoolMonitor} monitor - The mempool monitor instance.
+     * @param {NonceCore} noncecore - The nonce management instance.
+     * @param {SafetyNet} safetynet - The safety net instance.
      * @param {Configuration} configuration - The configuration instance.
      * @param {number} gas_price_multiplier - Multiplier for gas price adjustments.
      * @param {Array<Object>} erc20_abi - The ABI for ERC20 tokens.
@@ -42,10 +42,10 @@ class Transaction_Core {
         aave_flashloan_abi,
         aave_lending_pool_address,
         aave_lending_pool_abi,
-        api_config = null,
+        apiconfig = null,
         monitor = null,
-        nonce_core = null,
-        safety_net = null,
+        noncecore = null,
+        safetynet = null,
         configuration = null,
         gas_price_multiplier = 1.1,
         erc20_abi = []
@@ -54,11 +54,11 @@ class Transaction_Core {
         this.account = account;
         this.configuration = configuration;
         this.monitor = monitor;
-        this.api_config = api_config;
-        this.nonce_core = nonce_core;
-        this.safety_net = safety_net;
+        this.apiconfig = apiconfig;
+        this.noncecore = noncecore;
+        this.safetynet = safetynet;
         this.gas_price_multiplier = gas_price_multiplier;
-        this.retry_attempts = Transaction_Core.MAX_RETRIES;
+        this.retry_attempts = TransactionCore.MAX_RETRIES;
         this.erc20_abi = erc20_abi;
         this.current_profit = new Decimal(0);
         this.aave_flashloan_address = aave_flashloan_address;
@@ -159,7 +159,7 @@ class Transaction_Core {
      */
     async _load_erc20_abi() {
         try {
-            const abi = await this.api_config._load_abi(this.configuration.ERC20_ABI);
+            const abi = await this.apiconfig._load_abi(this.configuration.ERC20_ABI);
             logger.info("ERC20 ABI loaded successfully.");
             return abi;
         } catch (error) {
@@ -178,7 +178,7 @@ class Transaction_Core {
     async build_transaction(function_call, additional_params = {}) {
         try {
             const chainId = await this.web3.eth.getChainId();
-            const nonce = await this.nonce_core.getNonce();
+            const nonce = await this.noncecore.getNonce();
             const txDetails = function_call.buildTransaction({
                 chainId: chainId,
                 nonce: nonce,
@@ -203,7 +203,7 @@ class Transaction_Core {
      */
     async get_dynamic_gas_price() {
         try {
-            const gasPriceGwei = await this.safety_net.getDynamicGasPrice();
+            const gasPriceGwei = await this.safetynet.getDynamicGasPrice();
             logger.debug(`Fetched gas price: ${gasPriceGwei} Gwei`);
             const gasPrice = this.web3.utils.toWei((gasPriceGwei * this.gas_price_multiplier).toString(), 'gwei');
             return { gasPrice: gasPrice };
@@ -243,12 +243,12 @@ class Transaction_Core {
                 const signedTx = await this.sign_transaction(tx);
                 const receipt = await this.web3.eth.sendSignedTransaction(signedTx);
                 logger.info(`Transaction sent successfully with hash: ${receipt.transactionHash}`);
-                await this.nonce_core.refreshNonce();
+                await this.noncecore.refreshNonce();
                 return receipt.transactionHash;
             } catch (error) {
-                logger.error(`Error executing transaction: ${error.message}. Attempt ${attempt} of ${Transaction_Core.MAX_RETRIES}`);
-                if (attempt < Transaction_Core.MAX_RETRIES) {
-                    const sleepTime = Transaction_Core.RETRY_DELAY * attempt;
+                logger.error(`Error executing transaction: ${error.message}. Attempt ${attempt} of ${TransactionCore.MAX_RETRIES}`);
+                if (attempt < TransactionCore.MAX_RETRIES) {
+                    const sleepTime = TransactionCore.RETRY_DELAY * attempt;
                     logger.warn(`Retrying in ${sleepTime} ms...`);
                     await this._sleep(sleepTime);
                 } else {
@@ -300,7 +300,7 @@ class Transaction_Core {
                 to: target_tx.to || "",
                 value: eth_value,
                 gas: 21000,
-                nonce: await this.nonce_core.getNonce(),
+                nonce: await this.noncecore.getNonce(),
                 chainId: await this.web3.eth.getChainId(),
                 from: this.account.address,
             };
@@ -434,7 +434,7 @@ class Transaction_Core {
                     [builder.auth_header]: `${this.account.address}:${this.account.privateKey}`,
                 };
 
-                for (let attempt = 1; attempt <= Transaction_Core.MAX_RETRIES; attempt++) {
+                for (let attempt = 1; attempt <= TransactionCore.MAX_RETRIES; attempt++) {
                     try {
                         logger.debug(`Attempt ${attempt} to send bundle via ${builder.name}.`);
                         const response = await axios.post(builder.url, bundle_payload, { headers, timeout: 30000 });
@@ -446,9 +446,9 @@ class Transaction_Core {
                         successes.push(builder.name);
                         break; // Success, move to next builder
                     } catch (error) {
-                        logger.error(`Error sending bundle via ${builder.name}: ${error.message}. Attempt ${attempt} of ${Transaction_Core.MAX_RETRIES}`);
-                        if (attempt < Transaction_Core.MAX_RETRIES) {
-                            const sleepTime = Transaction_Core.RETRY_DELAY * attempt;
+                        logger.error(`Error sending bundle via ${builder.name}: ${error.message}. Attempt ${attempt} of ${TransactionCore.MAX_RETRIES}`);
+                        if (attempt < TransactionCore.MAX_RETRIES) {
+                            const sleepTime = TransactionCore.RETRY_DELAY * attempt;
                             logger.warn(`Retrying in ${sleepTime} ms...`);
                             await this._sleep(sleepTime);
                         }
@@ -457,7 +457,7 @@ class Transaction_Core {
             }
 
             if (successes.length > 0) {
-                await this.nonce_core.refreshNonce();
+                await this.noncecore.refreshNonce();
                 logger.info(`Bundle successfully sent to builders: ${successes.join(', ')}`);
                 return true;
             } else {
@@ -935,7 +935,7 @@ class Transaction_Core {
      */
     async get_current_profit() {
         try {
-            const current_profit = await this.safety_net.getBalance(this.account);
+            const current_profit = await this.safetynet.getBalance(this.account);
             this.current_profit = new Decimal(current_profit);
             logger.debug(`Current profit: ${this.current_profit} ETH`);
             return this.current_profit;
@@ -1033,18 +1033,18 @@ class Transaction_Core {
     }
 
     /**
-     * Stops the Transaction_Core instance gracefully.
+     * Stops the TransactionCore instance gracefully.
      */
     async stop() {
         try {
-            await this.safety_net.stop();
-            await this.nonce_core.stop();
-            logger.debug("Stopped Transaction_Core successfully.");
+            await this.safetynet.stop();
+            await this.noncecore.stop();
+            logger.debug("Stopped TransactionCore successfully.");
         } catch (error) {
-            logger.error(`Error stopping Transaction_Core: ${error.message}`);
+            logger.error(`Error stopping TransactionCore: ${error.message}`);
             throw error;
         }
     }
 }
 
-export default Transaction_Core;
+export default TransactionCore;

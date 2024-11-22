@@ -2,13 +2,13 @@
 
 import Web3 from 'web3';
 import Configuration from './Configuration.js';
-import Nonce_Core from './Nonce_Core.js';
-import API_Config from './API_Config.js';
-import Safety_Net from './Safety_Net.js';
-import Mempool_Monitor from './Mempool_Monitor.js';
-import Transaction_Core from './Transaction_Core.js';
-import Market_Monitor from './Market_Monitor.js';
-import Strategy_Net from './Strategy_Net.js';
+import NonceCore from './NonceCore.js';
+import APIConfig from './APIConfig.js';
+import SafetyNet from './SafetyNet.js';
+import MempoolMonitor from './MempoolMonitor.js';
+import TransactionCore from './TransactionCore.js';
+import MarketMonitor from './MarketMonitor.js';
+import StrategyNet from './StrategyNet.js';
 import logger from './Logger.js'; // Assuming Logger.js handles logging
 
 async function main() {
@@ -21,19 +21,19 @@ async function main() {
         const web3 = new Web3(new Web3.providers.HttpProvider(configuration.HTTP_ENDPOINT));
 
         // Initialize API Config
-        const apiConfig = new API_Config(configuration);
+        const apiConfig = new APIConfig(configuration);
         await apiConfig.initialize();
 
         // Initialize Safety Net
-        const safetyNet = new Safety_Net(web3, configuration, configuration.WALLET_ADDRESS, null, apiConfig);
+        const safetyNet = new SafetyNet(web3, configuration, configuration.WALLET_ADDRESS, null, apiConfig);
         await safetyNet.initialize();
 
         // Initialize Nonce Core
-        const nonceCore = new Nonce_Core(web3, configuration.WALLET_ADDRESS, configuration);
+        const nonceCore = new NonceCore(web3, configuration.WALLET_ADDRESS, configuration);
         await nonceCore.initialize();
 
         // Initialize Transaction Core
-        const transactionCore = new Transaction_Core(
+        const transactionCore = new TransactionCore(
             web3,
             configuration.account,
             configuration.AAVE_FLASHLOAN_ADDRESS,
@@ -49,11 +49,11 @@ async function main() {
         await transactionCore.initialize();
 
         // Initialize Market Monitor
-        const marketMonitor = new Market_Monitor(web3, configuration, apiConfig);
+        const marketMonitor = new MarketMonitor(web3, configuration, apiConfig);
         await marketMonitor.start_periodic_training("ETH"); // Example for ETH
 
         // Initialize Strategy Net
-        const strategyNet = new Strategy_Net(transactionCore, marketMonitor, safetyNet, apiConfig, configuration);
+        const strategyNet = new StrategyNet(transactionCore, marketMonitor, safetyNet, apiConfig, configuration);
 
         // Example: Start monitoring and executing strategies
         // This part would typically involve event listeners or periodic checks

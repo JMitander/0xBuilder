@@ -1,16 +1,16 @@
-class Strategy_Net:
+class StrategyNet:
     def __init__(
         self,
-        transaction_core: Transaction_Core,
-        market_monitor: Market_Monitor,
-        safety_net: Safety_Net,
-        api_config: API_Config,
+        transactioncore: TransactionCore,
+        marketmonitor: MarketMonitor,
+        safetynet: SafetyNet,
+        apiconfig: APIConfig,
         
     ) -> None:
-        self.transaction_core = transaction_core
-        self.market_monitor = market_monitor
-        self.safety_net = safety_net
-        self.api_config = api_config
+        self.transactioncore = transactioncore
+        self.marketmonitor = marketmonitor
+        self.safetynet = safetynet
+        self.apiconfig = apiconfig
         
 
         self.strategy_performance = {
@@ -38,7 +38,7 @@ class Strategy_Net:
         }
 
         self.history_data = []
-        logger.info(f"Strategy_Net initialized with enhanced configuration ")
+        logger.info(f"StrategyNet initialized with enhanced configuration ")
 
     async def execute_best_strategy(self, target_tx: Dict[str, Any], strategy_type: str) -> bool:
         """Execute the best strategy for the given strategy type."""
@@ -51,9 +51,9 @@ class Strategy_Net:
             start_time = time.time()
             selected_strategy = await self._select_best_strategy(strategies, strategy_type)
 
-            profit_before = await self.transaction_core.get_current_profit()
+            profit_before = await self.transactioncore.get_current_profit()
             success = await selected_strategy(target_tx)
-            profit_after = await self.transaction_core.get_current_profit()
+            profit_after = await self.transactioncore.get_current_profit()
 
             execution_time = time.time() - start_time
             profit_made = profit_after - profit_before
@@ -182,14 +182,14 @@ class Strategy_Net:
         logger.debug(f"Initiating High-Value ETH Transfer Strategy... ")
         try:
             eth_value_in_wei = target_tx.get("value", 0)
-            if eth_value_in_wei > self.transaction_core.web3.to_wei(10, "ether"):
-                eth_value_in_eth = self.transaction_core.web3.from_wei(
+            if eth_value_in_wei > self.transactioncore.web3.to_wei(10, "ether"):
+                eth_value_in_eth = self.transactioncore.web3.from_wei(
                     eth_value_in_wei, "ether"
                 )
                 logger.debug(
                      f"High-value ETH transfer detected: {eth_value_in_eth} ETH "
                 )
-                return await self.transaction_core.handle_eth_transaction(target_tx)
+                return await self.transactioncore.handle_eth_transaction(target_tx)
             logger.debug(
                 "ETH transaction does not meet the high-value criteria. Skipping... "
             )
@@ -204,13 +204,13 @@ class Strategy_Net:
         """Execute aggressive front-run strategy."""
         logger.debug(f"Initiating Aggressive Front-Run Strategy... ")
         try:
-            if target_tx.get("value", 0) > self.transaction_core.web3.to_wei(
+            if target_tx.get("value", 0) > self.transactioncore.web3.to_wei(
                 1, "ether"
             ):
                 logger.debug(
                     "Transaction value above threshold, proceeding with aggressive front-run."
                 )
-                return await self.transaction_core.front_run(target_tx)
+                return await self.transactioncore.front_run(target_tx)
             logger.debug(
                 "Transaction below threshold. Skipping aggressive front-run."
             )
@@ -223,7 +223,7 @@ class Strategy_Net:
         """Execute predictive front-run strategy based on price prediction."""
         logger.debug(f"Initiating Predictive Front-Run Strategy... ")
         try:
-            decoded_tx = await self.transaction_core.decode_transaction_input(
+            decoded_tx = await self.transactioncore.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
             if not decoded_tx:
@@ -239,14 +239,14 @@ class Strategy_Net:
                 )
                 return False
             token_address = path[0]
-            token_symbol = await self.api_config.get_token_symbol(self.transaction_core.web3, token_address)
+            token_symbol = await self.apiconfig.get_token_symbol(self.transactioncore.web3, token_address)
             if not token_symbol:
                 logger.debug(
                      f"Token symbol not found for address {token_address} in Predictive Front-Run Strategy. "
                 )
                 return False
-            predicted_price = await self.market_monitor.predict_price_movement(token_symbol)
-            current_price = await self.api_config.get_real_time_price(token_symbol)
+            predicted_price = await self.marketmonitor.predict_price_movement(token_symbol)
+            current_price = await self.apiconfig.get_real_time_price(token_symbol)
             if current_price is None:
                 logger.debug(
                      f"Current price not available for {token_symbol} in Predictive Front-Run Strategy. "
@@ -256,7 +256,7 @@ class Strategy_Net:
                 logger.debug(
                     "Predicted price increase exceeds threshold, proceeding with predictive front-run."
                 )
-                return await self.transaction_core.front_run(target_tx)
+                return await self.transactioncore.front_run(target_tx)
             logger.debug(
                 "Predicted price increase does not meet threshold. Skipping predictive front-run."
             )
@@ -269,14 +269,14 @@ class Strategy_Net:
         """Execute front-run strategy based on market volatility."""
         logger.debug(f"Initiating Volatility Front-Run Strategy... ")
         try:
-            market_conditions = await self.market_monitor.check_market_conditions(
+            market_conditions = await self.marketmonitor.check_market_conditions(
                 target_tx["to"]
             )
             if market_conditions.get("high_volatility", False):
                 logger.debug(
                     "High volatility detected, proceeding with volatility front-run."
                 )
-                return await self.transaction_core.front_run(target_tx)
+                return await self.transactioncore.front_run(target_tx)
             logger.debug(
                 "Market volatility not high enough. Skipping volatility front-run."
             )
@@ -289,7 +289,7 @@ class Strategy_Net:
         """Execute advanced front-run strategy with comprehensive analysis."""
         logger.debug(f"Initiating Advanced Front-Run Strategy... ")
         try:
-            decoded_tx = await self.transaction_core.decode_transaction_input(
+            decoded_tx = await self.transactioncore.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
             if not decoded_tx:
@@ -304,17 +304,17 @@ class Strategy_Net:
                     "Transaction has no path parameter for Advanced Front-Run Strategy. "
                 )
                 return False
-            token_symbol = await self.api_config.get_token_symbol(self.transaction_core.web3, path[0])
+            token_symbol = await self.apiconfig.get_token_symbol(self.transactioncore.web3, path[0])
             if not token_symbol:
                 logger.debug(
                      f"Token symbol not found for address {path[0]} in Advanced Front-Run Strategy. "
                 )
                 return False
-            predicted_price = await self.market_monitor.predict_price_movement(token_symbol)
-            market_conditions = await self.market_monitor.check_market_conditions(
+            predicted_price = await self.marketmonitor.predict_price_movement(token_symbol)
+            market_conditions = await self.marketmonitor.check_market_conditions(
                 target_tx["to"]
             )
-            current_price = await self.api_config.get_real_time_price(token_symbol)
+            current_price = await self.apiconfig.get_real_time_price(token_symbol)
             if current_price is None:
                 logger.debug(
                      f"Current price not available for {token_symbol} in Advanced Front-Run Strategy. "
@@ -326,7 +326,7 @@ class Strategy_Net:
                 logger.debug(
                     "Favorable price and bullish trend detected, proceeding with advanced front-run."
                 )
-                return await self.transaction_core.front_run(target_tx)
+                return await self.transactioncore.front_run(target_tx)
             logger.debug(
                 "Conditions not favorable for advanced front-run. Skipping."
             )
@@ -339,7 +339,7 @@ class Strategy_Net:
         """Execute back-run strategy based on price dip prediction."""
         logger.debug(f"Initiating Price Dip Back-Run Strategy... ")
         try:
-            decoded_tx = await self.transaction_core.decode_transaction_input(
+            decoded_tx = await self.transactioncore.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
             if not decoded_tx:
@@ -355,24 +355,24 @@ class Strategy_Net:
                 )
                 return False
             token_address = path[-1]
-            token_symbol = await self.api_config.get_token_symbol(self.transaction_core.web3, token_address)
+            token_symbol = await self.apiconfig.get_token_symbol(self.transactioncore.web3, token_address)
             if not token_symbol:
                 logger.debug(
                      f"Token symbol not found for address {token_address} in Price Dip Back-Run Strategy. "
                 )
                 return False
-            current_price = await self.api_config.get_real_time_price(token_symbol)
+            current_price = await self.apiconfig.get_real_time_price(token_symbol)
             if current_price is None:
                 logger.debug(
                      f"Current price not available for {token_symbol} in Price Dip Back-Run Strategy. "
                 )
                 return False
-            predicted_price = await self.market_monitor.predict_price_movement(token_symbol)
+            predicted_price = await self.marketmonitor.predict_price_movement(token_symbol)
             if predicted_price < float(current_price) * 0.99:
                 logger.debug(
                     "Predicted price decrease exceeds threshold, proceeding with price dip back-run."
                 )
-                return await self.transaction_core.back_run(target_tx)
+                return await self.transactioncore.back_run(target_tx)
             logger.debug(
                 "Predicted price decrease does not meet threshold. Skipping price dip back-run."
             )
@@ -385,7 +385,7 @@ class Strategy_Net:
         """Execute back-run strategy using flash loans."""
         logger.debug(f"Initiating Flashloan Back-Run Strategy... ")
         try:
-            estimated_profit = await self.transaction_core.calculate_flashloan_amount(
+            estimated_profit = await self.transactioncore.calculate_flashloan_amount(
                 target_tx
             ) * Decimal(
                 "0.02"
@@ -394,7 +394,7 @@ class Strategy_Net:
                 logger.debug(
                     "Estimated profit meets threshold, proceeding with flashloan back-run."
                 )
-                return await self.transaction_core.back_run(target_tx)
+                return await self.transactioncore.back_run(target_tx)
             logger.debug(f"Profit is insufficient for flashloan back-run. Skipping.")
             return False
         except Exception as e:
@@ -406,17 +406,17 @@ class Strategy_Net:
         logger.debug(f"Initiating High Volume Back-Run Strategy... ")
         try:
             token_address = target_tx.get("to")
-            token_symbol = await self.api_config.get_token_symbol(self.transaction_core.web3, token_address)
+            token_symbol = await self.apiconfig.get_token_symbol(self.transactioncore.web3, token_address)
             if not token_symbol:
                 logger.debug(f"Could not find token symbol for {token_address}")
                 return False
 
-            volume_24h = await self.api_config.get_token_volume(token_symbol)
+            volume_24h = await self.apiconfig.get_token_volume(token_symbol)
             volume_threshold = self._get_volume_threshold(token_symbol)
 
             if volume_24h > volume_threshold:
                 logger.debug(f"High volume detected ({volume_24h:,.2f} USD), proceeding with back-run")
-                return await self.transaction_core.back_run(target_tx)
+                return await self.transactioncore.back_run(target_tx)
 
             logger.debug(f"Volume ({volume_24h:,.2f} USD) below threshold ({volume_threshold:,.2f} USD)")
             return False
@@ -439,19 +439,19 @@ class Strategy_Net:
         """Execute advanced back-run strategy with comprehensive analysis."""
         logger.debug(f"Initiating Advanced Back-Run Strategy... ")
         try:
-            decoded_tx = await self.transaction_core.decode_transaction_input(
+            decoded_tx = await self.transactioncore.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
             if not decoded_tx:
                 logger.warning(f"failed to decode transaction input for advanced back-run")
                 return False
 
-            market_conditions = await self.market_monitor.check_market_conditions(
+            market_conditions = await self.marketmonitor.check_market_conditions(
                 target_tx["to"]
             )
             if market_conditions.get("high_volatility", False) and market_conditions.get("bullish_trend", False):
                 logger.debug(f"Market conditions favorable for advanced back-run")
-                return await self.transaction_core.back_run(target_tx)
+                return await self.transactioncore.back_run(target_tx)
 
             logger.debug(f"Market conditions unfavorable for advanced back-run")
             return False
@@ -464,19 +464,19 @@ class Strategy_Net:
         """Execute sandwich attack strategy using flash loans."""
         logger.debug(f"Initiating Flash Profit Sandwich Strategy... ")
         try:
-            estimated_profit = await self.transaction_core.calculate_flashloan_amount(
+            estimated_profit = await self.transactioncore.calculate_flashloan_amount(
                 target_tx
             ) * Decimal(
                 "0.02"
             )
             if estimated_profit > self.configuration["min_profit_threshold"]:
-                gas_price = await self.transaction_core.get_dynamic_gas_price()
+                gas_price = await self.transactioncore.get_dynamic_gas_price()
                 if gas_price > 200:
                     logger.debug(f"Gas price too high for sandwich attack: {gas_price} Gwei")
                     return False
 
                 logger.debug(f"Executing sandwich with estimated profit: {estimated_profit:.4f} ETH")
-                return await self.transaction_core.execute_sandwich_attack(target_tx)
+                return await self.transactioncore.execute_sandwich_attack(target_tx)
             logger.debug(f"Insufficient profit potential for flash sandwich")
             return False
         except Exception as e:
@@ -487,7 +487,7 @@ class Strategy_Net:
         """Execute sandwich attack strategy based on price momentum."""
         logger.debug(f"Initiating Price Boost Sandwich Strategy... ")
         try:
-            decoded_tx = await self.transaction_core.decode_transaction_input(
+            decoded_tx = await self.transactioncore.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
             if not decoded_tx:
@@ -500,12 +500,12 @@ class Strategy_Net:
                 logger.debug(f"Transaction has no path parameter for price boost sandwich")
                 return False
 
-            token_symbol = await self.api_config.get_token_symbol(self.transaction_core.web3, path[0])
+            token_symbol = await self.apiconfig.get_token_symbol(self.transactioncore.web3, path[0])
             if not token_symbol:
                 logger.debug(f"Token symbol not found for address {path[0]}")
                 return False
 
-            historical_prices = await self.market_monitor.fetch_historical_prices(token_symbol)
+            historical_prices = await self.marketmonitor.fetch_historical_prices(token_symbol)
             if not historical_prices:
                 logger.debug(f"No historical prices found for {token_symbol}")
                 return False
@@ -513,7 +513,7 @@ class Strategy_Net:
             momentum = await self._analyze_price_momentum(historical_prices)
             if momentum > 0.02:
                 logger.debug(f"Strong price momentum detected: {momentum:.2%}")
-                return await self.transaction_core.execute_sandwich_attack(target_tx)
+                return await self.transactioncore.execute_sandwich_attack(target_tx)
 
             logger.debug(f"Insufficient price momentum: {momentum:.2%}")
             return False
@@ -542,7 +542,7 @@ class Strategy_Net:
         """Execute sandwich attack strategy based on arbitrage opportunities."""
         logger.debug(f"Initiating Arbitrage Sandwich Strategy... ")
         try:
-            decoded_tx = await self.transaction_core.decode_transaction_input(
+            decoded_tx = await self.transactioncore.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
             if not decoded_tx:
@@ -556,15 +556,15 @@ class Strategy_Net:
                 return False
 
             token_address = path[-1]
-            token_symbol = await self.api_config.get_token_symbol(self.transaction_core.web3, token_address)
+            token_symbol = await self.apiconfig.get_token_symbol(self.transactioncore.web3, token_address)
             if not token_symbol:
                 logger.debug(f"Token symbol not found for address {token_address}")
                 return False
 
-            is_arbitrage = await self.market_monitor.is_arbitrage_opportunity(target_tx)
+            is_arbitrage = await self.marketmonitor.is_arbitrage_opportunity(target_tx)
             if is_arbitrage:
                 logger.debug(f"Arbitrage opportunity detected for {token_symbol}")
-                return await self.transaction_core.execute_sandwich_attack(target_tx)
+                return await self.transactioncore.execute_sandwich_attack(target_tx)
 
             logger.debug(f"No profitable arbitrage opportunity found")
             return False
@@ -577,19 +577,19 @@ class Strategy_Net:
         """Execute advanced sandwich attack strategy with risk management."""
         logger.debug(f"Initiating Advanced Sandwich Attack Strategy... ")
         try:
-            decoded_tx = await self.transaction_core.decode_transaction_input(
+            decoded_tx = await self.transactioncore.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
             if not decoded_tx:
                 logger.warning(f"failed to decode transaction input for advanced sandwich attack")
                 return False
 
-            market_conditions = await self.market_monitor.check_market_conditions(
+            market_conditions = await self.marketmonitor.check_market_conditions(
                 target_tx["to"]
             )
             if market_conditions.get("high_volatility", False) and market_conditions.get("bullish_trend", False):
                 logger.debug(f"Conditions favorable for advanced sandwich attack")
-                return await self.transaction_core.execute_sandwich_attack(target_tx)
+                return await self.transactioncore.execute_sandwich_attack(target_tx)
 
             logger.debug(f"Conditions unfavorable for advanced sandwich attack")
             return False

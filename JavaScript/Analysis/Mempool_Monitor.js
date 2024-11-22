@@ -1,9 +1,9 @@
-// Mempool_Monitor.js
+// MempoolMonitor.js
 import logger from './logger.js';
 import { Semaphore } from 'async-mutex';
 import Decimal from 'decimal.js';
 
-class Mempool_Monitor {
+class MempoolMonitor {
     constructor(web3, safetyNet, nonceCore, apiConfig, monitoredTokens = [], erc20Abi = [], configuration = null) {
         this.web3 = web3;
         this.configuration = configuration;
@@ -26,7 +26,7 @@ class Mempool_Monitor {
         this.semaphore = new Semaphore(this.maxParallelTasks);
         this.taskQueue = [];
 
-        logger.debug("Mempool_Monitor initialized with enhanced configuration.");
+        logger.debug("MempoolMonitor initialized with enhanced configuration.");
     }
 
     async startMonitoring() {
@@ -332,4 +332,4 @@ class Mempool_Monitor {
     }
 }
 
-export default Mempool_Monitor;
+export default MempoolMonitor;

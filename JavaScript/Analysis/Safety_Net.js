@@ -1,15 +1,15 @@
-// Safety_Net.js
+// SafetyNet.js
 import NodeCache from 'node-cache';
 import logger from './logger.js';
 import Decimal from 'decimal.js';
 
-class Safety_Net {
-    constructor(web3, configuration = null, address = null, account = null, api_config = null) {
+class SafetyNet {
+    constructor(web3, configuration = null, address = null, account = null, apiconfig = null) {
         this.web3 = web3; // Web3 instance for blockchain interactions
         this.address = address; // Ethereum address
         this.configuration = configuration; // Configuration settings
         this.account = account; // Ethereum account instance
-        this.api_config = api_config; // API configuration for data retrieval
+        this.apiconfig = apiconfig; // API configuration for data retrieval
         this.priceCache = new NodeCache({ stdTTL: 300, checkperiod: 60 }); // Cache for various price data
         this.gasPriceCache = new NodeCache({ stdTTL: 15, checkperiod: 5 }); // Cache for gas prices
 
@@ -59,7 +59,7 @@ class Safety_Net {
             const slippage = await this.adjustSlippageTolerance();
 
             const outputToken = transactionData.output_token;
-            const realTimePrice = await this.api_config.getRealTimePrice(outputToken);
+            const realTimePrice = await this.apiconfig.getRealTimePrice(outputToken);
             if (!realTimePrice) {
                 return false;
             }
@@ -198,7 +198,7 @@ class Safety_Net {
 
     async stop() {
         try {
-            await this.api_config.close();
+            await this.apiconfig.close();
             logger.debug("Safety Net stopped successfully.");
         } catch (e) {
             logger.error(`Error stopping Safety Net: ${e.message}`);
@@ -207,4 +207,4 @@ class Safety_Net {
     }
 }
 
-export default Safety_Net;
+export default SafetyNet;

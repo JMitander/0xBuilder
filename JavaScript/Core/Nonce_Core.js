@@ -1,8 +1,8 @@
-// Nonce_Core.js
+// NonceCore.js
 import NodeCache from 'node-cache';
 import logger from './logger.js';
 
-class Nonce_Core {
+class NonceCore {
     constructor(web3, address, configuration) {
         this.web3 = web3; // Web3 instance for blockchain interactions
         this.address = address; // Ethereum address
@@ -18,11 +18,11 @@ class Nonce_Core {
             if (!this.initialized) {
                 await this._initNonce();
                 this.initialized = true;
-                logger.debug(`Nonce_Core initialized for ${this.address.substring(0, 10)}...`);
+                logger.debug(`NonceCore initialized for ${this.address.substring(0, 10)}...`);
             }
         } catch (e) {
             logger.error(`Initialization failed: ${e.message}`);
-            throw new Error("Nonce_Core initialization failed");
+            throw new Error("NonceCore initialization failed");
         }
     }
 
@@ -142,7 +142,7 @@ class Nonce_Core {
             this.lastSync = Date.now();
             this.initialized = false;
             await this.initialize();
-            logger.debug("Nonce_Core reset complete");
+            logger.debug("NonceCore reset complete");
         } catch (e) {
             logger.error(`Reset failed: ${e.message}`);
             throw e;
@@ -152,7 +152,7 @@ class Nonce_Core {
     async stop() {
         try {
             await this.reset();
-            logger.debug("Nonce_Core stopped successfully.");
+            logger.debug("NonceCore stopped successfully.");
         } catch (e) {
             logger.error(`Error stopping nonce core: ${e.message}`);
             throw e;
@@ -160,4 +160,4 @@ class Nonce_Core {
     }
 }
 
-export default Nonce_Core;
+export default NonceCore;

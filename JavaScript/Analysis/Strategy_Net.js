@@ -1,4 +1,4 @@
-// Strategy_Net.js
+// StrategyNet.js
 
 import logger from './Logger.js'; // Assuming Logger.js handles logging
 import { Decimal } from 'decimal.js';
@@ -7,26 +7,26 @@ import StrategyPerformanceMetrics from '../../Utils/StrategyPerformanceMetrics.j
 import StrategyConfiguration from '../../Utils/StrategyConfiguration.js'; // Define this class as needed
 import StrategyExecutionError from '../../Utils/StrategyExecutionError.js'; // Define this class as needed
 
-class Strategy_Net {
+class StrategyNet {
     /**
-     * The Strategy_Net class orchestrates various trading strategies, manages their execution,
+     * The StrategyNet class orchestrates various trading strategies, manages their execution,
      * and employs reinforcement learning to optimize strategy selection based on performance.
      */
 
     /**
-     * Initializes the Strategy_Net instance.
+     * Initializes the StrategyNet instance.
      *
-     * @param {Transaction_Core} transaction_core - Core transaction handler.
-     * @param {Market_Monitor} market_monitor - Market monitoring and analysis component.
-     * @param {Safety_Net} safety_net - Safety mechanisms to prevent harmful operations.
-     * @param {API_Config} api_config - API configurations for data fetching.
+     * @param {TransactionCore} transactioncore - Core transaction handler.
+     * @param {MarketMonitor} marketmonitor - Market monitoring and analysis component.
+     * @param {SafetyNet} safetynet - Safety mechanisms to prevent harmful operations.
+     * @param {APIConfig} apiconfig - API configurations for data fetching.
      * @param {Configuration} configuration - Configuration settings.
      */
-    constructor(transaction_core = null, market_monitor = null, safety_net = null, api_config = null, configuration = null) {
-        this.transaction_core = transaction_core;
-        this.market_monitor = market_monitor;
-        this.safety_net = safety_net;
-        this.api_config = api_config;
+    constructor(transactioncore = null, marketmonitor = null, safetynet = null, apiconfig = null, configuration = null) {
+        this.transactioncore = transactioncore;
+        this.marketmonitor = marketmonitor;
+        this.safetynet = safetynet;
+        this.apiconfig = apiconfig;
         this.configuration = configuration;
 
         // Define the types of strategies available
@@ -78,7 +78,7 @@ class Strategy_Net {
             ],
         };
 
-        logger.debug("Strategy_Net initialized with enhanced configuration.");
+        logger.debug("StrategyNet initialized with enhanced configuration.");
     }
 
     /**
@@ -127,11 +127,11 @@ class Strategy_Net {
             const selected_strategy = await this._select_best_strategy(strategies, strategy_type);
 
             // Capture profit before strategy execution
-            const profit_before = await this.transaction_core.get_current_profit();
+            const profit_before = await this.transactioncore.get_current_profit();
             // Execute the selected strategy
             const success = await selected_strategy(target_tx);
             // Capture profit after strategy execution
-            const profit_after = await this.transaction_core.get_current_profit();
+            const profit_after = await this.transactioncore.get_current_profit();
 
             // Calculate execution metrics
             const execution_time = (Date.now() - start_time) / 1000; // in seconds
@@ -404,7 +404,7 @@ class Strategy_Net {
                     `Value: ${eth_value_eth} ETH\n` +
                     `Threshold: ${threshold_eth} ETH`
                 );
-                return await this.transaction_core.handle_eth_transaction(target_tx);
+                return await this.transactioncore.handle_eth_transaction(target_tx);
             }
 
             // Skip execution if the transaction value is below the threshold
@@ -500,7 +500,7 @@ class Strategy_Net {
                     `Value: ${value_eth} ETH\n` +
                     `Risk Score: ${risk_score.toFixed(2)}`
                 );
-                return await this.transaction_core.front_run(target_tx);
+                return await this.transactioncore.front_run(target_tx);
             }
 
             // Skip execution if the transaction value is below the threshold
@@ -564,7 +564,7 @@ class Strategy_Net {
             }
 
             // Check market conditions
-            const market_conditions = await this.market_monitor.check_market_conditions(tx.to);
+            const market_conditions = await this.marketmonitor.check_market_conditions(tx.to);
             if (market_conditions.high_volatility) {
                 risk_score *= 0.7;
             }
@@ -641,7 +641,7 @@ class Strategy_Net {
 
             // Step 2: Get token details and validate
             const token_address = path[0];
-            const token_symbol = await this.api_config.getTokenSymbol(this.web3, token_address);
+            const token_symbol = await this.apiconfig.getTokenSymbol(this.web3, token_address);
             if (!token_symbol) {
                 logger.debug(`Cannot get token symbol for ${token_address}. Skipping...`);
                 return false;
@@ -649,10 +649,10 @@ class Strategy_Net {
 
             // Step 3: Gather market data asynchronously
             const [predicted_price, current_price, market_conditions, historical_prices] = await Promise.all([
-                this.market_monitor.predict_price_movement(token_symbol),
-                this.api_config.getRealTimePrice(token_symbol.toLowerCase()),
-                this.market_monitor.check_market_conditions(target_tx.to),
-                this.market_monitor.fetch_historical_prices(token_symbol, 1),
+                this.marketmonitor.predict_price_movement(token_symbol),
+                this.apiconfig.getRealTimePrice(token_symbol.toLowerCase()),
+                this.marketmonitor.check_market_conditions(target_tx.to),
+                this.marketmonitor.fetch_historical_prices(token_symbol, 1),
             ]);
 
             if (current_price === null || predicted_price === null) {
@@ -662,7 +662,7 @@ class Strategy_Net {
 
             // Step 4: Calculate price metrics
             const price_change = ((predicted_price / parseFloat(current_price)) - 1) * 100;
-            const volatility = this.market_monitor._calculate_volatility(historical_prices);
+            const volatility = this.marketmonitor._calculate_volatility(historical_prices);
 
             // Step 5: Score the opportunity (0-100)
             const opportunity_score = await this._calculate_opportunity_score(
@@ -690,7 +690,7 @@ class Strategy_Net {
                     `Executing predictive front-run for ${token_symbol} ` +
                     `(Score: ${opportunity_score}/100, Expected Change: ${price_change.toFixed(2)}%)`
                 );
-                return await this.transaction_core.front_run(target_tx);
+                return await this.transactioncore.front_run(target_tx);
             }
 
             // Skip execution if opportunity score is below the threshold
@@ -783,7 +783,7 @@ class Strategy_Net {
             }
 
             // Step 2: Get token details and validate
-            const token_symbol = await this.api_config.getTokenSymbol(this.web3, path[0]);
+            const token_symbol = await this.apiconfig.getTokenSymbol(this.web3, path[0]);
             if (!token_symbol) {
                 logger.debug(`Cannot get token symbol for ${path[0]}. Skipping...`);
                 return false;
@@ -791,9 +791,9 @@ class Strategy_Net {
 
             // Step 3: Gather market data asynchronously
             const [market_conditions, current_price, historical_prices] = await Promise.all([
-                this.market_monitor.check_market_conditions(target_tx.to),
-                this.api_config.getRealTimePrice(token_symbol.toLowerCase()),
-                this.market_monitor.fetch_historical_prices(token_symbol, 1),
+                this.marketmonitor.check_market_conditions(target_tx.to),
+                this.apiconfig.getRealTimePrice(token_symbol.toLowerCase()),
+                this.marketmonitor.fetch_historical_prices(token_symbol, 1),
             ]);
 
             if (!current_price || !historical_prices.length) {
@@ -823,7 +823,7 @@ class Strategy_Net {
                     `Executing volatility-based front-run for ${token_symbol} ` +
                     `(Volatility Score: ${volatility_score}/100)`
                 );
-                return await this.transaction_core.front_run(target_tx);
+                return await this.transactioncore.front_run(target_tx);
             }
 
             // Skip execution if volatility score is below the threshold
@@ -907,20 +907,20 @@ class Strategy_Net {
             return false;
         }
 
-        const token_symbol = await this.api_config.getTokenSymbol(this.web3, path[path.length - 1]);
+        const token_symbol = await this.apiconfig.getTokenSymbol(this.web3, path[path.length - 1]);
         if (!token_symbol) {
             return false;
         }
 
-        const current_price = await this.api_config.getRealTimePrice(token_symbol.toLowerCase());
+        const current_price = await this.apiconfig.getRealTimePrice(token_symbol.toLowerCase());
         if (current_price === null) {
             return false;
         }
 
-        const predicted_price = await this.market_monitor.predict_price_movement(token_symbol);
+        const predicted_price = await this.marketmonitor.predict_price_movement(token_symbol);
         if (predicted_price < current_price * 0.99) { // Example threshold
             logger.debug("Predicted price decrease exceeds threshold, proceeding with back-run.");
-            return await this.transaction_core.back_run(target_tx);
+            return await this.transactioncore.back_run(target_tx);
         }
 
         logger.debug("Predicted price decrease does not meet threshold. Skipping back-run.");
@@ -932,16 +932,16 @@ class Strategy_Net {
          * Execute the Flashloan Back-Run Strategy using flash loans.
          */
         logger.debug("Initiating Flashloan Back-Run Strategy...");
-        const estimated_amount = this.transaction_core.calculate_flashloan_amount(target_tx);
+        const estimated_amount = this.transactioncore.calculate_flashloan_amount(target_tx);
         const estimated_profit = new Decimal(estimated_amount).mul(0.02); // Example profit calculation
         if (estimated_profit.gt(this.configuration_params.min_profit_threshold)) {
-            const gas_price = await this.transaction_core.get_dynamic_gas_price();
+            const gas_price = await this.transactioncore.get_dynamic_gas_price();
             if (gas_price > this.web3.utils.toWei("200", "gwei")) {
                 logger.debug(`Gas price too high for sandwich attack: ${this.web3.utils.fromWei(gas_price, 'gwei')} Gwei`);
                 return false;
             }
             logger.debug(`Executing sandwich with estimated profit: ${estimated_profit.toFixed(4)} ETH`);
-            return await this.transaction_core.execute_sandwich_attack(target_tx);
+            return await this.transactioncore.execute_sandwich_attack(target_tx);
         }
         logger.debug("Insufficient profit potential for flash sandwich. Skipping.");
         return false;
@@ -953,15 +953,15 @@ class Strategy_Net {
          */
         logger.debug("Initiating High Volume Back-Run Strategy...");
         const token_address = target_tx.to || "";
-        const token_symbol = await this.api_config.getTokenSymbol(this.web3, token_address);
+        const token_symbol = await this.apiconfig.getTokenSymbol(this.web3, token_address);
         if (!token_symbol) {
             return false;
         }
-        const volume_24h = await this.api_config.getTokenVolume(token_symbol);
+        const volume_24h = await this.apiconfig.getTokenVolume(token_symbol);
         const volume_threshold = this._get_volume_threshold(token_symbol);
         if (volume_24h > volume_threshold) {
             logger.debug(`High volume detected ($${volume_24h.toLocaleString()} USD), proceeding with back-run.`);
-            return await this.transaction_core.back_run(target_tx);
+            return await this.transactioncore.back_run(target_tx);
         }
         logger.debug(`Volume ($${volume_24h.toLocaleString()} USD) below threshold ($${volume_threshold.toLocaleString()} USD). Skipping.`);
         return false;
@@ -1038,10 +1038,10 @@ class Strategy_Net {
             return false;
         }
 
-        const market_conditions = await this.market_monitor.check_market_conditions(target_tx.to);
+        const market_conditions = await this.marketmonitor.check_market_conditions(target_tx.to);
         if (market_conditions.high_volatility && market_conditions.bullish_trend) {
             logger.debug("Market conditions favorable for advanced back-run.");
-            return await this.transaction_core.back_run(target_tx);
+            return await this.transactioncore.back_run(target_tx);
         }
 
         logger.debug("Market conditions unfavorable for advanced back-run. Skipping.");
@@ -1053,16 +1053,16 @@ class Strategy_Net {
          * Execute the Flash Profit Sandwich Strategy using flash loans.
          */
         logger.debug("Initiating Flash Profit Sandwich Strategy...");
-        const estimated_amount = this.transaction_core.calculate_flashloan_amount(target_tx);
+        const estimated_amount = this.transactioncore.calculate_flashloan_amount(target_tx);
         const estimated_profit = new Decimal(estimated_amount).mul(0.02); // Example profit calculation
         if (estimated_profit.gt(this.configuration_params.min_profit_threshold)) {
-            const gas_price = await this.transaction_core.get_dynamic_gas_price();
+            const gas_price = await this.transactioncore.get_dynamic_gas_price();
             if (parseFloat(this.web3.utils.fromWei(gas_price, 'gwei')) > 200) {
                 logger.debug(`Gas price too high for sandwich attack: ${this.web3.utils.fromWei(gas_price, 'gwei')} Gwei`);
                 return false;
             }
             logger.debug(`Executing sandwich with estimated profit: ${estimated_profit.toFixed(4)} ETH`);
-            return await this.transaction_core.execute_sandwich_attack(target_tx);
+            return await this.transactioncore.execute_sandwich_attack(target_tx);
         }
         logger.debug("Insufficient profit potential for flash sandwich. Skipping.");
         return false;
@@ -1084,12 +1084,12 @@ class Strategy_Net {
             return false;
         }
 
-        const token_symbol = await this.api_config.getTokenSymbol(this.web3, path[0]);
+        const token_symbol = await this.apiconfig.getTokenSymbol(this.web3, path[0]);
         if (!token_symbol) {
             return false;
         }
 
-        const historical_prices = await this.market_monitor.fetch_historical_prices(token_symbol);
+        const historical_prices = await this.marketmonitor.fetch_historical_prices(token_symbol);
         if (!historical_prices.length) {
             return false;
         }
@@ -1097,7 +1097,7 @@ class Strategy_Net {
         const momentum = await this._analyze_price_momentum(historical_prices);
         if (momentum > 0.02) {
             logger.debug(`Strong price momentum detected: ${momentum.toFixed(2)}%`);
-            return await this.transaction_core.execute_sandwich_attack(target_tx);
+            return await this.transactioncore.execute_sandwich_attack(target_tx);
         }
 
         logger.debug(`Insufficient price momentum: ${momentum.toFixed(2)}%. Skipping.`);
@@ -1141,15 +1141,15 @@ class Strategy_Net {
             return false;
         }
 
-        const token_symbol = await this.api_config.getTokenSymbol(this.web3, path[path.length - 1]);
+        const token_symbol = await this.apiconfig.getTokenSymbol(this.web3, path[path.length - 1]);
         if (!token_symbol) {
             return false;
         }
 
-        const is_arbitrage = await this.market_monitor.is_arbitrage_opportunity(target_tx);
+        const is_arbitrage = await this.marketmonitor.is_arbitrage_opportunity(target_tx);
         if (is_arbitrage) {
             logger.debug(`Arbitrage opportunity detected for ${token_symbol}`);
-            return await this.transaction_core.execute_sandwich_attack(target_tx);
+            return await this.transactioncore.execute_sandwich_attack(target_tx);
         }
 
         logger.debug("No profitable arbitrage opportunity found. Skipping.");
@@ -1166,10 +1166,10 @@ class Strategy_Net {
             return false;
         }
 
-        const market_conditions = await this.market_monitor.check_market_conditions(target_tx.to);
+        const market_conditions = await this.marketmonitor.check_market_conditions(target_tx.to);
         if (market_conditions.high_volatility && market_conditions.bullish_trend) {
             logger.debug("Conditions favorable for sandwich attack.");
-            return await this.transaction_core.execute_sandwich_attack(target_tx);
+            return await this.transactioncore.execute_sandwich_attack(target_tx);
         }
 
         logger.debug("Conditions unfavorable for sandwich attack. Skipping.");
@@ -1177,4 +1177,4 @@ class Strategy_Net {
     }
 }
 
-export default Strategy_Net;
+export default StrategyNet;

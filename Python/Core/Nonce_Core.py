@@ -1,4 +1,4 @@
-class Nonce_Core:
+class NonceCore:
     """
     Advanced nonce management system for Ethereum transactions with caching,
     auto-recovery, and comprehensive error handling.
@@ -30,10 +30,10 @@ class Nonce_Core:
                 if not self._initialized:
                     await self._init_nonce()
                     self._initialized = True
-                    logger.debug(f"Nonce_Core initialized for {self.address[:10]}...")
+                    logger.debug(f"NonceCore initialized for {self.address[:10]}...")
         except Exception as e:
             logger.error(f"Initialization failed: {e}")
-            raise RuntimeError("Nonce_Core initialization failed") from e
+            raise RuntimeError("NonceCore initialization failed") from e
 
     async def _init_nonce(self) -> None:
         """Initialize nonce with fallback mechanisms."""

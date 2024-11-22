@@ -1,4 +1,4 @@
-// Market_Monitor.js
+// MarketMonitor.js
 
 import logger from './Logger.js'; // Assuming Logger.js handles logging
 import { LinearRegression } from 'ml-regression'; // You may need to install ml-regression
@@ -6,9 +6,9 @@ import { TTLCache } from 'ttl-cache'; // You may need to install ttl-cache
 import joblib from 'joblib'; // Note: joblib is Python-specific. Use a similar library or implement serialization.
 import { Decimal } from 'decimal.js';
 
-class Market_Monitor {
+class MarketMonitor {
     /**
-     * The Market_Monitor class is responsible for monitoring and analyzing market data,
+     * The MarketMonitor class is responsible for monitoring and analyzing market data,
      * updating predictive models, and assessing market conditions such as volatility
      * and liquidity for specified tokens.
      */
@@ -19,16 +19,16 @@ class Market_Monitor {
     LIQUIDITY_THRESHOLD = 100000; // $100,000 in 24h volume as liquidity threshold
 
     /**
-     * Initializes the Market_Monitor instance.
+     * Initializes the MarketMonitor instance.
      *
      * @param {Web3} web3 - The Web3 instance for blockchain interactions.
      * @param {Configuration} configuration - The configuration instance.
-     * @param {API_Config} api_config - The API configuration instance.
+     * @param {APIConfig} apiconfig - The API configuration instance.
      */
-    constructor(web3, configuration, api_config) {
+    constructor(web3, configuration, apiconfig) {
         this.web3 = web3;
         this.configuration = configuration;
-        this.api_config = api_config;
+        this.apiconfig = apiconfig;
 
         // Initialize the Linear Regression model for price prediction
         this.price_model = new LinearRegression();
@@ -47,7 +47,7 @@ class Market_Monitor {
         // Asynchronously load existing model and training data if available
         this.load_model();
 
-        logger.debug("Market_Monitor initialized with enhanced configuration.");
+        logger.debug("MarketMonitor initialized with enhanced configuration.");
     }
 
     /**
@@ -164,7 +164,7 @@ class Market_Monitor {
                 let X_combined = X;
                 let y_combined = y;
                 if (await this._file_exists(this.training_data_path)) {
-                    const csv = await this.web3.utils.toHex(await this.api_config._load_abi(this.training_data_path));
+                    const csv = await this.web3.utils.toHex(await this.apiconfig._load_abi(this.training_data_path));
                     // Implement CSV parsing as needed
                     // For simplicity, assume existing_data is loaded as arrays
                     const existing_data = []; // Placeholder
@@ -203,7 +203,7 @@ class Market_Monitor {
             bearish_trend: false,
             low_liquidity: false,
         };
-        const token_symbol = await this.api_config.getTokenSymbol(this.web3, token_address);
+        const token_symbol = await this.apiconfig.getTokenSymbol(this.web3, token_address);
         if (!token_symbol) {
             logger.debug(`Cannot get token symbol for address ${token_address}!`);
             return market_conditions;
@@ -271,7 +271,7 @@ class Market_Monitor {
         }
 
         const prices = await this._fetch_from_services(
-            async (service) => await this.api_config.fetchHistoricalPrices(token_symbol, days),
+            async (service) => await this.apiconfig.fetchHistoricalPrices(token_symbol, days),
             `historical prices for ${token_symbol}`
         );
 
@@ -297,7 +297,7 @@ class Market_Monitor {
         }
 
         const volume = await this._fetch_from_services(
-            async (service) => await this.api_config.getTokenVolume(token_symbol),
+            async (service) => await this.apiconfig.getTokenVolume(token_symbol),
             `trading volume for ${token_symbol}`
         );
 
@@ -317,7 +317,7 @@ class Market_Monitor {
      * @returns {any} - The fetched data or null if all services fail.
      */
     async _fetch_from_services(fetch_func, description) {
-        const services = Object.keys(this.api_config.apiConfigs);
+        const services = Object.keys(this.apiconfig.apiConfigs);
         for (const service of services) {
             try {
                 logger.debug(`Fetching ${description} using ${service}...`);
@@ -382,7 +382,7 @@ class Market_Monitor {
         }
 
         const token_address = path[path.length - 1]; // The token being bought
-        const token_symbol = await this.api_config.getTokenSymbol(this.web3, token_address);
+        const token_symbol = await this.apiconfig.getTokenSymbol(this.web3, token_address);
         if (!token_symbol) {
             return false;
         }
@@ -416,10 +416,10 @@ class Market_Monitor {
      */
     async _get_prices_from_services(token_symbol) {
         const prices = [];
-        const services = Object.keys(this.api_config.apiConfigs);
+        const services = Object.keys(this.apiconfig.apiConfigs);
         for (const service of services) {
             try {
-                const price = await this.api_config.getRealTimePrice(token_symbol.toLowerCase());
+                const price = await this.apiconfig.getRealTimePrice(token_symbol.toLowerCase());
                 if (price !== null) {
                     prices.push(price);
                 }
@@ -431,4 +431,4 @@ class Market_Monitor {
     }
 }
 
-export default Market_Monitor;
+export default MarketMonitor;

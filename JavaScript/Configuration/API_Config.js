@@ -1,11 +1,11 @@
-// API_Config.js
+// APIConfig.js
 import axios from 'axios';
 import NodeCache from 'node-cache';
 import logger from './logger.js';
 import Decimal from 'decimal.js';
 import fs from 'fs/promises';
 
-class API_Config {
+class APIConfig {
     constructor(configuration = null) {
         this.configuration = configuration; // Configuration settings
         this.session = axios.create();
@@ -322,4 +322,4 @@ class API_Config {
     }
 }
 
-export default API_Config;
+export default APIConfig;

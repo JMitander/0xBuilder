@@ -1,4 +1,4 @@
-class Main_Core:
+class MainCore:
     """
     Builds and manages the entire MEV bot, initializing all components,
     managing connections, and orchestrating the main execution loop.
@@ -10,15 +10,15 @@ class Main_Core:
         self.web3: Optional[AsyncWeb3] = None
         self.account: Optional[Account] = None
         self.components: Dict[str, Any] = {
-            'api_config': None,
-            'nonce_core': None,
-            'safety_net': None,
-            'market_monitor': None,
-            'mempool_monitor': None,
-            'transaction_core': None,
-            'strategy_net': None
+            'apiconfig': None,
+            'noncecore': None,
+            'safetynet': None,
+            'marketmonitor': None,
+            'mempoolmonitor': None,
+            'transactioncore': None,
+            'strategynet': None
         }
-        logger.debug(f"Main_Core core initialized successfully. ")
+        logger.debug(f"MainCore core initialized successfully. ")
 
     async def initialize(self) -> None:
         """Initialize all components with  error handling."""
@@ -140,15 +140,15 @@ class Main_Core:
         """Initialize all bot components with  error handling."""
         try:
             # Initialize core components
-            self.components['nonce_core'] = Nonce_Core(
+            self.components['noncecore'] = NonceCore(
                 self.web3, self.account.address
             )
-            await self.components['nonce_core'].initialize()
+            await self.components['noncecore'].initialize()
 
-            api_config = API_Config(self.configuration)
+            apiconfig = APIConfig(self.configuration)
 
-            self.components['safety_net'] = Safety_Net(
-                self.web3, self.configuration, self.account, api_config
+            self.components['safetynet'] = SafetyNet(
+                self.web3, self.configuration, self.account, apiconfig
             )
 
             # Load contract ABIs
@@ -157,16 +157,16 @@ class Main_Core:
             aave_lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
 
             # Initialize analysis components
-            self.components['market_monitor'] = Market_Monitor(
-                self.web3, self.configuration, api_config
+            self.components['marketmonitor'] = MarketMonitor(
+                self.web3, self.configuration, apiconfig
             )
 
             # Initialize monitoring components
-            self.components['mempool_monitor'] = Mempool_Monitor(
+            self.components['mempoolmonitor'] = MempoolMonitor(
                 web3=self.web3,
-                safety_net=self.components['safety_net'],
-                nonce_core=self.components['nonce_core'],
-                api_config=api_config,
+                safetynet=self.components['safetynet'],
+                noncecore=self.components['noncecore'],
+                apiconfig=apiconfig,
                 
                 monitored_tokens=await self.configuration.get_token_addresses(),
                 erc20_abi=erc20_abi,
@@ -174,29 +174,29 @@ class Main_Core:
             )
 
             # Initialize transaction components
-            self.components['transaction_core'] = Transaction_Core(
+            self.components['transactioncore'] = TransactionCore(
                 web3=self.web3,
                 account=self.account,
                 aave_flashloan_address=self.configuration.AAVE_FLASHLOAN_ADDRESS,
                 aave_flashloan_abi=aave_flashloan_abi,
                 aave_lending_pool_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
                 aave_lending_pool_abi=aave_lending_pool_abi,
-                monitor=self.components['mempool_monitor'],
-                nonce_core=self.components['nonce_core'],
-                safety_net=self.components['safety_net'],
-                api_config=api_config,
+                monitor=self.components['mempoolmonitor'],
+                noncecore=self.components['noncecore'],
+                safetynet=self.components['safetynet'],
+                apiconfig=apiconfig,
                 configuration=self.configuration,
                 
                 erc20_abi=erc20_abi
             )
-            await self.components['transaction_core'].initialize()
+            await self.components['transactioncore'].initialize()
 
             # Initialize strategy components
-            self.components['strategy_net'] = Strategy_Net(
-                transaction_core=self.components['transaction_core'],
-                market_monitor=self.components['market_monitor'],
-                safety_net=self.components['safety_net'],
-                api_config=api_config,
+            self.components['strategynet'] = StrategyNet(
+                transactioncore=self.components['transactioncore'],
+                marketmonitor=self.components['marketmonitor'],
+                safetynet=self.components['safetynet'],
+                apiconfig=apiconfig,
                 
             )
 
@@ -206,10 +206,10 @@ class Main_Core:
 
     async def run(self) -> None:
         """Main execution loop with improved error handling."""
-        logger.debug(f"Starting Main_Core... ")
+        logger.debug(f"Starting MainCore... ")
 
         try:
-            await self.components['mempool_monitor'].start_monitoring()
+            await self.components['mempoolmonitor'].start_monitoring()
 
             while True:
                 try:
@@ -228,15 +228,15 @@ class Main_Core:
 
     async def stop(self) -> None:
         """Graceful shutdown of all components."""
-        logger.debug(f"Shutting down Main_Core...")
+        logger.debug(f"Shutting down MainCore...")
 
         try:
-            if self.components['mempool_monitor']:
-                await self.components['mempool_monitor'].stop_monitoring()
+            if self.components['mempoolmonitor']:
+                await self.components['mempoolmonitor'].stop_monitoring()
 
-            # Close the aiohttp session in API_Config
-            api_config: API_Config = self.components['safety_net'].api_config
-            await api_config.session.close()
+            # Close the aiohttp session in APIConfig
+            apiconfig: APIConfig = self.components['safetynet'].apiconfig
+            await apiconfig.session.close()
 
             logger.debug(f"Shutdown complete ")
         except Exception as e:
@@ -246,8 +246,8 @@ class Main_Core:
 
     async def _process_profitable_transactions(self) -> None:
         """Process profitable transactions from the queue."""
-        monitor = self.components['mempool_monitor']
-        strategy = self.components['strategy_net']
+        monitor = self.components['mempoolmonitor']
+        strategy = self.components['strategynet']
 
         while not monitor.profitable_transactions.empty():
             try:
@@ -285,15 +285,15 @@ async def main():
     try:
         # Setup logging
         await setup_logging()
-        logger = logging.getLogger("Main_Core")
-        logger.debug("Starting Main_Core initialization...")
+        logger = logging.getLogger("MainCore")
+        logger.debug("Starting MainCore initialization...")
 
         # Initialize configuration
         configuration = Configuration(logger)
         await configuration.load()
 
         # Initialize and run the bot
-        main_cn_cre = Main_Core(configuration, logger)
+        main_cn_cre = MainCore(configuration, logger)
         await main_cn_cre.initialize()
         await main_cn_cre.run()
 
@@ -309,7 +309,7 @@ async def main():
         sys.exit(1)
     finally:
         if logger:
-            logger.debug("Main_Core shutdown complete.")
+            logger.debug("MainCore shutdown complete.")
         sys.exit(0)
 
 if __name__ == "__main__":

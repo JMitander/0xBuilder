@@ -1,4 +1,4 @@
-class Mempool_Monitor:
+class MempoolMonitor:
     """
     Advanced mempool monitoring system that identifies and analyzes profitable transactions.
     Includes sophisticated profit estimation, caching, and parallel processing capabilities.
@@ -12,9 +12,9 @@ class Mempool_Monitor:
     def __init__(
         self,
         web3: AsyncWeb3,
-        safety_net: Safety_Net,
-        nonce_core: Nonce_Core,
-        api_config: API_Config,
+        safetynet: SafetyNet,
+        noncecore: NonceCore,
+        apiconfig: APIConfig,
         monitored_tokens: Optional[List[str]] = None,
         erc20_abi: List[Dict[str, Any]] = None,
         configuration: Optional[Configuration] = None,
@@ -22,9 +22,9 @@ class Mempool_Monitor:
         # Core components
         self.web3 = web3
         self.configuration = configuration
-        self.safety_net = safety_net
-        self.nonce_core = nonce_core
-        self.api_config = api_config
+        self.safetynet = safetynet
+        self.noncecore = noncecore
+        self.apiconfig = apiconfig
 
         # Monitoring state
         self.running = False
@@ -43,7 +43,7 @@ class Mempool_Monitor:
         self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
         self.task_queue = asyncio.Queue()
 
-        logger.debug("Mempool_Monitor initialized with enhanced configuration.")
+        logger.debug("MempoolMonitor initialized with enhanced configuration.")
 
     async def start_monitoring(self) -> None:
         """Start monitoring the mempool with improved error handling."""
@@ -281,7 +281,7 @@ class Mempool_Monitor:
 
     async def _estimate_eth_transaction_profit(self, tx: Any) -> Decimal:
         try:
-            gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
+            gas_price_gwei = await self.safetynet.get_dynamic_gas_price()
             gas_used = tx.gas if tx.gas else await self.web3.eth.estimate_gas(tx)
             gas_cost_eth = Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
             eth_value = Decimal(self.web3.from_wei(tx.value, "ether"))
@@ -305,13 +305,13 @@ class Mempool_Monitor:
                 )
                 return Decimal(0)
             output_token_address = path[-1]
-            output_token_symbol = await self.api_config.get_token_symbol(self.web3, output_token_address)
+            output_token_symbol = await self.apiconfig.get_token_symbol(self.web3, output_token_address)
             if not output_token_symbol:
                 logger.debug(
                     f"Output token symbol not found for address {output_token_address}. Skipping."
                 )
                 return Decimal(0)
-            market_price = await self.api_config.get_real_time_price(
+            market_price = await self.apiconfig.get_real_time_price(
                 output_token_symbol.lower()
             )
             if market_price is None or market_price == 0:

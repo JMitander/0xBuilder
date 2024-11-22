@@ -1,4 +1,4 @@
-class API_Config:
+class APIConfig:
     def __init__(self, Configuration: Any):
         self.configuration = Configuration
         self.session = None
@@ -14,7 +14,7 @@ class API_Config:
             await self.session.close()
 
         # API configuration
-        self.api_config = {
+        self.apiconfig = {
             "binance": {
                 "base_url": "https://api.binance.com/api/v3",
                 "success_rate": 1.0,
@@ -47,7 +47,7 @@ class API_Config:
         self.api_lock = asyncio.Lock()
         self.rate_limiters = {
             provider: asyncio.Semaphore(config.get("rate_limit", 10))
-            for provider, config in self.api_config.items()
+            for provider, config in self.apiconfig.items()
         }
 
     async def get_token_symbol(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
@@ -76,7 +76,7 @@ class API_Config:
         prices = []
         weights = []
         async with self.api_lock:
-            for source, config in self.api_config.items():
+            for source, config in self.apiconfig.items():
                 try:
                     price = await self._fetch_price(source, token, vs_currency)
                     if price:
@@ -94,7 +94,7 @@ class API_Config:
 
     async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
         """Fetch the price of a token from a specified source."""
-        config = self.api_config.get(source)
+        config = self.apiconfig.get(source)
         if not config:
             logger.debug(f"API configuration for {source} not found.")
             return None
@@ -188,7 +188,7 @@ class API_Config:
 
     async def _fetch_historical_prices(self, source: str, token: str, days: int) -> Optional[List[float]]:
         """Fetch historical prices from a specified source."""
-        config = self.api_config.get(source)
+        config = self.apiconfig.get(source)
         if not config:
             logger.debug(f"API configuration for {source} not found.")
             return None
@@ -217,7 +217,7 @@ class API_Config:
 
     async def _fetch_token_volume(self, source: str, token: str) -> Optional[float]:
         """Fetch token volume from a specified source."""
-        config = self.api_config.get(source)
+        config = self.apiconfig.get(source)
         if not config:
             logger.debug(f"API configuration for {source} not found.")
             return None
@@ -232,7 +232,7 @@ class API_Config:
 
     async def _fetch_from_services(self, fetch_func, description: str):
         """Helper method to fetch data from multiple services."""
-        for service in self.api_config.keys():
+        for service in self.apiconfig.keys():
             try:
                 logger.debug(f"Fetching {description} using {service}...")
                 result = await fetch_func(service)

@@ -1,6 +1,6 @@
-class Safety_Net:
+class SafetyNet:
     """
-    Safety_Net provides risk management and price verification functionality
+    SafetyNet provides risk management and price verification functionality
     with multiple data sources, automatic failover, and dynamic adjustments.
     """
 
@@ -9,14 +9,14 @@ class Safety_Net:
         web3: AsyncWeb3,
         configuration: Configuration,
         account: Account,
-        api_config: API_Config,
+        apiconfig: APIConfig,
         
         cache_ttl: int = 300,  # Cache TTL in seconds
     ):
         self.web3 = web3
         self.configuration = configuration
         self.account = account
-        self.api_config = api_config
+        self.apiconfig = apiconfig
         
 
         # Price data caching
@@ -41,7 +41,7 @@ class Safety_Net:
             "base_gas_limit": 21000,
         }
 
-        logger.debug(f"Safety_Net initialized with enhanced configuration ")
+        logger.debug(f"SafetyNet initialized with enhanced configuration ")
 
     async def get_balance(self, account: Account) -> Decimal:
         """Get account balancer_router_abi with retries and caching."""
@@ -92,7 +92,7 @@ class Safety_Net:
 
             # Get real-time price with weighted average
             output_token = transaction_data.get("output_token")
-            real_time_price = await self.api_config.get_real_time_price(output_token)
+            real_time_price = await self.apiconfig.get_real_time_price(output_token)
 
             if not real_time_price:
                 return False

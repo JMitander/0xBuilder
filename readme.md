@@ -88,10 +88,10 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   │   └── Configuration.py               # Configuration management
 │   │   └── DataApiClient.py               # API client for external data sources
 │   ├── Core/
-│   │   ├── Main_Core.py                   # Main bot script
-│   │   ├── Nonce_Core.py                  # Manages Ethereum nonces
-│   │   ├── Strategy_Net.py                # Handles trading strategies
-│   │   └── Transaction_Core.py            # Builds and sends transaction bundles
+│   │   ├── MainCore.py                   # Main bot script
+│   │   ├── NonceCore.py                  # Manages Ethereum nonces
+│   │   ├── StrategyNet.py                # Handles trading strategies
+│   │   └── TransactionCore.py            # Builds and sends transaction bundles
 │   ├── Utils/
 │   │   ├── token_addresses.json           # List of monitored token addresses
 │   │   ├── token_symbols.json             # Mapping of token addresses to symbols
@@ -107,9 +107,9 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   ├── Contracts/
 │   │   └── SimpleFlashLoan.sol             # Flashloan smart contract
 │   ├── Analysis/
-│   │   ├── Market_Monitor.py              # Analyzes market data
-│   │   ├── Mempool_Monitor.py             # Monitors mempool for transactions
-│   │   └── Safety_Net.py                   # Safety checks and validations
+│   │   ├── MarketMonitor.py              # Analyzes market data
+│   │   ├── MempoolMonitor.py             # Monitors mempool for transactions
+│   │   └── SafetyNet.py                   # Safety checks and validations
 │   ├── Logs/
 │   │   └── 0xBuilder_log.txt               # Logs bot activities
 │   ├── .env                               # Environment variables
@@ -123,10 +123,10 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   │   └── Configuration.js                # Configuration management
 │   │   └── DataApiClient.js                # API client for external data sources
 │   ├── Core/
-│   │   ├── Main_Core.js                    # Main bot script
-│   │   ├── Nonce_Core.js                   # Manages Ethereum nonces
-│   │   ├── Strategy_Net.js                 # Handles trading strategies
-│   │   └── Transaction_Core.js             # Builds and sends transaction bundles
+│   │   ├── MainCore.js                    # Main bot script
+│   │   ├── NonceCore.js                   # Manages Ethereum nonces
+│   │   ├── StrategyNet.js                 # Handles trading strategies
+│   │   └── TransactionCore.js             # Builds and sends transaction bundles
 │   ├── Utils/
 │   │   ├── token_addresses.json            # List of monitored token addresses
 │   │   ├── token_symbols.json              # Mapping of token addresses to symbols
@@ -142,9 +142,9 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   ├── Contracts/
 │   │   └── SimpleFlashLoan.sol              # Flashloan smart contract
 │   ├── Analysis/
-│   │   ├── Market_Monitor.js               # Analyzes market data
-│   │   ├── Mempool_Monitor.js              # Monitors mempool for transactions
-│   │   └── Safety_Net.js                    # Safety checks and validations
+│   │   ├── MarketMonitor.js               # Analyzes market data
+│   │   ├── MempoolMonitor.js              # Monitors mempool for transactions
+│   │   └── SafetyNet.js                    # Safety checks and validations
 │   ├── Logs/
 │   │   └── 0xBuilder_log.txt                # Logs bot activities
 │   ├── .env                                # Environment variables

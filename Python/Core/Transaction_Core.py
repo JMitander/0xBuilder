@@ -1,6 +1,6 @@
-class Transaction_Core:
+class TransactionCore:
     """
-    Transaction_Core class builds and executes transactions, including front-run,
+    TransactionCore class builds and executes transactions, including front-run,
     back-run, and sandwich attack strategies. It interacts with smart contracts,
     manages transaction signing, gas price estimation, and handles flashloans.
     """
@@ -12,9 +12,9 @@ class Transaction_Core:
         aave_flashloan_abi: List[Dict[str, Any]],
         aave_lending_pool_address: str,
         aave_lending_pool_abi: List[Dict[str, Any]],
-        monitor: Mempool_Monitor,
-        nonce_core: Nonce_Core,
-        safety_net: Safety_Net,
+        monitor: MempoolMonitor,
+        noncecore: NonceCore,
+        safetynet: SafetyNet,
         configuration: Configuration,
         
         gas_price_multiplier: float = 1.1,
@@ -27,8 +27,8 @@ class Transaction_Core:
         self.configuration = configuration
         
         self.monitor = monitor
-        self.nonce_core = nonce_core
-        self.safety_net = safety_net
+        self.noncecore = noncecore
+        self.safetynet = safetynet
         self.gas_price_multiplier = gas_price_multiplier
         self.retry_attempts = retry_attempts
         self.retry_delay = retry_delay
@@ -113,7 +113,7 @@ class Transaction_Core:
                 "data": function_call.encodeABI(),
                 "to": function_call.address,
                 "chainId": await self.web3.eth.chain_id,
-                "nonce": await self.nonce_core.get_nonce(),
+                "nonce": await self.noncecore.get_nonce(),
                 "from": self.account.address,
             }
             tx_details.update(additional_params)
@@ -128,7 +128,7 @@ class Transaction_Core:
 
     async def get_dynamic_gas_price(self) -> Dict[str, int]:
         try:
-            gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
+            gas_price_gwei = await self.safetynet.get_dynamic_gas_price()
             logger.debug(f"Fetched gas price: {gas_price_gwei} Gwei ")
         except Exception as e:
             logger.debug(
@@ -165,7 +165,7 @@ class Transaction_Core:
                 logger.debug(
                      f"Transaction sent successfully with hash: {tx_hash_hex} "
                 )
-                await self.nonce_core.refresh_nonce()
+                await self.noncecore.refresh_nonce()
                 return tx_hash_hex
             except Exception as e:
                 logger.debug(
@@ -203,7 +203,7 @@ class Transaction_Core:
                 "to": target_tx.get("to", ""),
                 "value": eth_value,
                 "gas": 21_000,
-                "nonce": await self.nonce_core.get_nonce(),
+                "nonce": await self.noncecore.get_nonce(),
                 "from": self.account.address,
             }
             original_gas_price = int(target_tx.get("gasPrice", 0))
@@ -377,7 +377,7 @@ class Transaction_Core:
 
             # Update nonce if any submissions succeeded
             if successes:
-                await self.nonce_core.refresh_nonce()
+                await self.noncecore.refresh_nonce()
                 logger.info(f"Bundle successfully sent to builders: {', '.join(successes)}")
                 return True
             else:
@@ -855,7 +855,7 @@ class Transaction_Core:
 
     async def get_current_profit(self) -> Decimal:
         try:
-            current_profit = await self.safety_net.get_balance(self.account)
+            current_profit = await self.safetynet.get_balance(self.account)
             self.current_profit = Decimal(current_profit)
             logger.debug(f"Current profit: {self.current_profit} ETH ")
             return self.current_profit

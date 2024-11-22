@@ -15,7 +15,7 @@ import hexbytes
 import traceback
 import joblib 
 import pandas as pd
-
+import psutil
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
@@ -3434,6 +3434,7 @@ class StrategyPerformanceMetrics:
 
 # ========================= StrategyConfiguration =========================
 
+
 @dataclass
 class StrategyConfiguration:
     """
@@ -3443,7 +3444,6 @@ class StrategyConfiguration:
     min_profit_threshold: Decimal = Decimal("0.01")
     learning_rate: float = 0.01
     exploration_rate: float = 0.1
-
 # ========================= StrategyExecutionError =========================
 
 @dataclass
@@ -3513,8 +3513,7 @@ class Strategy_Net:
 
         # History data to log strategy executions
         self.history_data: List[Dict[str, Any]] = []
-
-        # Dynamic strategy registry mapping strategy types to their corresponding functions
+      # Dynamic strategy registry mapping strategy types to their corresponding functions
         self._strategy_registry: Dict[str, List[Callable[[Dict[str, Any]], asyncio.Future]]] = {
             "eth_transaction": [self.high_value_eth_transfer],
             "front_run": [
@@ -3536,8 +3535,6 @@ class Strategy_Net:
                 self.advanced_sandwich_attack,
             ],
         }
-
-        logger.debug("Strategy_Net initialized with enhanced configuration")
 
     def register_strategy(self, strategy_type: str, strategy_func: Callable[[Dict[str, Any]], asyncio.Future]) -> None:
         """
@@ -3567,8 +3564,8 @@ class Strategy_Net:
         return self._strategy_registry.get(strategy_type, [])
 
     async def execute_best_strategy(
-        self, target_tx: Dict[str, Any], strategy_type: str
-    ) -> bool:
+      self, target_tx: Dict[str, Any], strategy_type: str
+    ) -> bool:  
         """
         Execute the most suitable strategy for the given strategy type based on performance metrics.
 
@@ -3633,9 +3630,13 @@ class Strategy_Net:
         """
         weights = self.reinforcement_weights[strategy_type]
 
-        # Decide between exploration and exploitation based on exploration rate
+          # Decide between exploration and exploitation based on exploration rate
         if random.random() < self.configuration.exploration_rate:
             logger.debug("Using exploration for strategy selection")
+            return random.choice(strategies)
+
+        if len(weights) == 0:
+            logger.debug("No weights available, using random strategy selection")
             return random.choice(strategies)
 
         # Apply softmax for probability distribution to ensure numerical stability
@@ -3648,7 +3649,6 @@ class Strategy_Net:
         selected_strategy = strategies[selected_index]
         logger.debug(f"Selected strategy '{selected_strategy.__name__}' with weight {weights[selected_index]:.4f}")
         return selected_strategy
-
     async def _update_strategy_metrics(
         self,
         strategy_name: str,
@@ -3818,68 +3818,28 @@ class Strategy_Net:
         logger.debug("Initiating High-Value ETH Transfer Strategy...")
 
         try:
-            # Basic transaction validation
-            if not isinstance(target_tx, dict) or not target_tx:
-                logger.debug("Invalid transaction format provided!")
+            if not self._is_valid_transaction(target_tx):
                 return False
 
-            # Extract transaction details
-            eth_value_in_wei = int(target_tx.get("value", 0))
-            gas_price = int(target_tx.get("gasPrice", 0))
-            to_address = target_tx.get("to", "")
+            eth_value_in_wei, gas_price, to_address = self._extract_transaction_details(target_tx)
+            eth_value, gas_price_gwei, threshold = self._calculate_thresholds(eth_value_in_wei, gas_price)
 
-            # Convert values from Wei for readability
-            eth_value = self.transaction_core.web3.from_wei(eth_value_in_wei, "ether")
-            gas_price_gwei = self.transaction_core.web3.from_wei(gas_price, "gwei")
+            self._log_transaction_analysis(eth_value, gas_price_gwei, to_address, threshold)
 
-            # Dynamic threshold based on current gas prices
-            base_threshold = self.transaction_core.web3.to_wei(10, "ether")
-            if gas_price_gwei > 200:  # High gas price scenario
-                threshold = base_threshold * 2  # Double threshold when gas is expensive
-            elif gas_price_gwei > 100:
-                threshold = base_threshold * 1.5
-            else:
-                threshold = base_threshold
-
-            # Log detailed transaction analysis
-            threshold_eth = self.transaction_core.web3.from_wei(threshold, 'ether')
-            logger.debug(
-                f"Transaction Analysis:\n"
-                f"Value: {eth_value:.4f} ETH\n"
-                f"Gas Price: {gas_price_gwei:.2f} Gwei\n"
-                f"To Address: {to_address[:10]}...\n"
-                f"Current Threshold: {threshold_eth} ETH"
-            )
-
-            # Additional validation checks
-            if eth_value_in_wei <= 0:
-                logger.debug("Transaction value is zero or negative. Skipping...")
+            if not self._additional_validation_checks(eth_value_in_wei, to_address):
                 return False
 
-            if not self.transaction_core.web3.is_address(to_address):
-                logger.debug("Invalid recipient address. Skipping...")
-                return False
-
-            # Check if the recipient address is a contract
-            is_contract = await self._is_contract_address(to_address)
-            if is_contract:
-                logger.debug("Recipient is a contract. Additional validation required...")
-                if not await self._validate_contract_interaction(to_address):
-                    return False
-
-            # Execute the transaction if the value exceeds the dynamic threshold
             if eth_value_in_wei > threshold:
                 logger.info(
                     f"High-value ETH transfer detected:\n"
                     f"Value: {eth_value:.4f} ETH\n"
-                    f"Threshold: {threshold_eth} ETH"
+                    f"Threshold: {self.transaction_core.web3.from_wei(threshold, 'ether')} ETH"
                 )
                 return await self.transaction_core.handle_eth_transaction(target_tx)
 
-            # Skip execution if the transaction value is below the threshold
             logger.debug(
                 f"ETH transaction value ({eth_value:.4f} ETH) below threshold "
-                f"({threshold_eth} ETH). Skipping..."
+                f"({self.transaction_core.web3.from_wei(threshold, 'ether')} ETH). Skipping..."
             )
             return False
 
@@ -3887,6 +3847,58 @@ class Strategy_Net:
             logger.error(f"Error in high-value ETH transfer strategy: {e}")
             return False
 
+    def _is_valid_transaction(self, target_tx: Dict[str, Any]) -> bool:
+        if not isinstance(target_tx, dict) or not target_tx:
+            logger.debug("Invalid transaction format provided!")
+            return False
+        return True
+
+    def _extract_transaction_details(self, target_tx: Dict[str, Any]) -> Tuple[int, int, str]:
+        eth_value_in_wei = int(target_tx.get("value", 0))
+        gas_price = int(target_tx.get("gasPrice", 0))
+        to_address = target_tx.get("to", "")
+        return eth_value_in_wei, gas_price, to_address
+
+    def _calculate_thresholds(self, eth_value_in_wei: int, gas_price: int) -> Tuple[float, float, int]:
+        eth_value = self.transaction_core.web3.from_wei(eth_value_in_wei, "ether")
+        gas_price_gwei = self.transaction_core.web3.from_wei(gas_price, "gwei")
+
+        base_threshold = self.transaction_core.web3.to_wei(10, "ether")
+        if gas_price_gwei > 200:
+            threshold = base_threshold * 2
+        elif gas_price_gwei > 100:
+            threshold = base_threshold * 1.5
+        else:
+            threshold = base_threshold
+
+        return eth_value, gas_price_gwei, threshold
+
+    def _log_transaction_analysis(self, eth_value: float, gas_price_gwei: float, to_address: str, threshold: int) -> None:
+        threshold_eth = self.transaction_core.web3.from_wei(threshold, 'ether')
+        logger.debug(
+            f"Transaction Analysis:\n"
+            f"Value: {eth_value:.4f} ETH\n"
+            f"Gas Price: {gas_price_gwei:.2f} Gwei\n"
+            f"To Address: {to_address[:10]}...\n"
+            f"Current Threshold: {threshold_eth} ETH"
+        )
+
+    async def _additional_validation_checks(self, eth_value_in_wei: int, to_address: str) -> bool:
+        if eth_value_in_wei <= 0:
+            logger.debug("Transaction value is zero or negative. Skipping...")
+            return False
+
+        if not self.transaction_core.web3.is_address(to_address):
+            logger.debug("Invalid recipient address. Skipping...")
+            return False
+
+        is_contract = await self._is_contract_address(to_address)
+        if is_contract:
+            logger.debug("Recipient is a contract. Additional validation required...")
+            if not await self._validate_contract_interaction(to_address):
+                return False
+
+        return True
     async def _is_contract_address(self, address: str) -> bool:
         """
         Determine if a given address is a smart contract.
@@ -4316,13 +4328,13 @@ class Strategy_Net:
                     f"(Volatility Score: {volatility_score:.2f}/100)"
                 )
                 return await self.transaction_core.front_run(target_tx)
+       
 
             # Skip execution if volatility score is below the threshold
             logger.debug(
                 f"Volatility score {volatility_score:.2f}/100 below threshold. Skipping front-run."
             )
             return False
-
         except Exception as e:
             logger.error(f"Error in volatility front-run strategy: {e}")
             return False
@@ -5199,7 +5211,6 @@ class Main_Core:
             execution_time (float): Time taken to execute the strategy.
         """
         try:
-            import psutil
             memory_usage = psutil.Process().memory_info().rss / 1024 / 1024  # Convert to MB
         except ImportError:
             memory_usage = 0.0  # psutil not available

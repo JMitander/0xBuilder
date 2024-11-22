@@ -5018,7 +5018,7 @@ class MainCore:
             )
 
             # Load contract ABIs required for interacting with smart contracts
-            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI_PATH)
+            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             aave_flashloan_abi = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI_PATH)
             aave_lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI_PATH)
 
@@ -5594,3 +5594,9 @@ class StreamlitHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         log_entry = self.format(record)
         self.log_queue.put(log_entry)
+
+if __name__ == "__main__":
+    if 'streamlit' in sys.argv[0]:
+        run_streamlit()
+    else:
+        run_standard()

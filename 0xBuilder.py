@@ -17,7 +17,6 @@ import joblib
 import pandas as pd
 import psutil
 import queue
-import threading
 import matplotlib as plt
 import streamlit as st
 from cachetools import TTLCache
@@ -5019,8 +5018,8 @@ class MainCore:
 
             # Load contract ABIs required for interacting with smart contracts
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            aave_flashloan_abi = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI_PATH)
-            aave_lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI_PATH)
+            aave_flashloan_abi = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI)
+            aave_lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
 
             # Initialize Market Monitor for market data analysis and model training
             self.marketmonitor = MarketMonitor(

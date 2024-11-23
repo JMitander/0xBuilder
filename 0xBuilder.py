@@ -37,18 +37,6 @@ from web3.eth import AsyncEth
 #========================== Logging and console output ==========================
 
 
-class StreamlitHandler(logging.Handler):
-    """
-    Custom logging handler that sends logs to a Streamlit text area via a queue.
-    """
-    def __init__(self, log_queue: 'queue.Queue'):
-        super().__init__()
-        self.log_queue = log_queue
-
-    def emit(self, record):
-        msg = self.format(record)
-        self.log_queue.put(msg)
-
 # ANSI color codes for different log levels
 COLORS = {
     "DEBUG": "\033[94m",     # Blue
@@ -140,6 +128,9 @@ class Configuration:
     and sets up paths for machine learning models and training data.
     """
 
+    STREAMLIT_ENABLED = True
+
+
     def __init__(self):
         """
         Initializes the Configuration instance with default attributes.
@@ -188,6 +179,7 @@ class Configuration:
         It handles exceptions and ensures that the configuration is loaded successfully.
         """
         try:
+            run_streamlit()
             # Display a loading bar while loading environment variables
             await loading_bar("Loading Environment Variables", 2)
             self._load_api_keys()  # Load API keys from environment variables
@@ -5374,6 +5366,13 @@ async def main():
     global logger
     try:
         # Initialize configuration settings
+
+        # If streamlit is enabled, run the bot with a Streamlit GUI
+        if Configuration().STREAMLIT_ENABLED:
+            run_streamlit()
+            return
+        
+
         configuration = Configuration()
         await configuration.load()
 
@@ -5381,6 +5380,7 @@ async def main():
         main_core = MainCore(configuration)
         await main_core.initialize()
         await main_core.run()
+
 
     except KeyboardInterrupt:
         logger.debug("Shutdown complete.")
@@ -5393,6 +5393,7 @@ def run_standard():
     Run the MEV bot in standard (command-line) mode.
     """
     asyncio.run(main())
+  
 
 def run_streamlit():
     """
@@ -5429,6 +5430,8 @@ def run_streamlit():
     # Initialize session state variables
     if 'bot_running' not in st.session_state:
         st.session_state.bot_running = False
+    if 'logs' not in st.session_state:
+        st.session_state.logs = ""
     if 'main_core' not in st.session_state:
         st.session_state.main_core = None
     if 'thread' not in st.session_state:

@@ -1,4 +1,4 @@
-#========================= 0xBuilder - By NordChain (github.com/user/JMitander) =========================#
+#========================= nordchain-io - By NordChain (github.com/user/JMitander) =========================#
 
 import os
 import logging
@@ -18,7 +18,7 @@ import pandas as pd
 import psutil
 import queue
 import matplotlib as plt
-import streamlit as st
+
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
@@ -31,30 +31,29 @@ from eth_account import Account
 from web3.providers import AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider
 from web3.middleware import ExtraDataToPOAMiddleware, SignAndSendRawMiddlewareBuilder
 from web3.eth import AsyncEth
+from web3.types import HexBytes
 
 
 
 #========================== Logging and console output ==========================
 
 
-# ANSI color codes for different log levels
 COLORS = {
-    "DEBUG": "\033[94m",     # Blue
-    "INFO": "\033[92m",      # Green
-    "WARNING": "\033[93m",   # Yellow
-    "ERROR": "\033[91m",     # Red
-    "CRITICAL": "\033[95m",  # Magenta
-    "DETAILED": "\033[96m",  # Cyan for detailed messages
-    "RESET": "\033[0m"       # Reset to default color
+    "DEBUG": "\033[94m",
+    "INFO": "\033[92m",     
+    "WARNING": "\033[93m",   
+    "ERROR": "\033[91m",     
+    "CRITICAL": "\033[95m",  
+    "DETAILED": "\033[96m",  
+    "RESET": "\033[0m"       
 }
 
-# Custom formatter to add color based on log level
 class ColorFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         color = COLORS.get(record.levelname, COLORS["RESET"])
         reset = COLORS["RESET"]
-        record.levelname = f"{color}{record.levelname}{reset}"  # Colorize level name
-        record.msg = f"{color}{record.msg}{reset}"              # Colorize message
+        record.levelname = f"{color}{record.levelname}{reset}"  
+        record.msg = f"{color}{record.msg}{reset}"              
         return super().format(record)
 
 # Configure the logging once
@@ -72,11 +71,11 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
     if not logging.getLogger().hasHandlers():
         configure_logging()
         
-    logger = logging.getLogger(name if name else "0xBuilder")
+    logger = logging.getLogger(name if name else "nordchain-io")
     return logger
 
 # Initialize the logger globally so it can be used throughout the script
-logger = get_logger("0xBuilder")
+logger = get_logger("nordchain-io")
 
 dotenv.load_dotenv()
 
@@ -123,9 +122,7 @@ async def loading_bar(
 class Configuration:
     """
     The Configuration class is responsible for loading and managing all
-    configuration parameters required by the MEV bot. It sources environment
-    variables, loads JSON files for monitored tokens and contract ABIs,
-    and sets up paths for machine learning models and training data.
+    configuration parameters required by the bot. 
     """
 
     STREAMLIT_ENABLED = True
@@ -179,7 +176,6 @@ class Configuration:
         It handles exceptions and ensures that the configuration is loaded successfully.
         """
         try:
-            run_streamlit()
             # Display a loading bar while loading environment variables
             await loading_bar("Loading Environment Variables", 2)
             self._load_api_keys()  # Load API keys from environment variables
@@ -226,12 +222,6 @@ class Configuration:
         Asynchronously loads various JSON-based configuration elements such as token addresses,
         token symbols, and contract ABIs. It constructs paths to ABI files and loads
         function signatures from JSON files.
-
-        Did you know?
-        ERC20 stands for "Ethereum Request for Comments 20" and is a standard interface for
-        fungible tokens on the Ethereum blockchain. ERC20 tokens are used for a wide range of
-        applications, including decentralized finance (DeFi), gaming, and non-fungible tokens (NFTs).
-
         """
         self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
         self.TOKEN_ADDRESSES = await self._load_json_file(
@@ -340,10 +330,6 @@ class Configuration:
     async def get_token_symbols(self) -> Dict[str, str]:
         """
         Retrieves the mapping of token addresses to their symbols.
-
-        Did you know?
-        A token symbol is a unique identifier that represents a specific token on a blockchain. 
-        for example SHIB would be the symbol for Shiba Inu and WETH for Wrapped Ethereum.
         
         Returns:
             Dict[str, str]: A dictionary mapping token addresses to symbols.
@@ -376,16 +362,7 @@ class Configuration:
 
 class NonceCore:
     """
-    The NonceCore class manages Ethereum transaction nonces with advanced features such as
-    caching, auto-recovery, and comprehensive error handling. It ensures that transactions
-    are sent with the correct nonce to prevent conflicts and double-spending.
-
-    Did you know?
-    In the context of Ethereum transactions, a nonce is a unique identifier assigned to each
-    transaction to prevent replay attacks and ensure that transactions are processed in the
-    correct order. Nonces are used to track the number of transactions sent from an address
-    and are incremented with each new transaction. By managing nonces effectively, the bot
-    can ensure that transactions are executed reliably and without conflicts.
+    The NonceCore class manages Ethereum transaction nonces.
     """
 
     MAX_RETRIES = 3  # Maximum number of retry attempts for fetching nonces
@@ -622,15 +599,6 @@ class NonceCore:
 class APIConfig: 
     """
     The APIConfig class manages interactions with various cryptocurrency and market data APIs.
-    It handles API requests, caching of responses, and implements rate limiting and failover mechanisms
-    to ensure reliable data retrieval for price information, historical data, and token volumes.
-
-    Did you know?
-    API stands for Application Programming Interface, which is a set of rules and protocols
-    that allows one software application to interact with another. APIs are used to facilitate
-    communication between different systems, enabling data exchange and functionality integration
-    across platforms. In the context of this bot, APIs are used to fetch real-time price data
-    for tokens and cryptocurrencies from external sources.
     """
 
     def __init__(self, configuration: Optional[Configuration] = None):
@@ -729,7 +697,7 @@ class APIConfig:
     async def get_real_time_price(self, token: str, vs_currency: str = "eth") -> Optional[Decimal]:
         """
         Retrieves the real-time price of a token against a specified currency using a weighted average
-        from multiple API sources. Implements caching to reduce API load and improve performance.
+        from multiple API sources.
 
         Args:
             token (str): The symbol of the token (e.g., 'btc', 'eth').
@@ -815,7 +783,6 @@ class APIConfig:
     ) -> Any:
         """
         Makes an HTTP GET request to a specified URL with parameters and headers.
-        Implements rate limiting, retries with exponential backoff, and error handling.
 
         Args:
             provider_name (str): The name of the API provider for logging and rate limiting.
@@ -1017,18 +984,11 @@ class APIConfig:
         """
         await self.session.close()
 
-
-#=========================== 0xBuilder's Safety controller and risk management Engine ===========================#
-
-#=========================== 0xBuilder's Safety controller and risk management Engine ===========================#
+#=========================== nordchain-io's Safety controller and risk management Engine ===========================#
 
 class SafetyNet:
     """
     The SafetyNet class provides robust risk management and price verification functionalities.
-    It leverages multiple data sources, implements automatic failover mechanisms, and dynamically
-    adjusts trading parameters based on real-time network and market conditions. This ensures that
-    all transactions executed by the MEV bot are secure, profitable, and compliant with predefined
-    risk thresholds.
     """
 
     CACHE_TTL = 300  # Time-to-live for general caches in seconds
@@ -1112,11 +1072,6 @@ class SafetyNet:
         """
         Ensures that a transaction will yield a minimum profit before execution.
         It considers dynamic thresholds and performs risk assessments.
-
-        Did you know?
-        Gas fees are the cost of doing business on the Ethereum network. They are paid to miners for processing transactions and executing smart contracts. 
-        Gas fees are calculated based on the computational resources required to execute a transaction or contract function. 
-        The higher the gas price, the faster the transaction will be processed. (most of the time)
 
         Args:
             transaction_data (Dict[str, Any]): The transaction data dictionary.
@@ -1364,18 +1319,11 @@ class SafetyNet:
             logger.error(f"Error stopping safety net: {e}")
             raise
 
-
-#=============================== Txpool/Mempool Monitoring ===============================
-
 #============================= Txpool/Mempool Monitoring ===============================
 
 class MempoolMonitor:
     """
     The MempoolMonitor class provides an advanced monitoring system for the Ethereum mempool.
-    It identifies and analyzes profitable transactions in real-time, utilizing sophisticated
-    profit estimation, caching, and parallel processing capabilities. This ensures that the MEV
-    bot can swiftly detect and act upon lucrative opportunities, optimizing transaction
-    execution strategies such as front-running, back-running, and sandwich attacks.
     """
 
     MAX_RETRIES = 3  # Maximum number of retry attempts for transaction fetching
@@ -1480,8 +1428,6 @@ class MempoolMonitor:
     async def _run_monitoring(self) -> None:
         """
         The main monitoring loop that continuously fetches new pending transactions from the mempool.
-        It sets up a pending transaction filter and processes incoming transaction hashes as they appear.
-        Implements automatic recovery with retry logic in case of failures.
         """
         retry_count = 0
 
@@ -1509,11 +1455,6 @@ class MempoolMonitor:
     async def _setup_pending_filter(self) -> Optional[Any]:
         """
         Sets up a filter to listen for new pending transactions in the mempool.
-
-        Did you know?:
-        A pending transaction is a transaction that has been broadcast to the network but has not
-        yet been included in a block. These transactions are considered unconfirmed until they are
-        included in a block and become part of the blockchain.
     
         Returns:
             Optional[Any]: The pending transaction filter object if successful, else None.
@@ -1604,10 +1545,6 @@ class MempoolMonitor:
         """
         Attempts to fetch transaction details with retry logic and exponential backoff.
 
-        Did you know?:
-        Exponential backoff is a networking algorithm that uses feedback to multiplicatively
-        decrease the rate of some process, in order to gradually find an acceptable rate.
-    
         Args:
             tx_hash (str): The hash of the transaction to fetch.
     
@@ -1702,11 +1639,6 @@ class MempoolMonitor:
         Specifically analyzes a token transaction for profitability by decoding the transaction
         input and estimating potential profits.
 
-        Did you know?:
-        ERC20 tokens are a type of Ethereum token standard that defines certain rules and
-        functions that all Ethereum tokens must follow. This includes how tokens are transferred,
-        how users can access data about a token, and how users can access the total supply of tokens.
-    
         Args:
             tx: The token transaction object.
     
@@ -1804,11 +1736,7 @@ class MempoolMonitor:
         """
         Estimates the potential profit of a token transaction by analyzing the input parameters,
         market prices, slippage, and gas costs.
-        
-        Did you know?:
-        Slippage is the difference between the expected price of a trade and the price at which
-        the trade is executed.
-    
+
         Args:
             tx (Any): The token transaction object.
             function_params (Dict[str, Any]): The decoded function parameters of the transaction.
@@ -1910,8 +1838,6 @@ class MempoolMonitor:
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         """
         Asynchronously loads a contract's ABI from a specified file path.
-
-        ABI (Application Binary Interface) is a JSON file that defines the methods and properties of a smart contract.
     
         Args:
             abi_path (str): The file path to the ABI JSON file.
@@ -1971,11 +1897,7 @@ class MempoolMonitor:
 class TransactionCore:
     """
     TransactionCore is the main transaction engine that Builds and executes transactions,
-    including front-run, back-run, and sandwich attack strategies. It interacts with smart contracts 
-    manages transaction signing, gas price estimation, and handles flashloans.
-    
-    Flashloans are a type of uncollateralized loan that must be 
-    borrowed and repaid within the same transaction.
+    including front-run, back-run, and sandwich attack strategies.
     
     """
     MAX_RETRIES = 3
@@ -2219,10 +2141,6 @@ class TransactionCore:
         """
         Signs a transaction with the account's private key.
 
-        did you know?:
-        A transaction is a message that is sent from one account to another account on the blockchain.
-        The reason for signing a transaction is to prove that the sender is the owner of the account.
-
         :param transaction: Transaction dictionary.
         :return: Signed transaction bytes.
         """
@@ -2465,12 +2383,6 @@ class TransactionCore:
     async def front_run(self, target_tx: Dict[str, Any]) -> bool:
         """
         Executes a front-run transaction with  validation and error handling.
-
-        did you know?:
-        A front-running attack is a type of transaction ordering dependence (TOD) attack where
-        the attacker attempts to exploit the time delay between the transaction submission and
-        its confirmation on the blockchain. The attacker can insert a transaction in the same
-        block as the target transaction to manipulate the order of execution and gain an advantage.
 
         :param target_tx: Target transaction dictionary.
         :return: True if successful, else False.
@@ -3021,27 +2933,10 @@ class TransactionCore:
         try:
             await self.safetynet.stop()
             await self.noncecore.stop()
-            logger.debug("Stopped 0xBuilder. ")
+            logger.debug("Stopped nordchain-io. ")
         except Exception as e:
-            logger.error(f"Error stopping 0xBuilder: {e} !")
+            logger.error(f"Error stopping nordchain-io: {e} !")
             raise
-
-
-
-import asyncio
-import os
-import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-
-import joblib
-import numpy as np
-import pandas as pd
-from cachetools import TTLCache
-from dataclasses import dataclass
-from sklearn.linear_model import LinearRegression
-
-# Assuming logger is predefined
-# from your_logging_module import logger
 
 class MarketMonitor:
     """
@@ -3437,7 +3332,6 @@ class MarketMonitor:
             Optional[Dict[str, Any]]: Decoded transaction details if successful, else None.
         """
         try:
-            # Assuming ERC20 ABI is loaded elsewhere or passed appropriately
             erc20_abi = self.configuration.ERC20_ABI  # Replace with actual ABI retrieval
             contract = self.web3.eth.contract(address=contract_address, abi=erc20_abi)
             function_abi, params = contract.decode_function_input(input_data)
@@ -4799,8 +4693,6 @@ class StrategyNet:
 
     # ========================= End of Strategy Implementations =========================
 
-
-
 class MainCore:
     """
     The MainCore class orchestrates the entire MEV bot operation, initializing all components,
@@ -4808,12 +4700,6 @@ class MainCore:
     """
 
     def __init__(self, configuration: Optional[Configuration] = None) -> None:
-        """
-        Initialize the MainCore with optional configuration.
-
-        Args:
-            configuration (Optional[Configuration], optional): Configuration settings. Defaults to None.
-        """
         self.configuration: Configuration = configuration or Configuration()
         self.apiconfig: Optional['APIConfig'] = None
         self.web3: Optional[AsyncWeb3] = None
@@ -5134,8 +5020,6 @@ class MainCore:
                 await self.safetynet.stop()
 
             if self.marketmonitor:
-                # Cancel all periodic training tasks if implemented
-                # Assuming you have a way to track and cancel these tasks
                 pass
 
             if self.apiconfig:
@@ -5367,12 +5251,6 @@ async def main():
     try:
         # Initialize configuration settings
 
-        # If streamlit is enabled, run the bot with a Streamlit GUI
-        if Configuration().STREAMLIT_ENABLED:
-            run_streamlit()
-            return
-        
-
         configuration = Configuration()
         await configuration.load()
 
@@ -5393,212 +5271,6 @@ def run_standard():
     Run the MEV bot in standard (command-line) mode.
     """
     asyncio.run(main())
-  
-
-def run_streamlit():
-    """
-    Run the MEV bot with a Streamlit GUI.
-    """
-    import plotly.express as px  # For interactive plots
-    import streamlit as st
-    import threading
-    import queue
-    import psutil
-
-    # Initialize Streamlit page
-    st.set_page_config(page_title="MEV Bot Control Panel", layout="wide")
-    st.title("MEV Bot Control Panel")
-
-    # Initialize a queue to hold log messages
-    log_queue = queue.Queue()
-
-    # Add StreamlitHandler to the logger
-    stream_handler = StreamlitHandler(log_queue)
-    stream_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-
-    # Placeholder for logs
-    log_placeholder = st.empty()
-
-    # Placeholder for metrics and graphs
-    metrics_placeholder = st.empty()
-    graph_placeholder = st.empty()
-    system_placeholder = st.empty()
-
-    # Initialize session state variables
-    if 'bot_running' not in st.session_state:
-        st.session_state.bot_running = False
-    if 'logs' not in st.session_state:
-        st.session_state.logs = ""
-    if 'main_core' not in st.session_state:
-        st.session_state.main_core = None
-    if 'thread' not in st.session_state:
-        st.session_state.thread = None
-    if 'history_data' not in st.session_state:
-        st.session_state.history_data = []
-    if 'metrics' not in st.session_state:
-        st.session_state.metrics = {
-            "current_profit": 0.0,
-            "total_profit": 0.0,
-            "account_balance": 0.0,
-            "strategy_performance": {}
-        }
-
-    # Sidebar for Configuration Inputs
-    with st.sidebar:
-        st.header("Configuration Settings")
-
-        # Example configuration inputs
-        wallet_key = st.text_input("Wallet Key", type="password")
-        gas_price_multiplier = st.slider("Gas Price Multiplier", 1.0, 2.0, 1.1, 0.1)
-        min_profit_threshold = st.number_input("Minimum Profit Threshold (ETH)", value=0.01, step=0.001)
-
-        # Button to apply configuration
-        if st.button("Apply Configuration"):
-            if st.session_state.main_core:
-                st.session_state.main_core.configuration.WALLET_KEY = wallet_key
-                st.session_state.main_core.configuration.gas_price_multiplier = gas_price_multiplier
-                st.session_state.main_core.configuration.min_profit_threshold = Decimal(min_profit_threshold)
-                logger.info("Configuration updated successfully!")
-            else:
-                logger.warning("Bot is not running. Start the bot to apply configurations.")
-
-    # Function to continuously update logs
-    def update_logs():
-        logs = ""
-        while not log_queue.empty():
-            msg = log_queue.get_nowait()
-            logs += msg + "\n"
-        if logs:
-            existing_logs = st.session_state.get('logs', "")
-            st.session_state.logs = existing_logs + logs
-            log_placeholder.text_area("Logs", value=st.session_state.logs, height=300, max_chars=None, key="logs", disabled=True)
-
-    # Function to periodically update metrics and graphs
-    def update_metrics_and_graphs():
-        # Update metrics
-        metrics = st.session_state.metrics
-        metrics_placeholder.markdown("### Current Metrics")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Current Profit (ETH)", f"{metrics['current_profit']:.4f}")
-        col2.metric("Total Profit (ETH)", f"{metrics['total_profit']:.4f}")
-        col3.metric("Account Balance (ETH)", f"{metrics['account_balance']:.4f}")
-
-        # Update strategy performance metrics
-        st.subheader("Strategy Performance")
-        strategy_data = metrics.get("strategy_performance", {})
-        if strategy_data:
-            df = pd.DataFrame(strategy_data).T
-            df = df.reset_index().rename(columns={"index": "Strategy"})
-            st.dataframe(df, height=300)
-
-            # Plotting Success Rate using Plotly
-            fig1 = px.bar(df, x='Strategy', y='success_rate', title='Success Rate per Strategy',
-                          labels={'success_rate': 'Success Rate'}, range_y=[0,1])
-            graph_placeholder.plotly_chart(fig1, use_container_width=True)
-
-            # Plotting Average Execution Time using Plotly
-            fig2 = px.bar(df, x='Strategy', y='avg_execution_time', title='Average Execution Time (s) per Strategy',
-                          labels={'avg_execution_time': 'Avg Execution Time (s)'}, range_y=[0, df['avg_execution_time'].max()*1.1])
-            graph_placeholder.plotly_chart(fig2, use_container_width=True)
-
-            # Plotting Total Profit using Plotly
-            fig3 = px.bar(df, x='Strategy', y='profit', title='Total Profit (ETH) per Strategy',
-                          labels={'profit': 'Total Profit (ETH)'}, range_y=[0, df['profit'].max()*1.1])
-            graph_placeholder.plotly_chart(fig3, use_container_width=True)
-        else:
-            st.write("No strategy performance data available.")
-
-    # Function to monitor system resources
-    def update_system_metrics():
-        cpu_percent = psutil.cpu_percent(interval=1)
-        memory = psutil.virtual_memory()
-        system_placeholder.markdown("### System Metrics")
-        col1, col2 = system_placeholder.columns(2)
-        col1.metric("CPU Usage (%)", f"{cpu_percent}%")
-        col2.metric("Memory Usage (%)", f"{memory.percent}%")
-
-    # Function to run the bot in a separate thread
-    def start_bot():
-        async def bot_runner():
-            try:
-                # Initialize configuration settings
-                configuration = Configuration()
-                await configuration.load()
-
-                # Initialize and run the MEV bot
-                main_core = MainCore(configuration)
-                st.session_state.main_core = main_core
-                await main_core.initialize()
-                await main_core.run()
-            except Exception as e:
-                logger.critical(f"Fatal error: {e}")
-                st.session_state.bot_running = False
-
-        asyncio.run(bot_runner())
-
-    # Start Bot Button
-    if not st.session_state.bot_running:
-        if st.button("Start Bot"):
-            st.session_state.bot_running = True
-            # Start the bot in a new thread to prevent blocking
-            st.session_state.thread = threading.Thread(target=start_bot, daemon=True)
-            st.session_state.thread.start()
-            logger.info("Bot started successfully!")
-    else:
-        if st.button("Stop Bot"):
-            if st.session_state.main_core:
-                # Define a function to stop the bot asynchronously
-                def stop_bot():
-                    asyncio.run(st.session_state.main_core.stop())
-                    st.session_state.bot_running = False
-                    logger.info("Bot stopped successfully!")
-
-                # Start the stop function in a new thread to prevent blocking
-                stop_thread = threading.Thread(target=stop_bot, daemon=True)
-                stop_thread.start()
-            else:
-                logger.warning("Bot core not initialized.")
-
-    # Display Bot Status
-    st.subheader("Bot Status")
-    status = "🟢 Running" if st.session_state.bot_running else "🔴 Stopped"
-    st.write(f"**Status:** {status}")
-
-    # Display Logs
-    st.subheader("Logs")
-    update_logs()
-
-    # Display Metrics and Graphs
-    st.subheader("Performance Metrics")
-    update_metrics_and_graphs()
-
-    # Display System Metrics
-    st.subheader("System Metrics")
-    update_system_metrics()
-
-    # Auto-refresh logs and metrics every second using Streamlit's experimental features
-    if st.session_state.bot_running:
-        # Use Streamlit's experimental function to rerun the script after a delay
-        st.experimental_rerun()
-
-class StreamlitHandler(logging.Handler):
-    """
-    Custom logging handler to capture logs and send them to Streamlit.
-    """
-
-    def __init__(self, log_queue: queue.Queue):
-        super().__init__()
-        self.log_queue = log_queue
-
-    def emit(self, record: logging.LogRecord) -> None:
-        log_entry = self.format(record)
-        self.log_queue.put(log_entry)
 
 if __name__ == "__main__":
-    if 'streamlit' in sys.argv[0]:
-        run_streamlit()
-    else:
         run_standard()

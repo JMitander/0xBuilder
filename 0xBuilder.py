@@ -6,10 +6,15 @@ import random
 import asyncio
 import aiohttp
 import aiofiles
+import psutil
+import numpy as np
+import pandas as pd
+
+from sklearn.linear_model import LinearRegression
+from joblib import dump, load
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional, List, Dict, Any, Callable, Union, Tuple
-
 from web3 import AsyncWeb3, AsyncHTTPProvider, AsyncIPCProvider, WebSocketProvider  
 from web3.exceptions import ContractLogicError, TransactionNotFound
 from web3.middleware import ExtraDataToPOAMiddleware, SignAndSendRawMiddlewareBuilder
@@ -17,14 +22,10 @@ from web3.contract import *
 from web3.eth import AsyncEth
 from eth_account import Account
 from web3.geth import *
-
 from cachetools import TTLCache
 
-import psutil
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import LinearRegression
-from joblib import dump, load
+
+
 
 # For handling hex bytes
 from hexbytes import HexBytes
@@ -683,55 +684,63 @@ class APIConfig:
         """
         Initialize the API session and configurations.
         """
-        self.session = aiohttp.ClientSession()
-        self.apiconfig = {
-            "binance": {
-                "base_url": "https://api.binance.com/api/v3",
-                "success_rate": 1.0,
-                "weight": 1.0,
-                "rate_limit": 1200,
-            },
-            "coingecko": {
-                "base_url": "https://api.coingecko.com/api/v3",
-                "api_key": self.configuration.COINGECKO_API_KEY,
-                "success_rate": 1.0,
-                "weight": 0.8,
-                "rate_limit": 50,
-            },
-            "coinmarketcap": {
-                "base_url": "https://pro-api.coinmarketcap.com/v1",
-                "api_key": self.configuration.COINMARKETCAP_API_KEY,
-                "success_rate": 1.0,
-                "weight": 0.7,
-                "rate_limit": 333,
-            },
-            "cryptocompare": {
-                "base_url": "https://min-api.cryptocompare.com/data",
-                "api_key": self.configuration.CRYPTOCOMPARE_API_KEY,
-                "success_rate": 1.0,
-                "weight": 0.6,
-                "rate_limit": 80,
-            },
-            "primary": {  # Added 'primary' for default usage
-                "base_url": "https://api.coingecko.com/api/v3",
-                "api_key": self.configuration.COINGECKO_API_KEY,
-                "success_rate": 1.0,
-                "weight": 1.0,
-                "rate_limit": 50,
-            },
-        }
-        self.rate_limiters = {
-            provider: asyncio.Semaphore(config.get("rate_limit", 10))
-            for provider, config in self.apiconfig.items()
-        }
-        return self
+        try:
+            self.session = aiohttp.ClientSession()
+            self.apiconfig = {
+                "binance": {
+                    "base_url": "https://api.binance.com/api/v3",
+                    "success_rate": 1.0,
+                    "weight": 1.0,
+                    "rate_limit": 1200,
+                },
+                "coingecko": {
+                    "base_url": "https://api.coingecko.com/api/v3",
+                    "api_key": self.configuration.COINGECKO_API_KEY,
+                    "success_rate": 1.0,
+                    "weight": 0.8,
+                    "rate_limit": 50,
+                },
+                "coinmarketcap": {
+                    "base_url": "https://pro-api.coinmarketcap.com/v1",
+                    "api_key": self.configuration.COINMARKETCAP_API_KEY,
+                    "success_rate": 1.0,
+                    "weight": 0.7,
+                    "rate_limit": 333,
+                },
+                "cryptocompare": {
+                    "base_url": "https://min-api.cryptocompare.com/data",
+                    "api_key": self.configuration.CRYPTOCOMPARE_API_KEY,
+                    "success_rate": 1.0,
+                    "weight": 0.6,
+                    "rate_limit": 80,
+                },
+                "primary": {  # Added 'primary' for default usage
+                    "base_url": "https://api.coingecko.com/api/v3",
+                    "api_key": self.configuration.COINGECKO_API_KEY,
+                    "success_rate": 1.0,
+                    "weight": 1.0,
+                    "rate_limit": 50,
+                },
+            }
+            self.rate_limiters = {
+                provider: asyncio.Semaphore(config.get("rate_limit", 10))
+                for provider, config in self.apiconfig.items()
+            }
+            return self
+        except Exception as e:
+            print(f"[APIConfig] Error during __aenter__: {e}")
+            await self.close()
+            raise
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """
         Cleanup the API session.
         """
-        if self.session:
-            await self.session.close()
+        try:
+            if self.session:
+                await self.session.close()
+        except Exception as e:
+            print(f"[APIConfig] Error during __aexit__: {e}")
 
     async def get_token_symbol(self, web3: 'AsyncWeb3', token_address: str) -> Optional[str]:
         """
@@ -744,21 +753,25 @@ class APIConfig:
         Returns:
             Optional[str]: The token symbol or None if not found.
         """
-        if token_address in self.token_symbol_cache:
-            return self.token_symbol_cache[token_address]
-        if token_address in self.configuration.TOKEN_SYMBOLS:
-            symbol = self.configuration.TOKEN_SYMBOLS[token_address]
-            self.token_symbol_cache[token_address] = symbol
-            return symbol
         try:
+            if token_address in self.token_symbol_cache:
+                return self.token_symbol_cache[token_address]
+            if token_address in self.configuration.TOKEN_SYMBOLS:
+                symbol = self.configuration.TOKEN_SYMBOLS[token_address]
+                self.token_symbol_cache[token_address] = symbol
+                return symbol
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             contract = web3.eth.contract(address=token_address, abi=erc20_abi)
             symbol = await contract.functions.symbol().call()
             self.token_symbol_cache[token_address] = symbol
             return symbol
+        except aiohttp.ClientError as e:
+            print(f"[APIConfig] HTTP error getting token symbol for {token_address}: {e}")
+        except KeyError as e:
+            print(f"[APIConfig] Missing key when getting token symbol for {token_address}: {e}")
         except Exception as e:
-            print(f"Error getting token symbol for {token_address}: {e}")
-            return None
+            print(f"[APIConfig] Unexpected error getting token symbol for {token_address}: {e}")
+        return None
 
     async def get_real_time_price(self, token: str, service: str = "primary", vs_currency: str = "eth") -> Optional[Decimal]:
         """
@@ -773,27 +786,32 @@ class APIConfig:
             Optional[Decimal]: The price or None if not available.
         """
         cache_key = f"price_{token}_{vs_currency}"
-        if cache_key in self.price_cache:
+        try:
+            if cache_key in self.price_cache:
+                return self.price_cache[cache_key]
+            prices = []
+            weights = []
+            async with self.api_lock:
+                for source, config in self.apiconfig.items():
+                    if source != service and service != "primary":
+                        continue  # Only use the specified service
+                    try:
+                        price = await self._fetch_price(source, token, vs_currency)
+                        if price:
+                            prices.append(price)
+                            weights.append(config["weight"] * config["success_rate"])
+                    except Exception as e:
+                        print(f"[APIConfig] Error fetching price from {source}: {e}")
+                        config["success_rate"] = max(config["success_rate"] * 0.9, 0.1)  # Prevent rate from dropping below 0.1
+            if not prices or not weights:
+                print(f"[APIConfig] No prices fetched for {token} from {service}.")
+                return None
+            weighted_price = sum(p * w for p, w in zip(prices, weights)) / sum(weights)
+            self.price_cache[cache_key] = Decimal(str(weighted_price))
             return self.price_cache[cache_key]
-        prices = []
-        weights = []
-        async with self.api_lock:
-            for source, config in self.apiconfig.items():
-                if source != service and service != "primary":
-                    continue  # Only use the specified service
-                try:
-                    price = await self._fetch_price(source, token, vs_currency)
-                    if price:
-                        prices.append(price)
-                        weights.append(config["weight"] * config["success_rate"])
-                except Exception as e:
-                    print(f"Error fetching price from {source}: {e}")
-                    config["success_rate"] *= 0.9  # Reduce success rate on failure
-        if not prices:
+        except Exception as e:
+            print(f"[APIConfig] Unexpected error in get_real_time_price: {e}")
             return None
-        weighted_price = sum(p * w for p, w in zip(prices, weights)) / sum(weights)
-        self.price_cache[cache_key] = Decimal(str(weighted_price))
-        return self.price_cache[cache_key]
 
     async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
         """
@@ -809,6 +827,7 @@ class APIConfig:
         """
         config = self.apiconfig.get(source)
         if not config:
+            print(f"[APIConfig] No configuration found for source: {source}")
             return None
         try:
             if source == "coingecko" or (source == "primary" and config["base_url"] == "https://api.coingecko.com/api/v3"):
@@ -835,10 +854,15 @@ class APIConfig:
                 response = await self.make_request(source, url, params=params)
                 return Decimal(str(response["price"]))
             else:
+                print(f"[APIConfig] Unsupported source for fetching price: {source}")
                 return None
+        except KeyError as e:
+            print(f"[APIConfig] Missing data in response from {source}: {e}")
+        except aiohttp.ClientError as e:
+            print(f"[APIConfig] HTTP error fetching price from {source}: {e}")
         except Exception as e:
-            print(f"Error fetching price from {source}: {e}")
-            return None
+            print(f"[APIConfig] Unexpected error fetching price from {source}: {e}")
+        return None
 
     async def make_request(
         self,
@@ -862,44 +886,53 @@ class APIConfig:
 
         Returns:
             Any: The JSON response.
-
-        Raises:
-            Exception: If all attempts fail.
         """
         rate_limiter = self.rate_limiters.get(provider_name)
         if rate_limiter is None:
             rate_limiter = asyncio.Semaphore(10)
             self.rate_limiters[provider_name] = rate_limiter
         async with rate_limiter:
-            for attempt in range(max_attempts):
+            for attempt in range(1, max_attempts + 1):
                 try:
-                    timeout = aiohttp.ClientTimeout(total=10 * (attempt + 1))
+                    timeout = aiohttp.ClientTimeout(total=10 * attempt)
                     async with self.session.get(url, params=params, headers=headers, timeout=timeout) as response:
                         if response.status == 429:
                             wait_time = backoff_factor ** attempt
-                            print(f"Rate limited by {provider_name}. Waiting for {wait_time} seconds.")
+                            print(f"[APIConfig] Rate limited by {provider_name}. Waiting for {wait_time} seconds.")
                             await asyncio.sleep(wait_time)
                             continue
                         response.raise_for_status()
                         return await response.json()
                 except aiohttp.ClientResponseError as e:
-                    print(f"Client response error from {provider_name}: {e}")
-                    if attempt == max_attempts - 1:
+                    print(f"[APIConfig] Client response error from {provider_name}: {e}")
+                    if attempt == max_attempts:
+                        print(f"[APIConfig] Max attempts reached for {provider_name}.")
                         raise
                     wait_time = backoff_factor ** attempt
                     await asyncio.sleep(wait_time)
                 except aiohttp.ClientConnectionError as e:
-                    print(f"Client connection error from {provider_name}: {e}")
-                    if attempt == max_attempts - 1:
+                    print(f"[APIConfig] Client connection error from {provider_name}: {e}")
+                    if attempt == max_attempts:
+                        print(f"[APIConfig] Max attempts reached for {provider_name}.")
+                        raise
+                    wait_time = backoff_factor ** attempt
+                    await asyncio.sleep(wait_time)
+                except asyncio.TimeoutError:
+                    print(f"[APIConfig] Request to {provider_name} timed out on attempt {attempt}.")
+                    if attempt == max_attempts:
+                        print(f"[APIConfig] Max attempts reached for {provider_name}.")
                         raise
                     wait_time = backoff_factor ** attempt
                     await asyncio.sleep(wait_time)
                 except Exception as e:
-                    print(f"Unexpected error from {provider_name}: {e}")
-                    if attempt == max_attempts - 1:
+                    print(f"[APIConfig] Unexpected error from {provider_name}: {e}")
+                    if attempt == max_attempts:
+                        print(f"[APIConfig] Max attempts reached for {provider_name}.")
                         raise
                     wait_time = backoff_factor ** attempt
                     await asyncio.sleep(wait_time)
+        print(f"[APIConfig] Failed to fetch data from {provider_name} after {max_attempts} attempts.")
+        return None
 
     async def fetch_historical_prices_for_model(self, token: str, days: int = 30, service: str = "primary") -> List[float]:
         """
@@ -927,9 +960,9 @@ class APIConfig:
             float: The trading volume or 0.0 if not available.
         """
         cache_key = f"token_volume_{token}"
-        if cache_key in self.price_cache:
-            return self.price_cache[cache_key]
         try:
+            if cache_key in self.price_cache:
+                return self.price_cache[cache_key]
             if service == "coingecko":
                 url = f"{self.apiconfig['coingecko']['base_url']}/coins/markets"
                 params = {"vs_currency": "usd", "ids": token}
@@ -938,11 +971,15 @@ class APIConfig:
                 self.price_cache[cache_key] = volume
                 return volume
             else:
-                # Add other services if needed
+                print(f"[APIConfig] Service '{service}' not supported for fetching token volume.")
                 return 0.0
+        except (IndexError, KeyError) as e:
+            print(f"[APIConfig] Data parsing error fetching token volume for {token} from {service}: {e}")
+        except aiohttp.ClientError as e:
+            print(f"[APIConfig] HTTP error fetching token volume from {service}: {e}")
         except Exception as e:
-            print(f"Error fetching token volume from {service}: {e}")
-            return 0.0
+            print(f"[APIConfig] Unexpected error fetching token volume from {service}: {e}")
+        return 0.0
 
     async def fetch_historical_prices(self, token: str, days: int = 30, service: str = "primary") -> List[float]:
         """
@@ -957,9 +994,9 @@ class APIConfig:
             List[float]: List of historical prices.
         """
         cache_key = f"historical_prices_{token}_{days}"
-        if cache_key in self.price_cache:
-            return self.price_cache[cache_key]
         try:
+            if cache_key in self.price_cache:
+                return self.price_cache[cache_key]
             if service == "coingecko" or service == "primary":
                 url = f"{self.apiconfig[service]['base_url']}/coins/{token}/market_chart"
                 params = {"vs_currency": "usd", "days": days}
@@ -968,11 +1005,15 @@ class APIConfig:
                 self.price_cache[cache_key] = prices
                 return prices
             else:
-                # Add other services if needed
+                print(f"[APIConfig] Service '{service}' not supported for fetching historical prices.")
                 return []
+        except KeyError as e:
+            print(f"[APIConfig] Data parsing error fetching historical prices for {token} from {service}: {e}")
+        except aiohttp.ClientError as e:
+            print(f"[APIConfig] HTTP error fetching historical prices from {service}: {e}")
         except Exception as e:
-            print(f"Error fetching historical prices from {service}: {e}")
-            return []
+            print(f"[APIConfig] Unexpected error fetching historical prices from {service}: {e}")
+        return []
 
     async def _fetch_from_services(self, fetch_func: Callable[[str], Any], description: str) -> Optional[Any]:
         """
@@ -991,8 +1032,7 @@ class APIConfig:
                 if result:
                     return result
             except Exception as e:
-                print(f"Error fetching {description} from {service}: {e}")
-                continue
+                print(f"[APIConfig] Error fetching {description} from {service}: {e}")
         return None
 
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
@@ -1004,25 +1044,31 @@ class APIConfig:
 
         Returns:
             List[Dict[str, Any]]: The ABI.
-
-        Raises:
-            Exception: If unable to load.
         """
         try:
             async with aiofiles.open(abi_path, 'r') as file:
                 content = await file.read()
                 abi = json.loads(content)
             return abi
+        except FileNotFoundError:
+            print(f"[APIConfig] ABI file not found at path: {abi_path}")
+            raise
+        except json.JSONDecodeError as e:
+            print(f"[APIConfig] JSON decode error in ABI file {abi_path}: {e}")
+            raise
         except Exception as e:
-            print(f"Error loading ABI from {abi_path}: {e}")
+            print(f"[APIConfig] Unexpected error loading ABI from {abi_path}: {e}")
             raise
 
     async def close(self):
         """
         Close the API session.
         """
-        if self.session:
-            await self.session.close()
+        try:
+            if self.session:
+                await self.session.close()
+        except Exception as e:
+            print(f"[APIConfig] Error closing session: {e}")
 
 class SafetyNet:
     """
@@ -1143,12 +1189,17 @@ class SafetyNet:
         Returns:
             bool: True if valid, False otherwise.
         """
-        if gas_used == 0:
+        try:
+            if gas_used == 0:
+                print("Gas used is zero.")
+                return False
+            if gas_price_gwei > self.GAS_CONFIG["max_gas_price_gwei"]:
+                print(f"Gas price {gas_price_gwei} Gwei exceeds maximum allowed.")
+                return False
+            return True
+        except Exception as e:
+            print(f"Error validating gas parameters: {e}")
             return False
-        if gas_price_gwei > self.GAS_CONFIG["max_gas_price_gwei"]:
-            print(f"Gas price {gas_price_gwei} Gwei exceeds maximum allowed.")
-            return False
-        return True
 
     def _calculate_gas_cost(self, gas_price_gwei: Decimal, gas_used: int) -> Decimal:
         """
@@ -1161,7 +1212,11 @@ class SafetyNet:
         Returns:
             Decimal: The gas cost in ETH.
         """
-        return gas_price_gwei * Decimal(gas_used) * Decimal("1e-9")
+        try:
+            return gas_price_gwei * Decimal(gas_used) * Decimal("1e-9")
+        except Exception as e:
+            print(f"Error calculating gas cost: {e}")
+            return Decimal(0)
 
     async def _calculate_profit(
         self,
@@ -1187,6 +1242,9 @@ class SafetyNet:
             input_amount = Decimal(transaction_data["amountIn"])
             slippage_adjusted_output = expected_output * (1 - Decimal(slippage))
             return slippage_adjusted_output - input_amount - gas_cost_eth
+        except KeyError as e:
+            print(f"Missing key in transaction data: {e}")
+            return Decimal(0)
         except Exception as e:
             print(f"Error calculating profit: {e}")
             return Decimal(0)
@@ -1198,9 +1256,9 @@ class SafetyNet:
         Returns:
             Decimal: The gas price in Gwei.
         """
-        if "gas_price" in self.gas_price_cache:
-            return self.gas_price_cache["gas_price"]
         try:
+            if "gas_price" in self.gas_price_cache:
+                return self.gas_price_cache["gas_price"]
             gas_price = await self.web3.eth.generate_gas_price()
             if gas_price is None:
                 gas_price = await self.web3.eth.gas_price
@@ -1264,6 +1322,9 @@ class SafetyNet:
             gas_limit = latest_block["gasLimit"]
             congestion_level = gas_used / gas_limit
             return congestion_level
+        except KeyError as e:
+            print(f"Missing key in block data: {e}")
+            return 0.5
         except Exception as e:
             print(f"Error getting network congestion: {e}")
             return 0.5
@@ -1286,12 +1347,16 @@ class SafetyNet:
             profit (Decimal): The calculated profit.
             minimum_profit_eth (float): The minimum profit threshold.
         """
-        # Implement logging as needed
-        print(f"Profit Calculation:")
-        print(f"  Real-time Price: {real_time_price} ETH")
-        print(f"  Gas Cost: {gas_cost_eth} ETH")
-        print(f"  Calculated Profit: {profit} ETH")
-        print(f"  Minimum Profit Required: {minimum_profit_eth} ETH")
+        try:
+            print(f"Profit Calculation:")
+            print(f"  Real-time Price: {real_time_price} ETH")
+            print(f"  Gas Cost: {gas_cost_eth} ETH")
+            print(f"  Calculated Profit: {profit} ETH")
+            print(f"  Minimum Profit Required: {minimum_profit_eth} ETH")
+        except Exception as e:
+            print(f"Error logging profit calculation: {e}")
+
+    
 
 class MempoolMonitor:
     """

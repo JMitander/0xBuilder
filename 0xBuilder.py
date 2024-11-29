@@ -441,7 +441,7 @@ class NonceCore:
     """
     Core class to manage transaction nonces with caching and synchronization.
     """
-    MAX_RETRIES = 3
+    MAX_RETRIES = 5
     RETRY_DELAY = 1.0
     CACHE_TTL = 300
 
@@ -469,18 +469,25 @@ class NonceCore:
                 if not self._initialized:
                     await self._init_nonce()
                     self._initialized = True
+        except (ConnectionError, TimeoutError) as e:
+            print(f"Connection error during NonceCore initialization: {e}")
+            raise RuntimeError("NonceCore initialization failed due to connection issues.") from e
         except Exception as e:
-            print(f"Error initializing NonceCore: {e}")
-            raise RuntimeError("NonceCore initialization failed") from e
+            print(f"Unexpected error during NonceCore initialization: {e}")
+            raise RuntimeError("NonceCore initialization failed.") from e
 
     async def _init_nonce(self) -> None:
         """
         Initialize nonce by fetching from the chain and pending transactions.
         """
-        current_nonce = await self._fetch_current_nonce_with_retries()
-        pending_nonce = await self._get_pending_nonce()
-        self.nonce_cache[self.address] = max(current_nonce, pending_nonce)
-        self.last_sync = time.monotonic()
+        try:
+            current_nonce = await self._fetch_current_nonce_with_retries()
+            pending_nonce = await self._get_pending_nonce()
+            self.nonce_cache[self.address] = max(current_nonce, pending_nonce)
+            self.last_sync = time.monotonic()
+        except Exception as e:
+            print(f"Error initializing nonce: {e}")
+            raise
 
     async def get_nonce(self, force_refresh: bool = False) -> int:
         """
@@ -505,11 +512,11 @@ class NonceCore:
             except KeyError as e:
                 print(f"NonceCore KeyError: {e}")
                 await self._handle_nonce_error()
-                raise
+                raise RuntimeError("Failed to retrieve nonce due to KeyError.") from e
             except Exception as e:
                 print(f"NonceCore Exception in get_nonce: {e}")
                 await self._handle_nonce_error()
-                raise
+                raise RuntimeError("Failed to retrieve nonce.") from e
 
     async def refresh_nonce(self) -> None:
         """
@@ -523,6 +530,9 @@ class NonceCore:
                 new_nonce = max(chain_nonce, cached_nonce, pending_nonce)
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
+            except (ConnectionError, TimeoutError) as e:
+                print(f"Connection error while refreshing nonce: {e}")
+                raise RuntimeError("Failed to refresh nonce due to connection issues.") from e
             except Exception as e:
                 print(f"Error refreshing nonce: {e}")
                 raise
@@ -538,14 +548,21 @@ class NonceCore:
             Exception: If unable to fetch after retries.
         """
         backoff = self.RETRY_DELAY
-        for attempt in range(self.MAX_RETRIES):
+        for attempt in range(1, self.MAX_RETRIES + 1):
             try:
-                return await self.web3.eth.get_transaction_count(
+                nonce = await self.web3.eth.get_transaction_count(
                     self.address, block_identifier="pending"
                 )
+                return nonce
+            except (ConnectionError, TimeoutError) as e:
+                print(f"Network error fetching nonce (attempt {attempt}): {e}")
+                if attempt == self.MAX_RETRIES:
+                    raise RuntimeError("Max retries reached while fetching nonce.") from e
+                await asyncio.sleep(backoff)
+                backoff *= 2
             except Exception as e:
-                print(f"Error fetching current nonce (attempt {attempt + 1}): {e}")
-                if attempt == self.MAX_RETRIES - 1:
+                print(f"Unexpected error fetching nonce (attempt {attempt}): {e}")
+                if attempt == self.MAX_RETRIES:
                     raise
                 await asyncio.sleep(backoff)
                 backoff *= 2
@@ -561,7 +578,7 @@ class NonceCore:
         try:
             if not self.pending_transactions:
                 return 0
-            pending_nonces = [nonce for nonce in self.pending_transactions]
+            pending_nonces = list(self.pending_transactions)
             return max(pending_nonces) + 1 if pending_nonces else 0
         except Exception as e:
             print(f"Error getting pending nonce: {e}")
@@ -579,9 +596,14 @@ class NonceCore:
         try:
             await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             self.pending_transactions.discard(nonce)
+        except asyncio.TimeoutError:
+            print(f"Timeout waiting for transaction receipt: {tx_hash}")
+            self.pending_transactions.discard(nonce)
+            raise
         except Exception as e:
             print(f"Error tracking transaction {tx_hash}: {e}")
             self.pending_transactions.discard(nonce)
+            raise
 
     async def _handle_nonce_error(self) -> None:
         """
@@ -591,7 +613,7 @@ class NonceCore:
             await self.sync_nonce_with_chain()
         except Exception as e:
             print(f"Error handling nonce error: {e}")
-            raise
+            raise RuntimeError("Failed to handle nonce error.") from e
 
     async def sync_nonce_with_chain(self) -> None:
         """
@@ -603,6 +625,9 @@ class NonceCore:
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
                 self.pending_transactions.clear()
+            except (ConnectionError, TimeoutError) as e:
+                print(f"Connection error syncing nonce with chain: {e}")
+                raise RuntimeError("Failed to sync nonce due to connection issues.") from e
             except Exception as e:
                 print(f"Error syncing nonce with chain: {e}")
                 raise
@@ -629,7 +654,7 @@ class NonceCore:
                 await self.initialize()
             except Exception as e:
                 print(f"Error resetting NonceCore: {e}")
-                raise
+                raise RuntimeError("Failed to reset NonceCore.") from e
 
     async def stop(self) -> None:
         """
@@ -639,7 +664,7 @@ class NonceCore:
             await self.reset()
         except Exception as e:
             print(f"Error stopping NonceCore: {e}")
-            raise
+            raise RuntimeError("Failed to stop NonceCore.") from e
 
 class APIConfig:
     """

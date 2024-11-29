@@ -6,7 +6,7 @@ import random
 import asyncio
 import aiohttp
 import aiofiles
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional, List, Dict, Any, Callable, Union, Tuple
 
@@ -16,6 +16,7 @@ from web3.middleware import ExtraDataToPOAMiddleware, SignAndSendRawMiddlewareBu
 from web3.contract import *
 from web3.eth import AsyncEth
 from eth_account import Account
+from web3.geth import *
 
 from cachetools import TTLCache
 
@@ -31,6 +32,10 @@ from hexbytes import HexBytes
 # Define a global variable for loading bar state
 _loading_bar_active = False
 
+class LoadingBarError(Exception):
+    """Custom exception for loading bar errors."""
+    pass
+
 async def loading_bar(
     message: str,
     total_time: int,
@@ -43,55 +48,116 @@ async def loading_bar(
         message (str): The message to display alongside the loading bar.
         total_time (int): Total time in seconds for the loading bar to complete.
         success_message (Optional[str]): Message to display upon completion.
+
+    Raises:
+        LoadingBarError: If there's an error during loading bar execution.
+        ValueError: If invalid parameters are provided.
     """
     global _loading_bar_active
     YELLOW = "\033[93m"
     GREEN = "\033[92m"
+    RED = "\033[91m"
     RESET = "\033[0m"
+    
+    # Input validation
+    if not isinstance(message, str) or not message:
+        raise ValueError("Message must be a non-empty string")
+    if not isinstance(total_time, int) or total_time <= 0:
+        raise ValueError("Total time must be a positive integer")
+    if success_message is not None and not isinstance(success_message, str):
+        raise ValueError("Success message must be a string if provided")
+
     _loading_bar_active = True
     bar_length = 20
     try:
         for i in range(101):
-            await asyncio.sleep(total_time / 100)
-            percent = i / 100
-            filled_length = int(percent * bar_length)
-            bar = '█' * filled_length + '-' * (bar_length - filled_length)
-            sys.stdout.write(f"\r{GREEN}{message} [{bar}] {i}%{RESET}")
-            sys.stdout.flush()
+            try:
+                await asyncio.sleep(total_time / 100)
+                percent = i / 100
+                filled_length = int(percent * bar_length)
+                bar = '█' * filled_length + '-' * (bar_length - filled_length)
+                sys.stdout.write(f"\r{GREEN}{message} [{bar}] {i}%{RESET}")
+                sys.stdout.flush()
+            except asyncio.CancelledError:
+                sys.stdout.write(f"\r{RED}Loading bar cancelled{RESET}\n")
+                sys.stdout.flush()
+                raise
+            except Exception as e:
+                raise LoadingBarError(f"Error during loading bar progress: {str(e)}")
 
         sys.stdout.write("\n")
         sys.stdout.flush()
 
         if success_message:
             print(f"{GREEN}{success_message}{RESET}")
-    except Exception as e:
-        print(f"Error in loading_bar: {e}")
+
+    except LoadingBarError as e:
+        print(f"{RED}Loading bar error: {str(e)}{RESET}")
         raise
+    except Exception as e:
+        print(f"{RED}Unexpected error in loading_bar: {str(e)}{RESET}")
+        raise LoadingBarError(f"Unexpected error: {str(e)}")
     finally:
         _loading_bar_active = False
 
 @dataclass
 class StrategyPerformanceMetrics:
-    avg_execution_time: float = 0.0
-    success_rate: float = 0.0
-    total_executions: int = 0
-    successes: int = 0
-    failures: int = 0
-    profit: Decimal = Decimal("0.0")
+    """Data class for tracking strategy performance metrics."""
+    avg_execution_time: float = field(default=0.0)
+    success_rate: float = field(default=0.0)
+    total_executions: int = field(default=0)
+    successes: int = field(default=0)
+    failures: int = field(default=0)
+    profit: Decimal = field(default=Decimal("0.0"))
+
+    def __post_init__(self):
+        """Validate metrics after initialization."""
+        if self.avg_execution_time < 0:
+            raise ValueError("Average execution time cannot be negative")
+        if not 0 <= self.success_rate <= 1:
+            raise ValueError("Success rate must be between 0 and 1")
+        if self.total_executions < 0:
+            raise ValueError("Total executions cannot be negative")
+        if self.successes < 0:
+            raise ValueError("Successes cannot be negative")
+        if self.failures < 0:
+            raise ValueError("Failures cannot be negative")
+        if self.successes + self.failures > self.total_executions:
+            raise ValueError("Sum of successes and failures cannot exceed total executions")
 
 @dataclass
 class StrategyConfiguration:
-    decay_factor: float = 0.95
-    min_profit_threshold: Decimal = Decimal("0.01")
-    learning_rate: float = 0.01
-    exploration_rate: float = 0.1
+    """Data class for strategy configuration parameters."""
+    decay_factor: float = field(default=0.95)
+    min_profit_threshold: Decimal = field(default=Decimal("0.01"))
+    learning_rate: float = field(default=0.01)
+    exploration_rate: float = field(default=0.1)
+
+    def __post_init__(self):
+        """Validate configuration parameters after initialization."""
+        if not 0 < self.decay_factor <= 1:
+            raise ValueError("Decay factor must be between 0 and 1")
+        if self.min_profit_threshold <= 0:
+            raise ValueError("Minimum profit threshold must be positive")
+        if not 0 < self.learning_rate <= 1:
+            raise ValueError("Learning rate must be between 0 and 1")
+        if not 0 <= self.exploration_rate <= 1:
+            raise ValueError("Exploration rate must be between 0 and 1")
 
 @dataclass
 class StrategyExecutionError(Exception):
+    """Custom exception for strategy execution errors."""
     message: str
+    error_code: int = field(default=500)
+    timestamp: float = field(default_factory=time.time)
+    details: Dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
-        return self.message
+        """Format the error message with additional details."""
+        error_msg = f"Strategy Execution Error ({self.error_code}): {self.message}"
+        if self.details:
+            error_msg += f"\nDetails: {json.dumps(self.details, indent=2)}"
+        return error_msg
 
 class Configuration:
     """
@@ -136,7 +202,11 @@ class Configuration:
         """
         Load the configuration by calling internal methods.
         """
-        await self._load_configuration()
+        try:
+            await self._load_configuration()
+        except Exception as e:
+            print(f"[Configuration] Initialization failed: {e}")
+            raise
 
     async def _load_configuration(self) -> None:
         """
@@ -148,62 +218,97 @@ class Configuration:
             self._load_providers_and_account()
             self._load_ML_models()
             await self._load_json_elements()
+        except EnvironmentError as e:
+            print(f"[Configuration] Environment error: {e}")
+            raise
+        except FileNotFoundError as e:
+            print(f"[Configuration] File not found: {e}")
+            raise
+        except json.JSONDecodeError as e:
+            print(f"[Configuration] JSON decode error in file: {e}")
+            raise
         except Exception as e:
+            print(f"[Configuration] Unexpected error: {e}")
             raise RuntimeError(f"Failed to load configuration: {e}") from e
 
     def _load_ML_models(self) -> None:
         """
         Load ML model paths.
         """
-        self.ML_MODEL_PATH = "models/price_model.joblib"
-        self.ML_TRAINING_DATA_PATH = "data/training_data.csv"
+        try:
+            self.ML_MODEL_PATH = "models/price_model.joblib"
+            self.ML_TRAINING_DATA_PATH = "data/training_data.csv"
+        except Exception as e:
+            print(f"[Configuration] Error loading ML models: {e}")
+            raise
 
     def _load_api_keys(self) -> None:
         """
         Load API keys from environment variables.
         """
-        self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
-        self.INFURA_PROJECT_ID = self._get_env_variable("INFURA_PROJECT_ID")
-        self.COINGECKO_API_KEY = self._get_env_variable("COINGECKO_API_KEY")
-        self.COINMARKETCAP_API_KEY = self._get_env_variable("COINMARKETCAP_API_KEY")
-        self.CRYPTOCOMPARE_API_KEY = self._get_env_variable("CRYPTOCOMPARE_API_KEY")
+        try:
+            self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
+            self.INFURA_PROJECT_ID = self._get_env_variable("INFURA_PROJECT_ID")
+            self.COINGECKO_API_KEY = self._get_env_variable("COINGECKO_API_KEY")
+            self.COINMARKETCAP_API_KEY = self._get_env_variable("COINMARKETCAP_API_KEY")
+            self.CRYPTOCOMPARE_API_KEY = self._get_env_variable("CRYPTOCOMPARE_API_KEY")
+        except EnvironmentError as e:
+            print(f"[Configuration] API key loading error: {e}")
+            raise
 
     def _load_providers_and_account(self) -> None:
         """
         Load providers and account information from environment variables.
         """
-        self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT")
-        self.IPC_ENDPOINT = self._get_env_variable("IPC_ENDPOINT")
-        self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT")
-        self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
-        self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
+        try:
+            self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT")
+            self.IPC_ENDPOINT = self._get_env_variable("IPC_ENDPOINT")
+            self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT")
+            self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
+            self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
+        except EnvironmentError as e:
+            print(f"[Configuration] Provider/account loading error: {e}")
+            raise
 
     async def _load_json_elements(self) -> None:
         """
         Load JSON elements from files specified in environment variables.
         """
-        self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
-        self.TOKEN_ADDRESSES = await self._load_json_file(
-            self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
-        )
-        self.TOKEN_SYMBOLS = await self._load_json_file(
-            self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
-        )
-        self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
-        self.ERC20_SIGNATURES = await self._load_json_file(
-            self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
-        )
-        self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "sushiswap_router_abi.json")
-        self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
-        self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
-        self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
-        self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
-        self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
-        self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
-        self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
-        self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
-        self.BALANCER_ROUTER_ABI = await self._construct_abi_path("abi", "balancer_router_abi.json")
-        self.BALANCER_ROUTER_ADDRESS = self._get_env_variable("BALANCER_ROUTER_ADDRESS")
+        try:
+            self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
+            self.TOKEN_ADDRESSES = await self._load_json_file(
+                self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
+            )
+            self.TOKEN_SYMBOLS = await self._load_json_file(
+                self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
+            )
+            self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
+            self.ERC20_SIGNATURES = await self._load_json_file(
+                self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
+            )
+            self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "sushiswap_router_abi.json")
+            self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
+            self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
+            self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
+            self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
+            self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
+            self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
+            self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
+            self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
+            self.BALANCER_ROUTER_ABI = await self._construct_abi_path("abi", "balancer_router_abi.json")
+            self.BALANCER_ROUTER_ADDRESS = self._get_env_variable("BALANCER_ROUTER_ADDRESS")
+        except EnvironmentError as e:
+            print(f"[Configuration] JSON elements loading error: {e}")
+            raise
+        except FileNotFoundError as e:
+            print(f"[Configuration] JSON file not found: {e}")
+            raise
+        except json.JSONDecodeError as e:
+            print(f"[Configuration] JSON decode error: {e}")
+            raise
+        except Exception as e:
+            print(f"[Configuration] Unexpected error loading JSON elements: {e}")
+            raise
 
     def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
         """
@@ -221,7 +326,9 @@ class Configuration:
         """
         value = os.getenv(var_name, default)
         if value is None:
-            raise EnvironmentError(f"Missing environment variable: {var_name}")
+            error_msg = f"Missing environment variable: {var_name}"
+            print(f"[Configuration] {error_msg}")
+            raise EnvironmentError(error_msg)
         return value
 
     async def _load_json_file(self, file_path: str, description: str) -> Any:
@@ -247,11 +354,17 @@ class Configuration:
                 await loading_bar(f"Loading {len(data)} {description} from {file_path}", 3, f"Loaded {description}")
                 return data
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"File not found: {file_path}") from e
+            error_msg = f"File not found: {file_path}"
+            print(f"[Configuration] {error_msg}")
+            raise FileNotFoundError(error_msg) from e
         except json.JSONDecodeError as e:
-            raise json.JSONDecodeError(f"JSON decode error in file {file_path}: {e}", e.doc, e.pos)
+            error_msg = f"JSON decode error in file {file_path}: {e}"
+            print(f"[Configuration] {error_msg}")
+            raise json.JSONDecodeError(error_msg, e.doc, e.pos) from e
         except Exception as e:
-            raise Exception(f"Error loading JSON file {file_path}: {e}") from e
+            error_msg = f"Error loading JSON file {file_path}: {e}"
+            print(f"[Configuration] {error_msg}")
+            raise Exception(error_msg) from e
 
     async def _construct_abi_path(self, base_path: str, abi_filename: str) -> str:
         """
@@ -269,7 +382,9 @@ class Configuration:
         """
         abi_path = os.path.join(base_path, abi_filename)
         if not os.path.exists(abi_path):
-            raise FileNotFoundError(f"ABI file '{abi_filename}' not found in path '{base_path}'")
+            error_msg = f"ABI file '{abi_filename}' not found in path '{base_path}'"
+            print(f"[Configuration] {error_msg}")
+            raise FileNotFoundError(error_msg)
         return abi_path
 
     async def get_token_addresses(self) -> List[str]:
@@ -279,7 +394,11 @@ class Configuration:
         Returns:
             List[str]: List of token addresses.
         """
-        return list(self.TOKEN_ADDRESSES.values())
+        try:
+            return list(self.TOKEN_ADDRESSES.values())
+        except Exception as e:
+            print(f"[Configuration] Error retrieving token addresses: {e}")
+            return []
 
     async def get_token_symbols(self) -> Dict[str, str]:
         """
@@ -288,7 +407,11 @@ class Configuration:
         Returns:
             Dict[str, str]: Mapping from token address to symbol.
         """
-        return self.TOKEN_SYMBOLS
+        try:
+            return self.TOKEN_SYMBOLS
+        except Exception as e:
+            print(f"[Configuration] Error retrieving token symbols: {e}")
+            return {}
 
     def get_abi_path(self, abi_name: str) -> str:
         """
@@ -309,7 +432,10 @@ class Configuration:
             "pancakeswap_router_abi": self.PANCAKESWAP_ROUTER_ABI,
             "balancer_router_abi": self.BALANCER_ROUTER_ABI,
         }
-        return abi_paths.get(abi_name.lower(), "")
+        path = abi_paths.get(abi_name.lower(), "")
+        if not path:
+            print(f"[Configuration] ABI path for '{abi_name}' not found.")
+        return path
 
 class NonceCore:
     """
@@ -1998,6 +2124,23 @@ class TransactionCore:
         except Exception as e:
             print(f"Error executing back-run: {e}")
             return False
+        
+    async def sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
+        """
+        Execute a sandwich attack. This method is a wrapper for the sandwich attack.
+
+        Args:
+            target_tx (Dict[str, Any]): The target transaction data.
+
+        Returns:    
+            bool: True if successful, False otherwise.
+        """
+        try:
+            return await self.execute_sandwich_attack(target_tx)
+        except Exception as e:
+            print(f"Error executing sandwich attack: {e}")
+            return False
+        
 
     async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
         """

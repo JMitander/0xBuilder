@@ -11,6 +11,7 @@ import psutil
 import numpy as np
 import pandas as pd
 import joblib
+
 from decimal import Decimal
 from typing import Optional, List, Dict, Any, Callable, Union, Tuple
 from web3.eth import AsyncEth
@@ -23,9 +24,6 @@ from eth_account import Account
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from dataclasses import dataclass
-
-
-
 
 
 async def loading_bar(message: str, total_time: int, success_message: Optional[str] = None) -> None:
@@ -53,65 +51,141 @@ class Configuration:
     STREAMLIT_ENABLED: bool = True
 
     def __init__(self):
+        self._initialize_api_keys()
+        self._initialize_endpoints()
+        self._initialize_wallet()
+        self._initialize_contract_addresses()
+        self._initialize_abis()
+        self._initialize_ml_paths()
+
+    def _initialize_api_keys(self):
         self.INFURA_PROJECT_ID: str = ""
         self.COINGECKO_API_KEY: str = ""
         self.COINMARKETCAP_API_KEY: str = ""
         self.CRYPTOCOMPARE_API_KEY: str = ""
 
+    def _initialize_endpoints(self):
         self.HTTP_ENDPOINT: str = ""
         self.IPC_ENDPOINT: str = ""
         self.WEBSOCKET_ENDPOINT: str = ""
+
+    def _initialize_wallet(self):
         self.WALLET_KEY: str = ""
         self.WALLET_ADDRESS: str = ""
 
+    def _initialize_contract_addresses(self):
         self.AAVE_LENDING_POOL_ADDRESS: str = ""
         self.TOKEN_ADDRESSES: Dict[str, str] = {}
         self.TOKEN_SYMBOLS: Dict[str, str] = {}
 
+    def _initialize_abis(self):
         self.ERC20_ABI: str = ""
         self.ERC20_SIGNATURES: Dict[str, Any] = {}
         self.SUSHISWAP_ROUTER_ABI: str = ""
         self.SUSHISWAP_ROUTER_ADDRESS: str = ""
-        self.UNISWAP_ROUTER_ABI: str = ""
-        self.UNISWAP_ROUTER_ADDRESS: str = ""
-        self.AAVE_FLASHLOAN_ABI: str = ""
-        self.AAVE_LENDING_POOL_ABI: str = ""
-        self.AAVE_FLASHLOAN_ADDRESS: str = ""
-        self.PANCAKESWAP_ROUTER_ABI: str = ""
+    async def load(self) -> None:
+        # Display a loading bar while loading environment variables
+        await loading_bar("Loading Environment Variables", 2, "Environment Variables Loaded")
+        
+        # Load API keys from environment variables
+        self._load_api_keys()
+        
+        # Load providers and account details from environment variables
+        self._load_providers_and_account()
+        
+        # Load machine learning models and training data paths
+        self._load_ML_models()
+        
+        # Load JSON elements such as token addresses, symbols, and ABIs
+        await self._load_json_elements()
         self.PANCAKESWAP_ROUTER_ADDRESS: str = ""
         self.BALANCER_ROUTER_ABI: str = ""
         self.BALANCER_ROUTER_ADDRESS: str = ""
 
+    def _initialize_ml_paths(self):
         self.ML_MODEL_PATH: str = "models/price_model.joblib"
         self.ML_TRAINING_DATA_PATH: str = "data/training_data.csv"
 
     async def load(self) -> None:
         await loading_bar("Loading Environment Variables", 2, "Environment Variables Loaded")
-        self._load_api_keys()
-        self._load_providers_and_account()
-        self._load_ML_models()
-        await self._load_json_elements()
-
-    def _load_ML_models(self) -> None:
-        self.ML_MODEL_PATH = "models/price_model.joblib"
-        self.ML_TRAINING_DATA_PATH = "data/training_data.csv"
-
     def _load_api_keys(self) -> None:
-        self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
-        self.INFURA_PROJECT_ID = self._get_env_variable("INFURA_PROJECT_ID")
-        self.COINGECKO_API_KEY = self._get_env_variable("COINGECKO_API_KEY")
-        self.COINMARKETCAP_API_KEY = self._get_env_variable("COINMARKETCAP_API_KEY")
-        self.CRYPTOCOMPARE_API_KEY = self._get_env_variable("CRYPTOCOMPARE_API_KEY")
+        self.ETHERSCAN_API_KEY = self._load_etherscan_api_key()
+        self.INFURA_PROJECT_ID = self._load_infura_project_id()
+        self.COINGECKO_API_KEY = self._load_coingecko_api_key()
+        self.COINMARKETCAP_API_KEY = self._load_coinmarketcap_api_key()
+        self.CRYPTOCOMPARE_API_KEY = self._load_cryptocompare_api_key()
+
+    def _load_etherscan_api_key(self) -> str:
+        return self._get_env_variable("ETHERSCAN_API_KEY")
+
+    def _load_infura_project_id(self) -> str:
+        return self._get_env_variable("INFURA_PROJECT_ID")
+
+    def _load_coingecko_api_key(self) -> str:
+        return self._get_env_variable("COINGECKO_API_KEY")
 
     def _load_providers_and_account(self) -> None:
-        self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT")
-        self.IPC_ENDPOINT = self._get_env_variable("IPC_ENDPOINT", default="")
-        self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT", default="")
-        self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
-        self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
+        self.HTTP_ENDPOINT = self._load_http_endpoint()
+        try:
+            self.IPC_ENDPOINT = self._load_ipc_endpoint()
+        except EnvironmentError as e:
+            print(f"Error loading IPC endpoint: {e}")
+            self.IPC_ENDPOINT = ""
+        self.WEBSOCKET_ENDPOINT = self._load_websocket_endpoint()
+        self.WALLET_KEY = self._load_wallet_key()
+        self.WALLET_ADDRESS = self._load_wallet_address()
 
+    def _load_http_endpoint(self) -> str:
+        return self._get_env_variable("HTTP_ENDPOINT")
+
+    def _load_ipc_endpoint(self) -> str:
+        return self._get_env_variable("IPC_ENDPOINT", default="")
+
+    def _load_websocket_endpoint(self) -> str:
+        return self._get_env_variable("WEBSOCKET_ENDPOINT", default="")
+
+    def _load_wallet_key(self) -> str:
+        return self._get_env_variable("WALLET_KEY")
+
+    def _load_wallet_address(self) -> str:
+        return self._get_env_variable("WALLET_ADDRESS")
+        self.ML_TRAINING_DATA_PATH = "data/training_data.csv"
     async def _load_json_elements(self) -> None:
+        await self._load_aave_elements()
+        await self._load_token_elements()
+        await self._load_router_elements()
+        await self._load_abi_elements()
+
+    async def _load_aave_elements(self) -> None:
         self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
+        self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
+        self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
+        self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
+
+    async def _load_token_elements(self) -> None:
+        self.TOKEN_ADDRESSES = await self._load_json_file(self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens")
+        self.TOKEN_SYMBOLS = await self._load_json_file(self._get_env_variable("TOKEN_SYMBOLS"), "token symbols")
+        self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
+        self.ERC20_SIGNATURES = await self._load_json_file(self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures")
+
+    async def _load_router_elements(self) -> None:
+        self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "sushiswap_router_abi.json")
+        self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
+        self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
+        self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
+        self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
+        self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
+        self.BALANCER_ROUTER_ABI = await self._construct_abi_path("abi", "balancer_router_abi.json")
+        self.BALANCER_ROUTER_ADDRESS = self._get_env_variable("BALANCER_ROUTER_ADDRESS")
+
+    async def _load_abi_elements(self) -> None:
+        self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
+        self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "sushiswap_router_abi.json")
+        self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
+        self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
+        self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
+        self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
+        self.BALANCER_ROUTER_ABI = await self._construct_abi_path("abi", "balancer_router_abi.json")
         self.TOKEN_ADDRESSES = await self._load_json_file(self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens")
         self.TOKEN_SYMBOLS = await self._load_json_file(self._get_env_variable("TOKEN_SYMBOLS"), "token symbols")
         self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
@@ -130,22 +204,28 @@ class Configuration:
 
     def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
         value = os.getenv(var_name, default)
-        if value is None:
-            raise EnvironmentError(f"Missing environment variable: {var_name}")
-        return value
-
     async def _load_json_file(self, file_path: str, description: str) -> Any:
         try:
+            # Open the JSON file asynchronously
             async with aiofiles.open(file_path, "r") as f:
                 content = await f.read()
                 data = json.loads(content)
+                
+                # Display a loading bar while loading the JSON data
                 await loading_bar(f"Loading {len(data)} {description} from {file_path}", 3, f"{description.capitalize()} Loaded")
                 return data
         except FileNotFoundError:
+            # Handle the case where the file is not found
             print(f"{description.capitalize()} file not found at {file_path}")
             raise
         except json.JSONDecodeError:
+            # Handle the case where the JSON data is invalid
             print(f"Failed to decode JSON for {description} from {file_path}")
+            raise
+        except Exception as e:
+            # Handle any other exceptions that may occur
+            print(f"Error loading {description} from {file_path}: {e}")
+            raise
             raise
         except Exception as e:
             print(f"Error loading {description} from {file_path}: {e}")
@@ -1706,6 +1786,11 @@ class StrategyConfiguration:
     min_profit_threshold: Decimal = Decimal("0.01")
     learning_rate: float = 0.01
     exploration_rate: float = 0.1
+    max_execution_time: float = 5.0
+    max_profit: Decimal = Decimal("100.0")
+    max_gas_price_multiplier: float = 1.5
+    min_gas_price_multiplier: float = 0.5
+
 
 @dataclass
 class StrategyExecutionError(Exception):
@@ -3092,5 +3177,25 @@ class MainCore:
             logging.info(f"Transaction '{tx_hash}' executed. Success: {success}, Execution Time: {execution_time:.2f}s, Memory Usage: {memory_usage:.2f} MB")
         except ImportError:
             logging.info(f"Transaction '{tx_hash}' executed. Success: {success}, Execution Time: {execution_time:.2f}s")
+    
+    def main(self) -> None:
+        try:
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(self.initialize())
+            loop.run_until_complete(self.run())
+        except KeyboardInterrupt:
+            logging.info("KeyboardInterrupt received. Shutting down.")
+        except Exception as e:
+            logging.error(f"Error in main method: {e}")
+        finally:
+            loop.run_until_complete(self.stop())
+            
+if __name__ == "__main__":
+    core = MainCore()
+    core.main()
+    logging.info("0xBuilder started.")
+
+
+# In[ ]:
 
 

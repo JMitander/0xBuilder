@@ -185,7 +185,7 @@ class SafetyNet {
             return congestionLevel;
         } catch (e) {
             logger.error(`Error fetching network congestion: ${e.message}`);
-            return 0.5; // Assume medium congestion if unknown
+            return 0.5; //  medium congestion if unknown
         }
     }
 

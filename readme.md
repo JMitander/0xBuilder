@@ -332,21 +332,21 @@ npm list --depth=0
 
 ### Environment Variables
 
-1. **Create a `.env` file** in both the Python and JavaScript directories by copying from the example files.
+1. **Create a `.env` file** in both the Python and JavaScript directories by copying from the  files.
 
 ```bash
 # For Python
 cd ../Python
-cp .env.example .env
+cp .env. .env
 
 # For JavaScript
 cd ../JavaScript
-cp .env.example .env
+cp .env. .env
 ```
 
 2. **Configure the `.env` files** with your API keys and other necessary configurations.
 
-**Example `.env` configuration:**
+** `.env` configuration:**
 
 ```ini
 # API Configurationsuration

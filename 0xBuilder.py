@@ -251,8 +251,18 @@ class Configuration:
         }
         return abi_paths.get(abi_name.lower(), "")
 
+    async def get_ml_model(self) -> LinearRegression:
+        try:
+            model = joblib.load(self.ML_MODEL_PATH)
+            return model
+        except Exception as e:
+            logging.error(f"Error loading ML model: {e}")
+            raise
+
+# ========================= APIConfig Class =========================
+
 class APIConfig:
-    def __init__(self, configuration: Optional[Configuration] = None):
+    def __init__(self, configuration: 'Configuration'):
         self.apiconfig: Dict[str, Dict[str, Any]] = {}
         self.configuration = configuration
         self.session: Optional[aiohttp.ClientSession] = None
@@ -317,12 +327,13 @@ class APIConfig:
             self.token_symbol_cache[token_address] = symbol
             return symbol
         try:
-            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            contract = self.web3.eth.contract(address=token_address, abi=erc20_abi)
+            erc20_abi = await self.load_abi(self.configuration.ERC20_ABI)
+            contract = web3.eth.contract(address=token_address, abi=erc20_abi)
             symbol = await contract.functions.symbol().call()
             self.token_symbol_cache[token_address] = symbol
             return symbol
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error fetching token symbol for {token_address}: {e}")
             return None
 
     async def get_real_time_price(self, token: str, vs_currency: str = "eth", service: Optional[str] = None) -> Optional[Decimal]:
@@ -343,7 +354,8 @@ class APIConfig:
                     if price:
                         prices.append(price)
                         weights.append(config["weight"] * config["success_rate"])
-                except Exception:
+                except Exception as e:
+                    logging.error(f"Error fetching price from {source}: {e}")
                     continue
 
         if not prices:
@@ -405,26 +417,34 @@ class APIConfig:
                     async with self.session.get(url, params=params, headers=headers, timeout=timeout) as response:
                         if response.status == 429:
                             wait_time = backoff_factor ** attempt
+                            logging.warning(f"Rate limited by {provider_name}. Retrying in {wait_time} seconds.")
                             await asyncio.sleep(wait_time)
                             continue
                         response.raise_for_status()
                         return await response.json()
-                except aiohttp.ClientResponseError:
+                except aiohttp.ClientResponseError as e:
                     if attempt == max_attempts - 1:
+                        logging.error(f"ClientResponseError from {provider_name}: {e}")
                         raise
                     wait_time = backoff_factor ** attempt
+                    logging.warning(f"ClientResponseError from {provider_name}: {e}. Retrying in {wait_time} seconds.")
                     await asyncio.sleep(wait_time)
-                except aiohttp.ClientConnectionError:
+                except aiohttp.ClientConnectionError as e:
                     if attempt == max_attempts - 1:
+                        logging.error(f"ClientConnectionError from {provider_name}: {e}")
                         raise
                     wait_time = backoff_factor ** attempt
+                    logging.warning(f"ClientConnectionError from {provider_name}: {e}. Retrying in {wait_time} seconds.")
                     await asyncio.sleep(wait_time)
-                except asyncio.TimeoutError:
+                except asyncio.TimeoutError as e:
                     if attempt == max_attempts - 1:
+                        logging.error(f"TimeoutError from {provider_name}: {e}")
                         raise
                     wait_time = backoff_factor ** attempt
+                    logging.warning(f"TimeoutError from {provider_name}: {e}. Retrying in {wait_time} seconds.")
                     await asyncio.sleep(wait_time)
-                except Exception:
+                except Exception as e:
+                    logging.error(f"Unexpected error from {provider_name}: {e}")
                     raise
 
     async def fetch_historical_prices(self, token: str, days: int = 30, service: Optional[str] = None) -> List[float]:
@@ -446,16 +466,17 @@ class APIConfig:
                     if prices:
                         self.price_cache[cache_key] = prices
                         return prices
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error fetching historical prices from {source}: {e}")
                 continue
         return []
 
-    async def get_token_volume(self, token: str, service: Optional[str] = None) -> float:
+    async def get_token_volume(self, token: str, vs_currency: str = "eth") -> float:
         cache_key = f"token_volume_{token}"
         if cache_key in self.price_cache:
             return self.price_cache[cache_key]
         
-        services = [service] if service else list(self.apiconfig.keys())
+        services = list(self.apiconfig.keys())
         for source in services:
             config = self.apiconfig.get(source)
             if not config:
@@ -463,13 +484,14 @@ class APIConfig:
             try:
                 if source == "coingecko":
                     url = f"{config['base_url']}/coins/markets"
-                    params = {"vs_currency": "usd", "ids": token}
+                    params = {"vs_currency": vs_currency, "ids": token}
                     response = await self.make_request(source, url, params=params)
                     if response and isinstance(response, list):
                         volume = response[0].get("total_volume", 0.0)
                         self.price_cache[cache_key] = float(volume)
                         return float(volume)
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error fetching token volume from {source}: {e}")
                 continue
         return 0.0
 
@@ -483,17 +505,19 @@ class APIConfig:
                 result = await fetch_func(service)
                 if result:
                     return result
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error fetching {description} from {service}: {e}")
                 continue
         return None
 
-    async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
+    async def load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         try:
             async with aiofiles.open(abi_path, 'r') as file:
                 content = await file.read()
                 abi = json.loads(content)
             return abi
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error loading ABI from {abi_path}: {e}")
             raise
 
     async def _load_abi_sync(self, abi_path: str) -> List[Dict[str, Any]]:
@@ -501,8 +525,11 @@ class APIConfig:
             with open(abi_path, 'r') as file:
                 abi = json.load(file)
             return abi
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error loading ABI synchronously from {abi_path}: {e}")
             raise
+
+# ========================= NonceCore Class =========================
 
 class NonceCore:
     MAX_RETRIES: int = 3
@@ -513,7 +540,7 @@ class NonceCore:
         self,
         web3: AsyncWeb3,
         address: str,
-        configuration: Configuration,
+        configuration: 'Configuration',
     ):
         self.pending_transactions: set = set()
         self.web3 = web3
@@ -550,7 +577,8 @@ class NonceCore:
             except KeyError:
                 await self._handle_nonce_error()
                 raise
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error getting nonce: {e}")
                 await self._handle_nonce_error()
                 raise
 
@@ -563,7 +591,8 @@ class NonceCore:
                 new_nonce = max(chain_nonce, cached_nonce, pending_nonce)
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error refreshing nonce: {e}")
                 raise
 
     async def _fetch_current_nonce_with_retries(self) -> int:
@@ -573,7 +602,8 @@ class NonceCore:
                 return await self.web3.eth.get_transaction_count(
                     self.address, block_identifier="pending"
                 )
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error fetching current nonce (Attempt {attempt + 1}): {e}")
                 if attempt == self.MAX_RETRIES - 1:
                     raise
                 await asyncio.sleep(backoff)
@@ -583,7 +613,8 @@ class NonceCore:
         try:
             pending_nonces = [int(nonce) for nonce in self.pending_transactions]
             return max(pending_nonces) + 1 if pending_nonces else 0
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error getting pending nonce: {e}")
             return 0
 
     async def track_transaction(self, tx_hash: str, nonce: int) -> None:
@@ -591,13 +622,15 @@ class NonceCore:
         try:
             await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             self.pending_transactions.discard(nonce)
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error tracking transaction {tx_hash}: {e}")
             self.pending_transactions.discard(nonce)
 
     async def _handle_nonce_error(self) -> None:
         try:
             await self.sync_nonce_with_chain()
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error handling nonce error: {e}")
             raise
 
     async def sync_nonce_with_chain(self) -> None:
@@ -607,7 +640,8 @@ class NonceCore:
                 self.nonce_cache[self.address] = new_nonce
                 self.last_sync = time.monotonic()
                 self.pending_transactions.clear()
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error syncing nonce with chain: {e}")
                 raise
 
     def _should_refresh_cache(self) -> bool:
@@ -621,14 +655,18 @@ class NonceCore:
                 self.last_sync = time.monotonic()
                 self._initialized = False
                 await self.initialize()
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error resetting NonceCore: {e}")
                 raise
 
     async def stop(self) -> None:
         try:
             await self.reset()
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error stopping NonceCore: {e}")
             raise
+
+# ========================= SafetyNet Class =========================
 
 class SafetyNet:
     CACHE_TTL: int = 300
@@ -649,7 +687,7 @@ class SafetyNet:
     def __init__(
         self,
         web3: AsyncWeb3,
-        configuration: Optional[Configuration] = None,
+        configuration: Optional['Configuration'] = None,
         address: Optional[str] = None,
         account: Optional[Account] = None,
         apiconfig: Optional[APIConfig] = None,
@@ -673,7 +711,8 @@ class SafetyNet:
                 balance_eth = Decimal(self.web3.from_wei(balance_wei, "ether"))
                 self.price_cache[cache_key] = balance_eth
                 return balance_eth
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error fetching balance (Attempt {attempt + 1}): {e}")
                 if attempt < 2:
                     await asyncio.sleep(1 * (attempt + 1))
         return Decimal(0)
@@ -703,7 +742,8 @@ class SafetyNet:
                 transaction_data, real_time_price, slippage, gas_cost_eth
             )
             return profit > Decimal(minimum_profit_eth)
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error ensuring profit: {e}")
             return False
 
     def _validate_gas_parameters(self, gas_price_gwei: Decimal, gas_used: int) -> bool:
@@ -736,14 +776,16 @@ class SafetyNet:
             gas_price_gwei = Decimal(self.web3.from_wei(gas_price, "gwei"))
             self.gas_price_cache["gas_price"] = gas_price_gwei
             return gas_price_gwei
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error fetching dynamic gas price: {e}")
             return Decimal(0)
 
     async def estimate_gas(self, transaction: Dict[str, Any]) -> int:
         try:
             gas_estimate = await self.web3.eth.estimate_gas(transaction)
             return gas_estimate
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error estimating gas: {e}")
             return 0
 
     async def adjust_slippage_tolerance(self) -> float:
@@ -759,7 +801,8 @@ class SafetyNet:
                 max(slippage, self.SLIPPAGE_CONFIG["min"]), self.SLIPPAGE_CONFIG["max"]
             )
             return slippage
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error adjusting slippage tolerance: {e}")
             return self.SLIPPAGE_CONFIG["default"]
 
     async def get_network_congestion(self) -> float:
@@ -769,11 +812,19 @@ class SafetyNet:
             gas_limit = latest_block["gasLimit"]
             congestion_level = gas_used / gas_limit
             return congestion_level
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error fetching network congestion: {e}")
             return 0.5
 
     async def stop(self) -> None:
-        pass
+        try:
+            # Currently, no ongoing tasks to stop
+            pass
+        except Exception as e:
+            logging.error(f"Error stopping SafetyNet: {e}")
+            raise
+
+# ========================= MempoolMonitor Class =========================
 
 class MempoolMonitor:
     MAX_RETRIES: int = 3
@@ -789,7 +840,7 @@ class MempoolMonitor:
         apiconfig: APIConfig,
         monitored_tokens: Optional[List[str]] = None,
         erc20_abi: Optional[List[Dict[str, Any]]] = None,
-        configuration: Optional[Configuration] = None,
+        configuration: Optional['Configuration'] = None,
     ):
         self.web3 = web3
         self.configuration = configuration
@@ -817,7 +868,8 @@ class MempoolMonitor:
             monitoring_task = asyncio.create_task(self._run_monitoring())
             processor_task = asyncio.create_task(self._process_task_queue())
             await asyncio.gather(monitoring_task, processor_task)
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error starting monitoring: {e}")
             self.running = False
             raise
 
@@ -828,7 +880,8 @@ class MempoolMonitor:
         try:
             while not self.task_queue.empty():
                 await asyncio.sleep(0.1)
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error stopping monitoring: {e}")
             raise
 
     async def _run_monitoring(self) -> None:
@@ -843,16 +896,18 @@ class MempoolMonitor:
                     if tx_hashes:
                         await self._handle_new_transactions(tx_hashes)
                     await asyncio.sleep(0.1)
-            except Exception:
+            except Exception as e:
                 retry_count += 1
                 wait_time = min(self.backoff_factor ** retry_count, 30)
+                logging.error(f"Error in monitoring loop: {e}. Retrying in {wait_time} seconds.")
                 await asyncio.sleep(wait_time)
 
     async def _setup_pending_filter(self) -> Optional[Any]:
         try:
             pending_filter = await self.web3.eth.filter("pending")
             return pending_filter
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error setting up pending filter: {e}")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
@@ -864,8 +919,8 @@ class MempoolMonitor:
             for i in range(0, len(tx_hashes), self.BATCH_SIZE):
                 batch = tx_hashes[i: i + self.BATCH_SIZE]
                 await process_batch(batch)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error(f"Error handling new transactions: {e}")
 
     async def _queue_transaction(self, tx_hash: str) -> None:
         tx_hash_hex = tx_hash.hex() if isinstance(tx_hash, bytes) else tx_hash
@@ -882,8 +937,8 @@ class MempoolMonitor:
                 self.task_queue.task_done()
             except asyncio.CancelledError:
                 break
-            except Exception:
-                pass
+            except Exception as e:
+                logging.error(f"Error processing task queue: {e}")
 
     async def process_transaction(self, tx_hash: str) -> None:
         try:
@@ -893,26 +948,28 @@ class MempoolMonitor:
             analysis = await self.analyze_transaction(tx)
             if analysis.get("is_profitable"):
                 await self._handle_profitable_transaction(analysis)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error(f"Error processing transaction {tx_hash}: {e}")
 
     async def _get_transaction_with_retry(self, tx_hash: str) -> Optional[Any]:
         for attempt in range(self.retry_attempts):
             try:
                 return await self.web3.eth.get_transaction(tx_hash)
-            except TransactionNotFound:
+            except TransactionNotFound as e:
+                logging.warning(f"Transaction not found {tx_hash} (Attempt {attempt + 1}): {e}")
                 if attempt == self.retry_attempts - 1:
                     return None
                 await asyncio.sleep(self.backoff_factor ** attempt)
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error fetching transaction {tx_hash}: {e}")
                 return None
         return None
 
     async def _handle_profitable_transaction(self, analysis: Dict[str, Any]) -> None:
         try:
             await self.profitable_transactions.put(analysis)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error(f"Error handling profitable transaction: {e}")
 
     async def analyze_transaction(self, tx: Any) -> Dict[str, Any]:
         if not tx.hash or not tx.input:
@@ -921,7 +978,8 @@ class MempoolMonitor:
             if tx.value > 0:
                 return await self._analyze_eth_transaction(tx)
             return await self._analyze_token_transaction(tx)
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error analyzing transaction {tx.hash.hex()}: {e}")
             return {"is_profitable": False}
 
     async def _analyze_eth_transaction(self, tx: Any) -> Dict[str, Any]:
@@ -945,7 +1003,8 @@ class MempoolMonitor:
                     "gasPrice": tx.gasPrice,
                 }
             return {"is_profitable": False}
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error analyzing ETH transaction {tx.hash.hex()}: {e}")
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx: Any) -> Dict[str, Any]:
@@ -980,8 +1039,11 @@ class MempoolMonitor:
                     return {"is_profitable": False}
             else:
                 return {"is_profitable": False}
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error analyzing token transaction {tx.hash.hex()}: {e}")
             return {"is_profitable": False}
+
+# ========================= TransactionCore Class =========================
 
 class TransactionCore:
     """
@@ -1002,7 +1064,7 @@ class TransactionCore:
         apiconfig: APIConfig,
         noncecore: NonceCore,
         safetynet: SafetyNet,
-        configuration: Configuration,
+        configuration: 'Configuration',
         gas_price_multiplier: float = 1.1,
         erc20_abi: Optional[List[Dict[str, Any]]] = None,
     ):
@@ -1048,29 +1110,29 @@ class TransactionCore:
             )
             self.uniswap_router_contract = await self._initialize_contract(
                 self.configuration.UNISWAP_ROUTER_ADDRESS,
-                await self.apiconfig._load_abi(self.configuration.UNISWAP_ROUTER_ABI),
+                await self.apiconfig.load_abi(self.configuration.UNISWAP_ROUTER_ABI),
                 "Uniswap Router Contract",
             )
             self.sushiswap_router_contract = await self._initialize_contract(
                 self.configuration.SUSHISWAP_ROUTER_ADDRESS,
-                await self.apiconfig._load_abi(self.configuration.SUSHISWAP_ROUTER_ABI),
+                await self.apiconfig.load_abi(self.configuration.SUSHISWAP_ROUTER_ABI),
                 "Sushiswap Router Contract",
             )
             self.pancakeswap_router_contract = await self._initialize_contract(
                 self.configuration.PANCAKESWAP_ROUTER_ADDRESS,
-                await self.apiconfig._load_abi(self.configuration.PANCAKESWAP_ROUTER_ABI),
+                await self.apiconfig.load_abi(self.configuration.PANCAKESWAP_ROUTER_ABI),
                 "Pancakeswap Router Contract",
             )
             self.balancer_router_contract = await self._initialize_contract(
                 self.configuration.BALANCER_ROUTER_ADDRESS,
-                await self.apiconfig._load_abi(self.configuration.BALANCER_ROUTER_ABI),
+                await self.apiconfig.load_abi(self.configuration.BALANCER_ROUTER_ABI),
                 "Balancer Router Contract",
             )
             if not self.erc20_abi:
                 self.erc20_abi = await self._load_erc20_abi()
-            print("TransactionCore initialized successfully.")
+            logging.info("TransactionCore initialized successfully.")
         except Exception as e:
-            print(f"Error initializing TransactionCore: {e}")
+            logging.error(f"Error initializing TransactionCore: {e}")
             raise
 
     async def _initialize_contract(
@@ -1097,27 +1159,26 @@ class TransactionCore:
         """
         try:
             if isinstance(contract_abi, str):
-                # Assume it's a path to the ABI file
                 if contract_abi in self._abi_cache:
                     contract_abi_content = self._abi_cache[contract_abi]
                 else:
-                    contract_abi_content = await self.apiconfig._load_abi(contract_abi)
+                    contract_abi_content = await self.apiconfig.load_abi(contract_abi)
                     self._abi_cache[contract_abi] = contract_abi_content
                 contract_abi = contract_abi_content
             contract_instance = self.web3.eth.contract(
                 address=self.web3.to_checksum_address(contract_address),
                 abi=contract_abi,
             )
-            print(f"{contract_name} initialized at {contract_address}")
+            logging.info(f"{contract_name} initialized at {contract_address}")
             return contract_instance
         except FileNotFoundError:
-            print(f"ABI file not found for {contract_name} at {contract_abi}")
+            logging.error(f"ABI file not found for {contract_name} at {contract_abi}")
             raise
         except json.JSONDecodeError:
-            print(f"Invalid ABI JSON for {contract_name} at {contract_abi}")
+            logging.error(f"Invalid ABI JSON for {contract_name} at {contract_abi}")
             raise
         except Exception as e:
-            print(f"Error initializing {contract_name}: {e}")
+            logging.error(f"Error initializing {contract_name}: {e}")
             raise
 
     async def _load_erc20_abi(self) -> List[Dict[str, Any]]:
@@ -1128,10 +1189,10 @@ class TransactionCore:
             List[Dict[str, Any]]: The ERC20 ABI.
         """
         try:
-            erc20_abi = await self.apiconfig._load_abi(self.configuration.ERC20_ABI)
+            erc20_abi = await self.apiconfig.load_abi(self.configuration.ERC20_ABI)
             return erc20_abi
         except Exception as e:
-            print(f"Error loading ERC20 ABI: {e}")
+            logging.error(f"Error loading ERC20 ABI: {e}")
             raise
 
     async def build_transaction(
@@ -1163,10 +1224,10 @@ class TransactionCore:
             tx_details.update(await self.get_dynamic_gas_price())
             return tx_details
         except KeyError as e:
-            print(f"KeyError in build_transaction: {e}")
+            logging.error(f"KeyError in build_transaction: {e}")
             raise
         except Exception as e:
-            print(f"Error building transaction: {e}")
+            logging.error(f"Error building transaction: {e}")
             raise
 
     async def get_dynamic_gas_price(self) -> Dict[str, int]:
@@ -1183,7 +1244,7 @@ class TransactionCore:
             )
             return {"gasPrice": gas_price}
         except Exception as e:
-            print(f"Error getting dynamic gas price: {e}")
+            logging.error(f"Error getting dynamic gas price: {e}")
             # Default to 100 Gwei if unable to fetch
             return {"gasPrice": int(self.web3.to_wei(100 * self.gas_price_multiplier, "gwei"))}
 
@@ -1201,13 +1262,13 @@ class TransactionCore:
             gas_estimate = await self.web3.eth.estimate_gas(tx)
             return gas_estimate
         except ContractLogicError as e:
-            print(f"ContractLogicError during gas estimation: {e}")
+            logging.error(f"ContractLogicError during gas estimation: {e}")
             return 100_000  # Fallback gas limit
         except TransactionNotFound as e:
-            print(f"TransactionNotFound during gas estimation: {e}")
+            logging.error(f"TransactionNotFound during gas estimation: {e}")
             return 100_000  # Fallback gas limit
         except Exception as e:
-            print(f"Error estimating gas: {e}")
+            logging.error(f"Error estimating gas: {e}")
             return 100_000  # Fallback gas limit
 
     async def execute_transaction(self, tx: Dict[str, Any]) -> Optional[str]:
@@ -1226,19 +1287,19 @@ class TransactionCore:
                 tx_hash = await self.web3.eth.send_raw_transaction(signed_tx)
                 tx_hash_hex = tx_hash.hex() if isinstance(tx_hash, HexBytes) else tx_hash
                 await self.noncecore.refresh_nonce()
-                print(f"Transaction executed with hash: {tx_hash_hex}")
+                logging.info(f"Transaction executed with hash: {tx_hash_hex}")
                 return tx_hash_hex
             except TransactionNotFound as e:
-                print(f"TransactionNotFound: {e}")
+                logging.warning(f"TransactionNotFound: {e}")
             except ContractLogicError as e:
-                print(f"ContractLogicError: {e}")
+                logging.error(f"ContractLogicError: {e}")
             except Exception as e:
-                print(f"Error executing transaction: {e}")
+                logging.error(f"Error executing transaction: {e}")
                 if attempt < self.MAX_RETRIES:
                     sleep_time = self.RETRY_DELAY * attempt
                     await asyncio.sleep(sleep_time)
                 else:
-                    print(f"Failed to execute transaction after {self.MAX_RETRIES} attempts.")
+                    logging.error(f"Failed to execute transaction after {self.MAX_RETRIES} attempts.")
         return None
 
     def sign_transaction(self, transaction: Dict[str, Any]) -> bytes:
@@ -1258,10 +1319,10 @@ class TransactionCore:
             )
             return signed_tx.rawTransaction
         except KeyError as e:
-            print(f"KeyError in sign_transaction: {e}")
+            logging.error(f"KeyError in sign_transaction: {e}")
             raise
         except Exception as e:
-            print(f"Error signing transaction: {e}")
+            logging.error(f"Error signing transaction: {e}")
             raise
 
     async def handle_eth_transaction(self, target_tx: Dict[str, Any]) -> bool:
@@ -1296,16 +1357,16 @@ class TransactionCore:
             eth_value_ether = self.web3.from_wei(eth_value, "ether")
             tx_hash_executed = await self.execute_transaction(tx_details)
             if tx_hash_executed:
-                print(f"ETH Transaction handled successfully: {tx_hash_executed}")
+                logging.info(f"ETH Transaction handled successfully: {tx_hash_executed}")
                 return True
             else:
-                print(f"Failed to handle ETH transaction: {tx_hash}")
+                logging.warning(f"Failed to handle ETH transaction: {tx_hash}")
                 return False
         except KeyError as e:
-            print(f"KeyError in handle_eth_transaction: {e}")
+            logging.error(f"KeyError in handle_eth_transaction: {e}")
             return False
         except Exception as e:
-            print(f"Error handling ETH transaction {tx_hash}: {e}")
+            logging.error(f"Error handling ETH transaction {tx_hash}: {e}")
             return False
 
     def calculate_flashloan_amount(self, target_tx: Dict[str, Any]) -> int:
@@ -1341,10 +1402,10 @@ class TransactionCore:
             await self.web3.eth.call(transaction, block_identifier="pending")
             return True
         except ContractLogicError as e:
-            print(f"ContractLogicError during simulation: {e}")
+            logging.error(f"ContractLogicError during simulation: {e}")
             return False
         except Exception as e:
-            print(f"Error simulating transaction: {e}")
+            logging.error(f"Error simulating transaction: {e}")
             return False
 
     async def prepare_flashloan_transaction(
@@ -1369,10 +1430,10 @@ class TransactionCore:
             flashloan_tx = await self.build_transaction(flashloan_function)
             return flashloan_tx
         except ContractLogicError as e:
-            print(f"ContractLogicError in prepare_flashloan_transaction: {e}")
+            logging.error(f"ContractLogicError in prepare_flashloan_transaction: {e}")
             return None
         except Exception as e:
-            print(f"Error preparing flashloan transaction: {e}")
+            logging.error(f"Error preparing flashloan transaction: {e}")
             return None
 
     async def send_bundle(self, transactions: List[Dict[str, Any]]) -> bool:
@@ -1428,27 +1489,27 @@ class TransactionCore:
                                 successes.append(builder['name'])
                                 break  # Exit retry loop on success
                     except aiohttp.ClientResponseError as e:
-                        print(f"ClientResponseError with {builder['name']}: {e}")
+                        logging.error(f"ClientResponseError with {builder['name']}: {e}")
                         if attempt < self.retry_attempts:
                             sleep_time = self.RETRY_DELAY * attempt
                             await asyncio.sleep(sleep_time)
                     except ValueError as e:
-                        print(f"ValueError with {builder['name']}: {e}")
+                        logging.error(f"ValueError with {builder['name']}: {e}")
                         break  # Do not retry on value errors
                     except Exception as e:
-                        print(f"Unexpected error with {builder['name']}: {e}")
+                        logging.error(f"Unexpected error with {builder['name']}: {e}")
                         if attempt < self.retry_attempts:
                             sleep_time = self.RETRY_DELAY * attempt
                             await asyncio.sleep(sleep_time)
             if successes:
                 await self.noncecore.refresh_nonce()
-                print(f"Bundle sent successfully via: {', '.join(successes)}")
+                logging.info(f"Bundle sent successfully via: {', '.join(successes)}")
                 return True
             else:
-                print("Failed to send bundle via all builders.")
+                logging.warning("Failed to send bundle via all builders.")
                 return False
         except Exception as e:
-            print(f"Error sending bundle: {e}")
+            logging.error(f"Error sending bundle: {e}")
             return False
 
     async def front_run(self, target_tx: Dict[str, Any]) -> bool:
@@ -1467,7 +1528,7 @@ class TransactionCore:
             tx_hash = target_tx.get("tx_hash", "Unknown")
             required_fields = ["input", "to", "value", "gasPrice"]
             if not all(field in target_tx for field in required_fields):
-                print(f"Transaction {tx_hash} is missing required fields.")
+                logging.warning(f"Transaction {tx_hash} is missing required fields.")
                 return False
             decoded_tx = await self.decode_transaction_input(
                 target_tx.get("input", "0x"),
@@ -1497,13 +1558,13 @@ class TransactionCore:
             if not all(simulation_success):
                 return False
             if await self.send_bundle([flashloan_tx, front_run_tx_details]):
-                print(f"Front-run transaction executed successfully for {tx_hash}")
+                logging.info(f"Front-run transaction executed successfully for {tx_hash}")
                 return True
             else:
-                print(f"Failed to execute front-run transaction for {tx_hash}")
+                logging.warning(f"Failed to execute front-run transaction for {tx_hash}")
                 return False
         except Exception as e:
-            print(f"Error executing front_run for {tx_hash}: {e}")
+            logging.error(f"Error executing front_run for {tx_hash}: {e}")
             return False
 
     async def back_run(self, target_tx: Dict[str, Any]) -> bool:
@@ -1522,7 +1583,7 @@ class TransactionCore:
             tx_hash = target_tx.get("tx_hash", "Unknown")
             required_fields = ["input", "to", "value", "gasPrice"]
             if not all(field in target_tx for field in required_fields):
-                print(f"Transaction {tx_hash} is missing required fields.")
+                logging.warning(f"Transaction {tx_hash} is missing required fields.")
                 return False
             decoded_tx = await self.decode_transaction_input(
                 target_tx.get("input", "0x"),
@@ -1543,32 +1604,32 @@ class TransactionCore:
                 self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
             if to_address not in routers:
-                print(f"Router address {to_address} not recognized.")
+                logging.warning(f"Router address {to_address} not recognized.")
                 return False
             router_contract, exchange_name = routers[to_address]
             if not router_contract:
-                print(f"Router contract for {exchange_name} is not initialized.")
+                logging.warning(f"Router contract for {exchange_name} is not initialized.")
                 return False
             try:
                 back_run_function = getattr(router_contract.functions, decoded_tx["function_name"])(**decoded_tx["params"])
             except AttributeError as e:
-                print(f"AttributeError: {e}")
+                logging.error(f"AttributeError: {e}")
                 return False
             back_run_tx = await self.build_transaction(back_run_function)
             if not back_run_tx:
                 return False
             simulation_success = await self.simulate_transaction(back_run_tx)
             if not simulation_success:
-                print(f"Back-run transaction simulation failed for {tx_hash}")
+                logging.warning(f"Back-run transaction simulation failed for {tx_hash}")
                 return False
             if await self.send_bundle([back_run_tx]):
-                print(f"Back-run transaction executed successfully for {tx_hash}")
+                logging.info(f"Back-run transaction executed successfully for {tx_hash}")
                 return True
             else:
-                print(f"Failed to execute back-run transaction for {tx_hash}")
+                logging.warning(f"Failed to execute back-run transaction for {tx_hash}")
                 return False
         except Exception as e:
-            print(f"Error executing back_run for {tx_hash}: {e}")
+            logging.error(f"Error executing back_run for {tx_hash}: {e}")
             return False
 
     async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
@@ -1587,7 +1648,7 @@ class TransactionCore:
             tx_hash = target_tx.get("tx_hash", "Unknown")
             required_fields = ["input", "to", "value", "gasPrice"]
             if not all(field in target_tx for field in required_fields):
-                print(f"Transaction {tx_hash} is missing required fields.")
+                logging.warning(f"Transaction {tx_hash} is missing required fields.")
                 return False
             decoded_tx = await self.decode_transaction_input(
                 target_tx.get("input", "0x"),
@@ -1620,19 +1681,19 @@ class TransactionCore:
                 return_exceptions=True
             )
             if any(isinstance(result, Exception) for result in simulation_results):
-                print(f"Simulation failed for sandwich attack on transaction {tx_hash}")
+                logging.warning(f"Simulation failed for sandwich attack on transaction {tx_hash}")
                 return False
             if not all(simulation_results):
-                print(f"One or more simulations failed for sandwich attack on transaction {tx_hash}")
+                logging.warning(f"One or more simulations failed for sandwich attack on transaction {tx_hash}")
                 return False
             if await self.send_bundle([flashloan_tx, front_run_tx_details, back_run_tx_details]):
-                print(f"Sandwich attack executed successfully for {tx_hash}")
+                logging.info(f"Sandwich attack executed successfully for {tx_hash}")
                 return True
             else:
-                print(f"Failed to execute sandwich attack for {tx_hash}")
+                logging.warning(f"Failed to execute sandwich attack for {tx_hash}")
                 return False
         except Exception as e:
-            print(f"Error executing sandwich attack for {tx_hash}: {e}")
+            logging.error(f"Error executing sandwich_attack for {tx_hash}: {e}")
             return False
 
     async def _prepare_front_run_transaction(
@@ -1666,21 +1727,21 @@ class TransactionCore:
                 self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
             if to_address not in routers:
-                print(f"Router address {to_address} not recognized for front-run.")
+                logging.warning(f"Router address {to_address} not recognized for front-run.")
                 return None
             router_contract, exchange_name = routers[to_address]
             if not router_contract:
-                print(f"Router contract for {exchange_name} is not initialized.")
+                logging.warning(f"Router contract for {exchange_name} is not initialized.")
                 return None
             try:
                 front_run_function = getattr(router_contract.functions, function_name)(**function_params)
             except AttributeError as e:
-                print(f"AttributeError: {e}")
+                logging.error(f"AttributeError: {e}")
                 return None
             front_run_tx = await self.build_transaction(front_run_function)
             return front_run_tx
         except Exception as e:
-            print(f"Error preparing front-run transaction: {e}")
+            logging.error(f"Error preparing front-run transaction: {e}")
             return None
 
     async def _prepare_back_run_transaction(
@@ -1714,21 +1775,21 @@ class TransactionCore:
                 self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
             if to_address not in routers:
-                print(f"Router address {to_address} not recognized for back-run.")
+                logging.warning(f"Router address {to_address} not recognized for back-run.")
                 return None
             router_contract, exchange_name = routers[to_address]
             if not router_contract:
-                print(f"Router contract for {exchange_name} is not initialized.")
+                logging.warning(f"Router contract for {exchange_name} is not initialized.")
                 return None
             try:
                 back_run_function = getattr(router_contract.functions, function_name)(**function_params)
             except AttributeError as e:
-                print(f"AttributeError: {e}")
+                logging.error(f"AttributeError: {e}")
                 return None
             back_run_tx = await self.build_transaction(back_run_function)
             return back_run_tx
         except Exception as e:
-            print(f"Error preparing back-run transaction: {e}")
+            logging.error(f"Error preparing back-run transaction: {e}")
             return None
 
     async def decode_transaction_input(self, input_data: str, contract_address: str) -> Optional[Dict[str, Any]]:
@@ -1751,30 +1812,32 @@ class TransactionCore:
             }
             return decoded_data
         except ContractLogicError as e:
-            print(f"ContractLogicError in decode_transaction_input: {e}")
+            logging.error(f"ContractLogicError in decode_transaction_input: {e}")
             return None
         except Exception as e:
-            print(f"Error decoding transaction input: {e}")
+            logging.error(f"Error decoding transaction input: {e}")
             return None
 
-    async def stop(self) -> None:
-        """
-        Stops the TransactionCore by performing any necessary cleanup.
-        """
-        try:
-            # Currently, no ongoing tasks to stop
-            pass
-        except Exception as e:
-            print(f"Error stopping TransactionCore: {e}")
-            raise
+# ========================= StrategyPerformanceMetrics Class =========================
 
 class StrategyPerformanceMetrics:
-    avg_execution_time: float = 0.0
-    success_rate: float = 0.0
-    total_executions: int = 0
-    successes: int = 0
-    failures: int = 0
-    profit: Decimal = Decimal("0.0")
+    def __init__(self):
+        self.avg_execution_time: float = 0.0
+        self.success_rate: float = 0.0
+        self.total_executions: int = 0
+        self.successes: int = 0
+        self.failures: int = 0
+        self.profit: Decimal = Decimal("0.0")
+
+    def __str__(self) -> str:
+        return (f"Avg Execution Time: {self.avg_execution_time:.2f}s, "
+                f"Success Rate: {self.success_rate:.2f}, "
+                f"Total Executions: {self.total_executions}, "
+                f"Successes: {self.successes}, "
+                f"Failures: {self.failures}, "
+                f"Total Profit: {self.profit} ETH")
+
+# ========================= StrategyConfiguration Dataclass =========================
 
 @dataclass
 class StrategyConfiguration:
@@ -1786,7 +1849,30 @@ class StrategyConfiguration:
     max_profit: Decimal = Decimal("100.0")
     max_gas_price_multiplier: float = 1.5
     min_gas_price_multiplier: float = 0.5
+    ML_MODEL_PATH: str = "model.pkl"
+    ML_TRAINING_DATA_PATH: str = "training_data.csv"
+    UNISWAP_ROUTER_ADDRESS: str = "0xUniswapRouterAddress"
+    UNISWAP_ROUTER_ABI: str = "path/to/uniswap_router_abi.json"
+    SUSHISWAP_ROUTER_ADDRESS: str = "0xSushiswapRouterAddress"
+    SUSHISWAP_ROUTER_ABI: str = "path/to/sushiswap_router_abi.json"
+    PANCAKESWAP_ROUTER_ADDRESS: str = "0xPancakeswapRouterAddress"
+    PANCAKESWAP_ROUTER_ABI: str = "path/to/pancakeswap_router_abi.json"
+    BALANCER_ROUTER_ADDRESS: str = "0xBalancerRouterAddress"
+    BALANCER_ROUTER_ABI: str = "path/to/balancer_router_abi.json"
+    ERC20_ABI: str = "path/to/erc20_abi.json"
+    COINGECKO_API_KEY: str = "your_coingecko_api_key"
+    COINMARKETCAP_API_KEY: str = "your_coinmarketcap_api_key"
+    CRYPTOCOMPARE_API_KEY: str = "your_cryptocompare_api_key"
+    TOKEN_SYMBOLS: Dict[str, str] = None
+    ERC20_SIGNATURES: List[str] = None
 
+    def __post_init__(self):
+        if self.TOKEN_SYMBOLS is None:
+            self.TOKEN_SYMBOLS = {}
+        if self.ERC20_SIGNATURES is None:
+            self.ERC20_SIGNATURES = []
+
+# ========================= StrategyExecutionError Exception =========================
 
 @dataclass
 class StrategyExecutionError(Exception):
@@ -1794,6 +1880,8 @@ class StrategyExecutionError(Exception):
 
     def __str__(self) -> str:
         return self.message
+
+# ========================= StrategyNet Class =========================
 
 class StrategyNet:
     def __init__(
@@ -1883,11 +1971,11 @@ class StrategyNet:
             start_time = time.time()
             selected_strategy = await self._select_best_strategy(strategies, strategy_type)
 
-            profit_before = await self.transactioncore.get_current_profit()
+            profit_before = self.transactioncore.current_profit
 
             success = await selected_strategy(target_tx)
 
-            profit_after = await self.transactioncore.get_current_profit()
+            profit_after = self.transactioncore.current_profit
 
             execution_time = time.time() - start_time
             profit_made = profit_after - profit_before
@@ -2020,8 +2108,8 @@ class StrategyNet:
                 return False
 
             eth_value_in_wei, gas_price, to_address = self._extract_transaction_details(target_tx)
-            eth_value = self.transactioncore.web3.from_wei(eth_value_in_wei, "ether")
-            gas_price_gwei = self.transactioncore.web3.from_wei(gas_price, "gwei")
+            eth_value = self.web3.from_wei(eth_value_in_wei, "ether")
+            gas_price_gwei = self.web3.from_wei(gas_price, "gwei")
             threshold = self._calculate_thresholds(gas_price_gwei)
 
             if not await self._additional_validation_checks(eth_value_in_wei, to_address):
@@ -2050,7 +2138,7 @@ class StrategyNet:
         return eth_value_in_wei, gas_price, to_address
 
     def _calculate_thresholds(self, gas_price_gwei: float) -> int:
-        base_threshold = self.transactioncore.web3.to_wei(10, "ether")
+        base_threshold = self.web3.to_wei(10, "ether")
         if gas_price_gwei > 200:
             threshold = base_threshold * 2
         elif gas_price_gwei > 100:
@@ -2063,7 +2151,7 @@ class StrategyNet:
         if eth_value_in_wei <= 0:
             return False
 
-        if not self.transactioncore.web3.is_address(to_address):
+        if not self.web3.is_address(to_address):
             return False
 
         is_contract = await self._is_contract_address(to_address)
@@ -2075,7 +2163,7 @@ class StrategyNet:
 
     async def _is_contract_address(self, address: str) -> bool:
         try:
-            code = await self.transactioncore.web3.eth.get_code(address)
+            code = await self.web3.eth.get_code(address)
             is_contract = len(code) > 0
             return is_contract
         except Exception as e:
@@ -2100,7 +2188,7 @@ class StrategyNet:
             tx_value = int(target_tx.get("value", 0))
             gas_price = int(target_tx.get("gasPrice", 0))
 
-            value_eth = self.transactioncore.web3.from_wei(tx_value, "ether")
+            value_eth = self.web3.from_wei(tx_value, "ether")
             threshold = self._calculate_dynamic_threshold(gas_price)
 
             risk_score = await self._assess_front_run_risk(target_tx)
@@ -2124,7 +2212,7 @@ class StrategyNet:
             return False
 
     def _calculate_dynamic_threshold(self, gas_price: int) -> float:
-        gas_price_gwei = float(self.transactioncore.web3.from_wei(gas_price, "gwei"))
+        gas_price_gwei = float(self.web3.from_wei(gas_price, "gwei"))
 
         if gas_price_gwei > 200:
             threshold = 2.0
@@ -2142,7 +2230,7 @@ class StrategyNet:
             risk_score = 1.0
 
             gas_price = int(tx.get("gasPrice", 0))
-            gas_price_gwei = float(self.transactioncore.web3.from_wei(gas_price, "gwei"))
+            gas_price_gwei = float(self.web3.from_wei(gas_price, "gwei"))
             if gas_price_gwei > 300:
                 risk_score *= 0.7
 
@@ -2168,7 +2256,7 @@ class StrategyNet:
             if not to_address:
                 return False
 
-            code = await self.transactioncore.web3.eth.get_code(to_address)
+            code = await self.web3.eth.get_code(to_address)
             if not code:
                 return False
 
@@ -2368,9 +2456,52 @@ class StrategyNet:
         return score
 
     async def advanced_front_run(self, target_tx: Dict[str, Any]) -> bool:
-        # Placeholder for advanced front run strategy implementation
-        logging.debug("Advanced front run strategy not implemented.")
-        return False
+        try:
+            decoded_tx = await self._decode_transaction(target_tx)
+            if not decoded_tx:
+                logging.debug("Transaction decoding failed.")
+                return False
+
+            path = decoded_tx.get("params", {}).get("path", [])
+            if not path or len(path) < 2:
+                logging.debug("Invalid token swap path.")
+                return False
+
+            token_symbol = await self._get_token_symbol(path[0])
+            if not token_symbol:
+                logging.debug(f"Token symbol not found for address: {path[0]}")
+                return False
+
+            results = await asyncio.gather(
+                self.marketmonitor.check_market_conditions(target_tx.get("to", "")),
+                self.apiconfig.get_real_time_price(token_symbol, vs_currency="eth"),
+                self.marketmonitor.fetch_historical_prices(token_symbol, days=1),
+                return_exceptions=True
+            )
+
+            market_conditions, current_price, historical_prices = results
+
+            if any(isinstance(result, Exception) for result in [market_conditions, current_price, historical_prices]):
+                logging.debug("Error fetching data for advanced front run.")
+                return False
+
+            advanced_score = await self._calculate_advanced_score(
+                historical_prices=historical_prices,
+                current_price=current_price,
+                market_conditions=market_conditions
+            )
+
+            if advanced_score >= 75:
+                logging.info(f"Advanced front run opportunity detected with score {advanced_score}. Executing front run.")
+                return await self.transactioncore.front_run(target_tx)
+
+            logging.debug(f"Advanced score {advanced_score} is below threshold.")
+            return False
+
+        except Exception as e:
+            logging.error(f"Error in advanced_front_run strategy: {e}")
+            return False
+        
 
     async def price_dip_back_run(self, target_tx: Dict[str, Any]) -> bool:
         decoded_tx = await self._decode_transaction(target_tx)
@@ -2401,7 +2532,7 @@ class StrategyNet:
         return False
 
     async def flashloan_back_run(self, target_tx: Dict[str, Any]) -> bool:
-        estimated_amount = await self.transactioncore.calculate_flashloan_amount(target_tx)
+        estimated_amount = self.transactioncore.calculate_flashloan_amount(target_tx)
         estimated_profit = estimated_amount * Decimal("0.02")
         if estimated_profit > self.configuration.min_profit_threshold:
             logging.info(f"Flashloan back run triggered for tx '{target_tx.get('tx_hash', 'Unknown')}'. Estimated profit: {estimated_profit} ETH.")
@@ -2488,10 +2619,10 @@ class StrategyNet:
         return False
 
     async def flash_profit_sandwich(self, target_tx: Dict[str, Any]) -> bool:
-        estimated_amount = await self.transactioncore.calculate_flashloan_amount(target_tx)
+        estimated_amount = self.transactioncore.calculate_flashloan_amount(target_tx)
         estimated_profit = estimated_amount * Decimal("0.02")
         if estimated_profit > self.configuration.min_profit_threshold:
-            gas_price = await self.transactioncore.safetynet.get_dynamic_gas_price()
+            gas_price = await self.safetynet.get_dynamic_gas_price()
             if gas_price > Decimal("200"):
                 logging.debug("Gas price too high for flash profit sandwich.")
                 return False
@@ -2539,22 +2670,19 @@ class StrategyNet:
         if not decoded_tx:
             logging.debug("Transaction decoding failed.")
             return False
-
         path = decoded_tx.get("params", {}).get("path", [])
-        if not path:
-            logging.debug("Invalid token swap path.")
+        if len(path) < 2:
+            logging.debug("Invalid token swap path for arbitrage opportunity.")
             return False
-
-        token_symbol = await self._get_token_symbol(path[-1])
+        token_address = path[-1]
+        token_symbol = await self._get_token_symbol(token_address)
         if not token_symbol:
-            logging.debug(f"Token symbol not found for address: {path[-1]}")
+            logging.debug(f"Token symbol not found for address: {token_address}")
             return False
-
         is_arbitrage = await self.marketmonitor.is_arbitrage_opportunity(target_tx)
         if is_arbitrage:
-            logging.info(f"Arbitrage opportunity detected for tx '{target_tx.get('tx_hash', 'Unknown')}'. Executing sandwich attack.")
+            logging.info(f"Arbitrage opportunity detected for '{token_symbol}'. Executing sandwich attack.")
             return await self.transactioncore.execute_sandwich_attack(target_tx)
-
         return False
 
     async def advanced_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
@@ -2590,6 +2718,8 @@ class StrategyNet:
             logging.error(f"Error fetching token symbol: {e}")
             return None
 
+# ========================= MarketMonitor Class =========================
+
 class MarketMonitor:
     MODEL_UPDATE_INTERVAL: int = 3600  # seconds
     VOLATILITY_THRESHOLD: float = 0.05
@@ -2597,11 +2727,13 @@ class MarketMonitor:
 
     def __init__(
         self,
-        web3: 'AsyncWeb3',
+        web3: AsyncWeb3,
+        transactioncore: 'TransactionCore',
         configuration: Optional['Configuration'] = None,
         apiconfig: Optional['APIConfig'] = None,
     ) -> None:
         self.web3 = web3
+        self.transactioncore = transactioncore
         self.configuration = configuration or Configuration()
         self.apiconfig = apiconfig or APIConfig(self.configuration)
         self.price_model: LinearRegression = LinearRegression()
@@ -2722,30 +2854,10 @@ class MarketMonitor:
         return np.std(returns)
 
     async def fetch_historical_prices(self, token_symbol: str, days: int = 30) -> List[float]:
-        cache_key = f"historical_prices_{token_symbol}_{days}"
-        if cache_key in self.price_cache:
-            logging.debug(f"Fetching historical prices for '{token_symbol}' from cache.")
-            return self.price_cache[cache_key]
-        prices = await self.apiconfig.fetch_historical_prices(token_symbol, days=days)
-        if prices:
-            self.price_cache[cache_key] = prices
-            logging.debug(f"Fetched and cached historical prices for '{token_symbol}'.")
-        else:
-            logging.debug(f"No historical prices fetched for '{token_symbol}'.")
-        return prices or []
+        return await self.apiconfig.fetch_historical_prices(token_symbol, days=days)
 
     async def get_token_volume(self, token_symbol: str) -> float:
-        cache_key = f"token_volume_{token_symbol}"
-        if cache_key in self.price_cache:
-            logging.debug(f"Fetching token volume for '{token_symbol}' from cache.")
-            return self.price_cache[cache_key]
-        volume = await self.apiconfig.get_token_volume(token_symbol, vs_currency="eth")
-        if volume is not None:
-            self.price_cache[cache_key] = volume
-            logging.debug(f"Fetched and cached token volume for '{token_symbol}': {volume}")
-        else:
-            logging.debug(f"No token volume fetched for '{token_symbol}'.")
-        return volume or 0.0
+        return await self.apiconfig.get_token_volume(token_symbol, vs_currency="eth")
 
     async def predict_price_movement(self, token_symbol: str) -> float:
         try:
@@ -2822,14 +2934,14 @@ class MainCore:
         self.marketmonitor: Optional[MarketMonitor] = None
         self.transactioncore: Optional['TransactionCore'] = None
         self.strategynet: Optional['StrategyNet'] = None
-        self.safetynet: Optional['SafetyNet'] = None
+        self.safetynet: Optional[SafetyNet] = None
         self.noncecore: Optional['NonceCore'] = None
         self.is_running = False
         logging.debug("MainCore initialized.")
 
     async def initialize(self) -> None:
         try:
-            await self.configuration.load()
+            self.configuration.load()
 
             wallet_key = self.configuration.WALLET_KEY
             if not wallet_key:
@@ -2866,7 +2978,7 @@ class MainCore:
             try:
                 web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)})
                 if await self._test_connection(web3, provider_name):
-                    await self._add_middleware(web3)
+                    await self._add_middleware(web3, provider_name)
                     logging.info(f"Connected to Web3 provider '{provider_name}'.")
                     return web3
             except Exception as e:
@@ -2898,13 +3010,13 @@ class MainCore:
                 await asyncio.sleep(1)
         return False
 
-    async def _add_middleware(self, web3: AsyncWeb3) -> None:
+    async def _add_middleware(self, web3: AsyncWeb3, provider_name: str) -> None:
         try:
             chain_id = await web3.eth.chain_id
-            if chain_id in {99, 100, 77, 7766, 56}:
+            if chain_id in {99, 100, 77, 7766, 56}:  # POA chains and BSC
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
                 logging.debug(f"Injected POA middleware for chain ID {chain_id}.")
-            elif chain_id in {1, 61, 97, 42, 80001}:
+            elif chain_id in {1, 61, 97, 42, 80001}:  # Mainnet and testnets
                 web3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(self.account.key))
                 logging.debug(f"Injected signing middleware for chain ID {chain_id}.")
             else:
@@ -2955,6 +3067,7 @@ class MainCore:
 
             self.marketmonitor = MarketMonitor(
                 web3=self.web3,
+                transactioncore=self.transactioncore,  # Will be set after TransactionCore is initialized
                 configuration=self.configuration,
                 apiconfig=self.apiconfig
             )
@@ -2964,7 +3077,7 @@ class MainCore:
             for token_address in tokens_to_monitor:
                 token_symbol = await self.apiconfig.get_token_symbol(self.web3, token_address)
                 if token_symbol:
-                    await self.marketmonitor.periodic_model_training(token_symbol)
+                    asyncio.create_task(self.marketmonitor.periodic_model_training(token_symbol))
                     logging.info(f"Started periodic model training for token '{token_symbol}'.")
 
             self.mempoolmonitor = MempoolMonitor(
@@ -2973,225 +3086,75 @@ class MainCore:
                 noncecore=self.noncecore,
                 apiconfig=self.apiconfig,
                 monitored_tokens=tokens_to_monitor,
-                erc20_abi=erc20_abi,
                 configuration=self.configuration
             )
             await self.mempoolmonitor.initialize()
-
+            
             self.transactioncore = TransactionCore(
                 web3=self.web3,
                 account=self.account,
-                aave_flashloan_address=self.configuration.AAVE_FLASHLOAN_ADDRESS,
-                aave_flashloan_abi=aave_flashloan_abi,
-                aave_lending_pool_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
-                aave_lending_pool_abi=aave_lending_pool_abi,
-                monitor=self.mempoolmonitor,
-                noncecore=self.noncecore,
                 safetynet=self.safetynet,
+                noncecore=self.noncecore,
                 apiconfig=self.apiconfig,
                 configuration=self.configuration,
-                erc20_abi=erc20_abi
+                erc20_abi=erc20_abi,
+                aave_flashloan_abi=aave_flashloan_abi,
+                aave_lending_pool_abi=aave_lending_pool_abi
             )
             await self.transactioncore.initialize()
 
             self.strategynet = StrategyNet(
+                web3=self.web3,
                 transactioncore=self.transactioncore,
                 marketmonitor=self.marketmonitor,
                 safetynet=self.safetynet,
-                apiconfig=self.apiconfig,
-                configuration=self.configuration,
+                configuration=self.configuration
             )
-            logging.info("All components initialized successfully.")
+            await self.strategynet.initialize()
+
+            self.is_running = True
+            logging.info("MainCore components initialized.")
         except Exception as e:
             logging.error(f"Error initializing components: {e}")
             await self.stop()
 
-    async def run(self) -> None:
+    async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         try:
-            if not all([
-                self.configuration,
-                self.noncecore,
-                self.apiconfig,
-                self.safetynet,
-                self.mempoolmonitor,
-                self.transactioncore,
-                self.strategynet,
-                self.marketmonitor,
-            ]):
-                raise RuntimeError("Required components are not properly initialized")
-
-            self.is_running = True
-            logging.info("Starting mempool monitoring.")
-            asyncio.create_task(self.mempoolmonitor.start_monitoring())
-
-            while self.is_running:
-                try:
-                    await self._process_profitable_transactions()
-                    await asyncio.sleep(1)
-                except asyncio.CancelledError:
-                    logging.info("MainCore run loop cancelled.")
-                    break
-                except Exception as e:
-                    logging.error(f"Error in main run loop: {e}")
-                    await asyncio.sleep(5)
-
-        except KeyboardInterrupt:
-            logging.info("KeyboardInterrupt received. Shutting down.")
+            with open(abi_path, 'r') as f:
+                abi = json.load(f)
+            return abi
         except Exception as e:
-            logging.error(f"Error in run method: {e}")
-        finally:
-            await self.stop()
-
+            logging.error(f"Error loading ABI from '{abi_path}': {e}")
+            return []
+        
     async def stop(self) -> None:
-        if not self.is_running:
-            return
         self.is_running = False
-        try:
-            if self.mempoolmonitor:
-                await self.mempoolmonitor.stop_monitoring()
+        if self.mempoolmonitor:
+            await self.mempoolmonitor.stop()
+        if self.marketmonitor:
+            await self.marketmonitor.save_model()
+        if self.apiconfig:
+            await self.apiconfig.__aexit__(None, None, None)
+        logging.info("MainCore stopped.")
 
-            if self.transactioncore:
-                await self.transactioncore.stop()
+# ========================= Main Function =========================
+# The main function initializes the MainCore and starts the event loop.
 
-            if self.noncecore:
-                await self.noncecore.stop()
+async def main():
+    try:
+        core = MainCore()
+        await core.initialize()
+        if core.is_running:
+            logging.info("MainCore initialized successfully.")
+            while core.is_running:
+                await asyncio.sleep(10)
+    except Exception as e:
+        logging.error(f"Error in main function: {e}")
+        await core.stop()
 
-            if self.safetynet:
-                await self.safetynet.stop()
-
-            if self.marketmonitor:
-                self.marketmonitor.is_running = False  # Stop periodic tasks
-
-            if self.apiconfig:
-                await self.apiconfig.__aexit__(None, None, None)
-
-            if self.web3:
-                await self.web3.provider.disconnect()
-                logging.info("Web3 provider disconnected.")
-
-        except Exception as e:
-            logging.error(f"Error during shutdown: {e}")
-        finally:
-            logging.info("MainCore shutdown complete.")
-            sys.exit(0)
-
-    async def _process_profitable_transactions(self) -> None:
-        monitor = self.mempoolmonitor
-        strategy = self.strategynet
-
-        while not monitor.profitable_transactions.empty():
-            start_time = time.time()
-            tx = None
-
-            try:
-                tx = await asyncio.wait_for(
-                    monitor.profitable_transactions.get(),
-                    timeout=5.0
-                )
-
-                if not self._validate_transaction(tx):
-                    logging.debug("Profitable transaction validation failed.")
-                    continue
-
-                tx_hash = tx.get('tx_hash', 'Unknown')[:10]
-                strategy_type = self._determine_strategy_type(tx)
-
-                if not await self._is_tx_still_valid(tx):
-                    logging.debug(f"Transaction '{tx_hash}' is no longer pending.")
-                    continue
-
-                success = await asyncio.wait_for(
-                    strategy.execute_best_strategy(tx, strategy_type),
-                    timeout=30.0
-                )
-
-                execution_time = time.time() - start_time
-                self._log_execution_metrics(tx_hash, success, execution_time)
-
-                if success:
-                    logging.info(f"Strategy executed successfully for transaction '{tx_hash}'.")
-                else:
-                    logging.info(f"Strategy execution failed for transaction '{tx_hash}'.")
-
-            except asyncio.TimeoutError:
-                logging.warning("Timeout while processing profitable transaction.")
-                continue
-
-            except Exception as e:
-                tx_hash = tx.get('tx_hash', 'Unknown')[:10] if tx else 'Unknown'
-                logging.error(f"Error processing transaction '{tx_hash}': {e}")
-
-            finally:
-                if tx:
-                    monitor.profitable_transactions.task_done()
-
-    def _validate_transaction(self, tx: Dict[str, Any]) -> bool:
-        required_fields = ['tx_hash', 'value', 'gasPrice', 'to']
-        is_valid = (
-            isinstance(tx, dict)
-            and all(field in tx for field in required_fields)
-            and all(tx[field] is not None for field in required_fields)
-        )
-        if not is_valid:
-            logging.debug(f"Transaction missing required fields: {tx}")
-        return is_valid
-
-    def _determine_strategy_type(self, tx: Dict[str, Any]) -> str:
-        if tx.get('value', 0) > 0:
-            return 'eth_transaction'
-        elif self._is_token_swap(tx):
-            gas_price_gwei = self.web3.from_wei(tx.get('gasPrice', 0), 'gwei')
-            if gas_price_gwei > 200:
-                return 'back_run'
-            else:
-                return 'front_run'
-        return 'sandwich_attack'
-
-    async def _is_tx_still_valid(self, tx: Dict[str, Any]) -> bool:
-        try:
-            tx_hash = tx.get('tx_hash')
-            if not tx_hash:
-                return False
-            tx_status = await self.web3.eth.get_transaction(tx_hash)
-            return tx_status is not None and tx_status.block_number is None
-        except TransactionNotFound:
-            logging.debug(f"Transaction '{tx.get('tx_hash', 'Unknown')}' not found.")
-            return False
-        except Exception as e:
-            logging.error(f"Error checking transaction status: {e}")
-            return False
-
-    def _is_token_swap(self, tx: Dict[str, Any]) -> bool:
-        return (
-            len(tx.get('input', '0x')) > 10
-            and tx.get('value', 0) == 0
-        )
-
-    def _log_execution_metrics(self, tx_hash: str, success: bool, execution_time: float) -> None:
-        try:
-            memory_usage = psutil.Process().memory_info().rss / 1024 / 1024
-            logging.info(f"Transaction '{tx_hash}' executed. Success: {success}, Execution Time: {execution_time:.2f}s, Memory Usage: {memory_usage:.2f} MB")
-        except ImportError:
-            logging.info(f"Transaction '{tx_hash}' executed. Success: {success}, Execution Time: {execution_time:.2f}s")
-    
-    def main(self) -> None:
-        try:
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(self.initialize())
-            loop.run_until_complete(self.run())
-        except KeyboardInterrupt:
-            logging.info("KeyboardInterrupt received. Shutting down.")
-        except Exception as e:
-            logging.error(f"Error in main method: {e}")
-        finally:
-            loop.run_until_complete(self.stop())
-            
 if __name__ == "__main__":
-    core = MainCore()
-    core.main()
-    logging.info("0xBuilder started.")
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())
 
-
-# In[ ]:
 
 

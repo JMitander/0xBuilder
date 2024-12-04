@@ -9,7 +9,7 @@ import MempoolMonitor from './MempoolMonitor.js';
 import TransactionCore from './TransactionCore.js';
 import MarketMonitor from './MarketMonitor.js';
 import StrategyNet from './StrategyNet.js';
-import logger from './Logger.js'; // Assuming Logger.js handles logging
+import logger from './Logger.js'; //  Logger.js handles logging
 
 async function main() {
     try {
@@ -50,12 +50,12 @@ async function main() {
 
         // Initialize Market Monitor
         const marketMonitor = new MarketMonitor(web3, configuration, apiConfig);
-        await marketMonitor.start_periodic_training("ETH"); // Example for ETH
+        await marketMonitor.start_periodic_training("ETH"); //  for ETH
 
         // Initialize Strategy Net
         const strategyNet = new StrategyNet(transactionCore, marketMonitor, safetyNet, apiConfig, configuration);
 
-        // Example: Start monitoring and executing strategies
+        // : Start monitoring and executing strategies
         // This part would typically involve event listeners or periodic checks
         // For brevity, it's left as an exercise
 

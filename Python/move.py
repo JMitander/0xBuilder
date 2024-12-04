@@ -120,7 +120,7 @@ def get_target_path(file_path, root_path):
                 return root_path / 'Python' / filename
             if filename == 'Package.json':
                 return root_path / 'JavaScript' / 'package.json'
-        if filename in ['LICENSE', 'CONTRIBUTING.md', 'README.md', '.env', '.env.example', '.gitignore']:
+        if filename in ['LICENSE', 'CONTRIBUTING.md', 'README.md', '.env', '.env.', '.gitignore']:
             return root_path / filename  # Remain in root
 
     return None  # No action needed

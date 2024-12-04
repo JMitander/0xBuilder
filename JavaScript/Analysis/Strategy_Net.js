@@ -1,6 +1,6 @@
 // StrategyNet.js
 
-import logger from './Logger.js'; // Assuming Logger.js handles logging
+import logger from './Logger.js'; //  Logger.js handles logging
 import { Decimal } from 'decimal.js';
 import { dataclass } from './Dataclass.js'; // Implement a simple dataclass equivalent or use plain objects
 import StrategyPerformanceMetrics from '../../Utils/StrategyPerformanceMetrics.js'; // Define this class as needed
@@ -433,7 +433,7 @@ class StrategyNet {
 
     async _validate_contract_interaction(contract_address) {
         try {
-            // Example validation: check if it's a known contract
+            //  validation: check if it's a known contract
             const token_symbols = await this.configuration.getTokenSymbols();
             const is_valid = token_symbols.includes(contract_address);
             logger.debug(`Contract address '${contract_address}' validation result: ${is_valid}`);
@@ -487,7 +487,7 @@ class StrategyNet {
             const threshold_bn = this.web3.utils.toBN(this.web3.utils.toWei(threshold.toString(), 'ether'));
             if (eth_value_bn.gte(threshold_bn)) {
                 // Additional validation for high-value transactions
-                if (eth_value_bn.gt(this.web3.utils.toBN(this.web3.utils.toWei("10", "ether")))) { // Example threshold
+                if (eth_value_bn.gt(this.web3.utils.toBN(this.web3.utils.toWei("10", "ether")))) { //  threshold
                     if (!await this._validate_high_value_transaction(target_tx)) {
                         logger.debug("High-value transaction validation failed. Skipping...");
                         return false;
@@ -918,7 +918,7 @@ class StrategyNet {
         }
 
         const predicted_price = await this.marketmonitor.predict_price_movement(token_symbol);
-        if (predicted_price < current_price * 0.99) { // Example threshold
+        if (predicted_price < current_price * 0.99) { //  threshold
             logger.debug("Predicted price decrease exceeds threshold, proceeding with back-run.");
             return await this.transactioncore.back_run(target_tx);
         }
@@ -933,7 +933,7 @@ class StrategyNet {
          */
         logger.debug("Initiating Flashloan Back-Run Strategy...");
         const estimated_amount = this.transactioncore.calculate_flashloan_amount(target_tx);
-        const estimated_profit = new Decimal(estimated_amount).mul(0.02); // Example profit calculation
+        const estimated_profit = new Decimal(estimated_amount).mul(0.02); //  profit calculation
         if (estimated_profit.gt(this.configuration_params.min_profit_threshold)) {
             const gas_price = await this.transactioncore.get_dynamic_gas_price();
             if (gas_price > this.web3.utils.toWei("200", "gwei")) {
@@ -1054,7 +1054,7 @@ class StrategyNet {
          */
         logger.debug("Initiating Flash Profit Sandwich Strategy...");
         const estimated_amount = this.transactioncore.calculate_flashloan_amount(target_tx);
-        const estimated_profit = new Decimal(estimated_amount).mul(0.02); // Example profit calculation
+        const estimated_profit = new Decimal(estimated_amount).mul(0.02); //  profit calculation
         if (estimated_profit.gt(this.configuration_params.min_profit_threshold)) {
             const gas_price = await this.transactioncore.get_dynamic_gas_price();
             if (parseFloat(this.web3.utils.fromWei(gas_price, 'gwei')) > 200) {

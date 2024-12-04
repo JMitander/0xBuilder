@@ -69,11 +69,11 @@ pip install -r requirements.txt
 
 Configurationsure Environment Variables
 
-Copy the example environment file and customize it:
+Copy the  environment file and customize it:
 
 bash
 
-cp .env-example .env
+cp .env- .env
 
     Fill in your API keys and configuration settings in the .env file.
     Ensure all paths and addresses are correct.
@@ -196,7 +196,7 @@ Types:
     test: Adding or updating tests
     chore: Maintenance tasks
 
-Example:
+:
 
 sql
 

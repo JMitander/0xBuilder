@@ -1,6 +1,6 @@
 // MarketMonitor.js
 
-import logger from './Logger.js'; // Assuming Logger.js handles logging
+import logger from './Logger.js'; //  Logger.js handles logging
 import { LinearRegression } from 'ml-regression'; // You may need to install ml-regression
 import { TTLCache } from 'ttl-cache'; // You may need to install ttl-cache
 import joblib from 'joblib'; // Note: joblib is Python-specific. Use a similar library or implement serialization.
@@ -166,8 +166,8 @@ class MarketMonitor {
                 if (await this._file_exists(this.training_data_path)) {
                     const csv = await this.web3.utils.toHex(await this.apiconfig._load_abi(this.training_data_path));
                     // Implement CSV parsing as needed
-                    // For simplicity, assume existing_data is loaded as arrays
-                    const existing_data = []; // Placeholder
+                    // icity,  existing_data is loaded as arrays
+                    const existing_data = []; // 
                     X_combined = existing_data.X.concat(X);
                     y_combined = existing_data.y.concat(y);
                 }

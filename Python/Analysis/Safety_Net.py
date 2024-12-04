@@ -224,4 +224,4 @@ class SafetyNet:
             return congestion_level
         except Exception as e:
             logger.error(f"error fetching network congestion: {e} !")
-            return 0.5  # Assume medium congestion if unknown
+            return 0.5  #  medium congestion if unknown

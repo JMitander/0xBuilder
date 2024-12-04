@@ -7,7 +7,6 @@ import logging
 import random
 import aiohttp
 import aiofiles
-import psutil
 import numpy as np
 import pandas as pd
 import joblib
@@ -1841,36 +1840,47 @@ class StrategyPerformanceMetrics:
 
 @dataclass
 class StrategyConfiguration:
-    decay_factor: float = 0.95
-    min_profit_threshold: Decimal = Decimal("0.01")
-    learning_rate: float = 0.01
-    exploration_rate: float = 0.1
-    max_execution_time: float = 5.0
-    max_profit: Decimal = Decimal("100.0")
-    max_gas_price_multiplier: float = 1.5
-    min_gas_price_multiplier: float = 0.5
-    ML_MODEL_PATH: str = "model.pkl"
-    ML_TRAINING_DATA_PATH: str = "training_data.csv"
-    UNISWAP_ROUTER_ADDRESS: str = "0xUniswapRouterAddress"
-    UNISWAP_ROUTER_ABI: str = "path/to/uniswap_router_abi.json"
-    SUSHISWAP_ROUTER_ADDRESS: str = "0xSushiswapRouterAddress"
-    SUSHISWAP_ROUTER_ABI: str = "path/to/sushiswap_router_abi.json"
-    PANCAKESWAP_ROUTER_ADDRESS: str = "0xPancakeswapRouterAddress"
-    PANCAKESWAP_ROUTER_ABI: str = "path/to/pancakeswap_router_abi.json"
-    BALANCER_ROUTER_ADDRESS: str = "0xBalancerRouterAddress"
-    BALANCER_ROUTER_ABI: str = "path/to/balancer_router_abi.json"
-    ERC20_ABI: str = "path/to/erc20_abi.json"
-    COINGECKO_API_KEY: str = "your_coingecko_api_key"
-    COINMARKETCAP_API_KEY: str = "your_coinmarketcap_api_key"
-    CRYPTOCOMPARE_API_KEY: str = "your_cryptocompare_api_key"
-    TOKEN_SYMBOLS: Dict[str, str] = None
-    ERC20_SIGNATURES: List[str] = None
+    UNISWAP_ROUTER_ADDRESS: str
+    UNISWAP_ROUTER_ABI: str
+    SUSHISWAP_ROUTER_ADDRESS: str
+    SUSHISWAP_ROUTER_ABI: str
+    PANCAKESWAP_ROUTER_ADDRESS: str
+    PANCAKESWAP_ROUTER_ABI: str
+    BALANCER_ROUTER_ADDRESS: str
+    BALANCER_ROUTER_ABI: str
+    ERC20_ABI: str
+    MAX_RETRIES: int
+    RETRY_DELAY: int
+    EXPLORATION_RATE: float
+    GAS_PRICE_MULTIPLIER: float
 
     def __post_init__(self):
-        if self.TOKEN_SYMBOLS is None:
-            self.TOKEN_SYMBOLS = {}
-        if self.ERC20_SIGNATURES is None:
-            self.ERC20_SIGNATURES = []
+        if self.UNISWAP_ROUTER_ADDRESS is None:
+            self.UNISWAP_ROUTER_ADDRESS = ""
+        if self.UNISWAP_ROUTER_ABI is None:
+            self.UNISWAP_ROUTER_ABI = ""
+        if self.SUSHISWAP_ROUTER_ADDRESS is None:
+            self.SUSHISWAP_ROUTER_ADDRESS = ""
+        if self.SUSHISWAP_ROUTER_ABI is None:
+            self.SUSHISWAP_ROUTER_ABI = ""
+        if self.PANCAKESWAP_ROUTER_ADDRESS is None:
+            self.PANCAKESWAP_ROUTER_ADDRESS = ""
+        if self.PANCAKESWAP_ROUTER_ABI is None:
+            self.PANCAKESWAP_ROUTER_ABI = ""
+        if self.BALANCER_ROUTER_ADDRESS is None:
+            self.BALANCER_ROUTER_ADDRESS = ""
+        if self.BALANCER_ROUTER_ABI is None:
+            self.BALANCER_ROUTER_ABI = ""
+        if self.ERC20_ABI is None:
+            self.ERC20_ABI = ""
+        if self.MAX_RETRIES is None:
+            self.MAX_RETRIES = 3
+        if self.RETRY_DELAY is None:
+            self.RETRY_DELAY = 5
+        if self.EXPLORATION_RATE is None:
+            self.EXPLORATION_RATE = 0.1
+        if self.GAS_PRICE_MULTIPLIER is None:
+            self.GAS_PRICE_MULTIPLIER
 
 # ========================= StrategyExecutionError Exception =========================
 
@@ -2284,7 +2294,7 @@ class StrategyNet:
             token_address = path[0]
             token_symbol = await self._get_token_symbol(token_address)
             if not token_symbol:
-                logging.debug(f"Token symbol not found for address: {token_address}")
+                logging.debug(f"Token symbol not found for: {token_address}")
                 return False
 
             try:
@@ -2386,7 +2396,7 @@ class StrategyNet:
 
             token_symbol = await self._get_token_symbol(path[0])
             if not token_symbol:
-                logging.debug(f"Token symbol not found for address: {path[0]}")
+                logging.debug(f"Token symbol not found for: {path[0]}")
                 return False
 
             results = await asyncio.gather(
@@ -2469,7 +2479,7 @@ class StrategyNet:
 
             token_symbol = await self._get_token_symbol(path[0])
             if not token_symbol:
-                logging.debug(f"Token symbol not found for address: {path[0]}")
+                logging.debug(f"Token symbol not found for: {path[0]}")
                 return False
 
             results = await asyncio.gather(
@@ -2516,7 +2526,7 @@ class StrategyNet:
 
         token_symbol = await self._get_token_symbol(path[-1])
         if not token_symbol:
-            logging.debug(f"Token symbol not found for address: {path[-1]}")
+            logging.debug(f"Token symbol not found for: {path[-1]}")
             return False
 
         current_price = await self.apiconfig.get_real_time_price(token_symbol, vs_currency="eth")
@@ -2526,7 +2536,7 @@ class StrategyNet:
 
         predicted_price = await self.marketmonitor.predict_price_movement(token_symbol)
         if predicted_price < float(current_price) * 0.99:
-            logging.info(f"Price dip detected for token '{token_symbol}'. Executing back run.")
+            logging.info(f"Price dip detected for '{token_symbol}'. Executing back run.")
             return await self.transactioncore.back_run(target_tx)
 
         return False
@@ -2543,13 +2553,13 @@ class StrategyNet:
         token_address = target_tx.get("to")
         token_symbol = await self._get_token_symbol(token_address)
         if not token_symbol:
-            logging.debug(f"Token symbol not found for address: {token_address}")
+            logging.debug(f"Token symbol not found for: {token_address}")
             return False
 
         volume_24h = await self.apiconfig.get_token_volume(token_symbol, vs_currency="eth")
         volume_threshold = self._get_volume_threshold(token_symbol)
         if volume_24h > volume_threshold:
-            logging.info(f"High volume detected for token '{token_symbol}'. Executing back run.")
+            logging.info(f"High volume detected for '{token_symbol}'. Executing back run.")
             return await self.transactioncore.back_run(target_tx)
 
         return False
@@ -2643,17 +2653,17 @@ class StrategyNet:
 
         token_symbol = await self._get_token_symbol(path[0])
         if not token_symbol:
-            logging.debug(f"Token symbol not found for address: {path[0]}")
+            logging.debug(f"Token symbol not found for: {path[0]}")
             return False
 
         historical_prices = await self.marketmonitor.fetch_historical_prices(token_symbol, days=1)
         if not historical_prices:
-            logging.debug(f"No historical prices fetched for token '{token_symbol}'.")
+            logging.debug(f"No historical prices fetched for '{token_symbol}'.")
             return False
 
         momentum = await self._analyze_price_momentum(historical_prices)
         if momentum > 0.02:
-            logging.info(f"Price boost sandwich triggered for token '{token_symbol}'. Momentum: {momentum}")
+            logging.info(f"Price boost sandwich triggered for '{token_symbol}'. Momentum: {momentum}")
             return await self.transactioncore.execute_sandwich_attack(target_tx)
 
         return False
@@ -2677,7 +2687,7 @@ class StrategyNet:
         token_address = path[-1]
         token_symbol = await self._get_token_symbol(token_address)
         if not token_symbol:
-            logging.debug(f"Token symbol not found for address: {token_address}")
+            logging.debug(f"Token symbol not found for {token_address}")
             return False
         is_arbitrage = await self.marketmonitor.is_arbitrage_opportunity(target_tx)
         if is_arbitrage:
@@ -2754,7 +2764,7 @@ class MarketMonitor:
             token_symbol = await self.apiconfig.get_token_symbol(self.web3, token_address)
             if token_symbol:
                 asyncio.create_task(self.periodic_model_training(token_symbol))
-                logging.info(f"Started periodic model training for token '{token_symbol}'.")
+                logging.info(f"Started periodic model training for '{token_symbol}'.")
 
     async def load_model(self) -> None:
         async with self.model_lock:
@@ -2768,6 +2778,8 @@ class MarketMonitor:
                     logging.error(f"Error loading model: {e}")
             else:
                 logging.warning("Model or training data path does not exist. Starting with a new model.")
+            
+
 
     async def save_model(self) -> None:
         async with self.model_lock:
@@ -2799,9 +2811,9 @@ class MarketMonitor:
                     self.price_model.fit(X, y)
                     self.model_last_updated = time.time()
                     await self.save_model()
-                    logging.info(f"Price model updated for token '{token_symbol}'.")
+                    logging.info(f"Price model updated for '{token_symbol}'.")
                 else:
-                    logging.warning(f"Not enough historical prices to update model for token '{token_symbol}'.")
+                    logging.warning(f"Not enough historical prices to update model for '{token_symbol}'.")
             except Exception as e:
                 logging.error(f"Error updating price model for '{token_symbol}': {e}")
 
@@ -2828,7 +2840,7 @@ class MarketMonitor:
         }
         token_symbol = await self.apiconfig.get_token_symbol(self.web3, token_address)
         if not token_symbol:
-            logging.debug(f"Token symbol not found for address: {token_address}")
+            logging.debug(f"Token symbol not found for {token_address}")
             return market_conditions
         prices = await self.fetch_historical_prices(token_symbol, days=1)
         if len(prices) < 2:
@@ -2888,7 +2900,7 @@ class MarketMonitor:
         token_address = path[-1]
         token_symbol = await self.apiconfig.get_token_symbol(self.web3, token_address)
         if not token_symbol:
-            logging.debug(f"Token symbol not found for address: {token_address}")
+            logging.debug(f"Token symbol not found for: {token_address}")
             return False
         prices = await self._get_prices_from_services(token_symbol)
         if len(prices) < 2:
@@ -2913,7 +2925,7 @@ class MarketMonitor:
                 if price is not None:
                     prices.append(float(price))
             except Exception as e:
-                logging.error(f"Error fetching price from service '{service}': {e}")
+                logging.error(f" '{service}': {e}")
         return prices
 
     async def decode_transaction_input(self, input_data: str, contract_address: str) -> Optional[Dict[str, Any]]:
@@ -2921,7 +2933,7 @@ class MarketMonitor:
             decoded = await self.transactioncore.decode_transaction_input(input_data, contract_address)
             return decoded
         except Exception as e:
-            logging.error(f"Error decoding transaction input: {e}")
+            logging.error(f"Decoding error {e}")
             return None
 
 class MainCore:
@@ -2979,13 +2991,13 @@ class MainCore:
                 web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)})
                 if await self._test_connection(web3, provider_name):
                     await self._add_middleware(web3, provider_name)
-                    logging.info(f"Connected to Web3 provider '{provider_name}'.")
+                    logging.info(f"Connected to '{provider_name}'.")
                     return web3
             except Exception as e:
-                logging.error(f"Error connecting to provider '{provider_name}': {e}")
+                logging.error(f"Error connecting to '{provider_name}': {e}")
                 continue
 
-        logging.error("All Web3 providers failed to connect.")
+        logging.error("All providers failed to connect.")
         return None
 
     def _get_providers(self) -> List[Tuple[str, Any]]:
@@ -3013,10 +3025,10 @@ class MainCore:
     async def _add_middleware(self, web3: AsyncWeb3, provider_name: str) -> None:
         try:
             chain_id = await web3.eth.chain_id
-            if chain_id in {99, 100, 77, 7766, 56}:  # POA chains and BSC
+            if chain_id in {99, 100, 77, 7766, 56}:
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
                 logging.debug(f"Injected POA middleware for chain ID {chain_id}.")
-            elif chain_id in {1, 61, 97, 42, 80001}:  # Mainnet and testnets
+            elif chain_id in {1, 61, 97, 42, 80001}: 
                 web3.middleware_onion.add(SignAndSendRawMiddlewareBuilder.build(self.account.key))
                 logging.debug(f"Injected signing middleware for chain ID {chain_id}.")
             else:
@@ -3067,7 +3079,7 @@ class MainCore:
 
             self.marketmonitor = MarketMonitor(
                 web3=self.web3,
-                transactioncore=self.transactioncore,  # Will be set after TransactionCore is initialized
+                transactioncore=self.transactioncore,
                 configuration=self.configuration,
                 apiconfig=self.apiconfig
             )
@@ -3078,7 +3090,7 @@ class MainCore:
                 token_symbol = await self.apiconfig.get_token_symbol(self.web3, token_address)
                 if token_symbol:
                     asyncio.create_task(self.marketmonitor.periodic_model_training(token_symbol))
-                    logging.info(f"Started periodic model training for token '{token_symbol}'.")
+                    logging.info(f"Started periodic model training for '{token_symbol}'.")
 
             self.mempoolmonitor = MempoolMonitor(
                 web3=self.web3,
@@ -3136,9 +3148,6 @@ class MainCore:
         if self.apiconfig:
             await self.apiconfig.__aexit__(None, None, None)
         logging.info("MainCore stopped.")
-
-# ========================= Main Function =========================
-# The main function initializes the MainCore and starts the event loop.
 
 async def main():
     try:

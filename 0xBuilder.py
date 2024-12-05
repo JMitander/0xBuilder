@@ -10,6 +10,7 @@ import aiofiles
 import aiohttp
 import numpy as np
 import hexbytes
+
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal

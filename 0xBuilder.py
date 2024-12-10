@@ -92,21 +92,22 @@ async def loading_bar(
 
     try:
         for i in range(101):
-            await asyncio.sleep(total_time / 100)
-            percent = i / 100
-            filled_length = int(percent * bar_length)
-            bar = '█' * filled_length + '-' * (bar_length - filled_length)
-            sys.stdout.write(f"\r{GREEN}{message} [{bar}] {i}%{RESET}")
+            percent = i
+            filled_length = int(bar_length * i // 100)
+            bar = '=' * filled_length + '-' * (bar_length - filled_length)
+            sys.stdout.write(f"\r{message} |{bar}| {percent}%")
             sys.stdout.flush()
+            await asyncio.sleep(total_time / 100)  # Distribute total_time across iterations
 
         sys.stdout.write("\n")
         sys.stdout.flush()
 
         if success_message:
-            logger.debug(f"{YELLOW}{success_message}{RESET}")
+            print(f"{GREEN}{success_message}{RESET}")
         else:
-            return
-    except Exception:
+            print(f"{GREEN}Operation completed successfully.{RESET}")
+    except Exception as e:
+        logger.error(f"{YELLOW}Loading bar encountered an error: {e}{RESET}")
         raise
     finally:
         _loading_bar_active = False  # Reset the flag
@@ -124,14 +125,14 @@ class Configuration:
 
     async def _load_configuration(self) -> None:
         try:
-            await loading_bar("Loading Environment Variables", 2)
             self._load_api_keys()
             self._load_providers_and_account()
             await self._load_json_elements()
             logger.info("Configuration loaded successfully.")
         except Exception as e:
-            raise RuntimeError(f"Failed to load configuration: {e}") from e
-        
+            logger.error(f"Error loading configuration: {e}")
+            raise
+
     def _load_api_keys(self) -> None:
         self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
         self.INFURA_PROJECT_ID = self._get_env_variable("INFURA_PROJECT_ID")
@@ -147,28 +148,33 @@ class Configuration:
         self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
 
     async def _load_json_elements(self) -> None:
-        self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
-        self.TOKEN_ADDRESSES = await self._load_json_file(
-            self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
-        )
-        self.TOKEN_SYMBOLS = await self._load_json_file(
-            self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
-        )
-        self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
-        self.ERC20_SIGNATURES = await self._load_json_file(
-            self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
-        )
-        self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "sushiswap_router_abi.json")
-        self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
-        self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
-        self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
-        self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
-        self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
-        self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
-        self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
-        self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
-        self.BALANCER_ROUTER_ABI = await self._construct_abi_path("abi", "balancer_router_abi.json")
-        self.BALANCER_ROUTER_ADDRESS = self._get_env_variable("BALANCER_ROUTER_ADDRESS")
+        try:
+            self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
+            self.TOKEN_ADDRESSES = await self._load_json_file(
+                self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
+            )
+            self.TOKEN_SYMBOLS = await self._load_json_file(
+                self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
+            )
+            self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
+            self.ERC20_SIGNATURES = await self._load_json_file(
+                self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
+            )
+            self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "sushiswap_router_abi.json")
+            self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
+            self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
+            self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
+            self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
+            self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
+            self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
+            self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
+            self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
+            self.BALANCER_ROUTER_ABI = await self._construct_abi_path("abi", "balancer_router_abi.json")
+            self.BALANCER_ROUTER_ADDRESS = self._get_env_variable("BALANCER_ROUTER_ADDRESS")
+            logger.info("JSON elements loaded successfully.")
+        except Exception as e:
+            logger.error(f"Error loading JSON elements: {e}")
+            raise
 
     def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
         value = os.getenv(var_name, default)
@@ -178,23 +184,26 @@ class Configuration:
 
     async def _load_json_file(self, file_path: str, description: str) -> Any:
         try:
-            async with aiofiles.open(file_path, "r") as f:
-                return json.loads(await f.read())
+            with open(file_path, 'r') as file:
+                data = json.load(file)
+                logger.info(f"Successfully loaded {description} from {file_path}")
+                return data
         except FileNotFoundError as e:
-            logger.error(f"{description.capitalize()} file not found: {e}")
+            logger.error(f"File not found for {description}: {file_path}")
             raise
         except json.JSONDecodeError as e:
-            logger.error(f"Error decoding {description} JSON: {e}")
+            logger.error(f"JSON decode error for {description} in file {file_path}: {e}")
             raise
         except Exception as e:
-            logger.error(f"Failed to load {description} from {file_path}: {e}")
+            logger.error(f"Unexpected error loading {description} from {file_path}: {e}")
             raise
 
     async def _construct_abi_path(self, base_path: str, abi_filename: str) -> str:
         abi_path = os.path.join(base_path, abi_filename)
         if not os.path.exists(abi_path):
-            logger.error(f"abi file not found at path: {abi_path}")
-            raise FileNotFoundError(f"abi file '{abi_filename}' not found in path '{base_path}'")
+            logger.error(f"ABI file does not exist: {abi_path}")
+            raise FileNotFoundError(f"ABI file not found: {abi_path}")
+        logger.info(f"ABI path constructed: {abi_path}")
         return abi_path
 
     async def get_token_addresses(self) -> List[str]:
@@ -245,13 +254,12 @@ class Nonce_Core:
     async def initialize(self) -> None:
         """Initialize the nonce manager with error recovery."""
         try:
-            async with self.lock:
-                await self._init_nonce()
-                self._initialized = True
-                logger.info("Nonce_Core initialized successfully.")
+            await self._init_nonce()
+            self._initialized = True
+            logger.info("Nonce_Core initialized successfully.")
         except Exception as e:
-            logger.error(f"Initialization failed: {e}")
-            raise RuntimeError("Nonce_Core initialization failed") from e
+            logger.error(f"Failed to initialize Nonce_Core: {e}")
+            raise
 
     async def _init_nonce(self) -> None:
         """Initialize nonce with fallback mechanisms."""
@@ -265,106 +273,83 @@ class Nonce_Core:
         """Get next available nonce with optional force refresh."""
         if not self._initialized:
             await self.initialize()
-        async with self.lock:
-            try:
-                if force_refresh or self._should_refresh_cache():
-                    await self.refresh_nonce()
-                return self.nonce_cache[self.address]
-            except KeyError as e:
-                logger.error(f"Nonce not found in cache: {e}")
-                await self.refresh_nonce()
-                return self.nonce_cache[self.address]
-            except Exception as e:
-                logger.error(f"Error getting nonce: {e}")
-                raise
+
+        if force_refresh or self._should_refresh_cache():
+            await self.refresh_nonce()
+
+        return self.nonce_cache.get(self.address, 0)
 
     async def refresh_nonce(self) -> None:
         """Refresh nonce from chain with conflict resolution."""
         async with self.lock:
-            try:
-                await self._init_nonce()
-                logger.info("Nonce refreshed successfully.")
-            except Exception as e:
-                logger.error(f"Error refreshing nonce: {e}")
-                raise
+            current_nonce = await self.web3.eth.get_transaction_count(self.address)
+            self.nonce_cache[self.address] = current_nonce
+            self.last_sync = time.monotonic()
+            logger.info(f"Nonce refreshed to {current_nonce}.")
 
     async def _fetch_current_nonce_with_retries(self) -> int:
         """Fetch current nonce with exponential backoff."""
         backoff = self.RETRY_DELAY
         for attempt in range(self.MAX_RETRIES):
             try:
-                return await self.web3.eth.get_transaction_count(
-                    self.address, block_identifier="pending"
-                )
+                nonce = await self.web3.eth.get_transaction_count(self.address)
+                logger.debug(f"Fetched nonce: {nonce}")
+                return nonce
             except Exception as e:
-                logger.error(f"Attempt {attempt+1}: Failed to fetch nonce - {e}")
+                logger.warning(f"Attempt {attempt+1} failed to fetch nonce: {e}")
                 await asyncio.sleep(backoff)
-                backoff *= self.backoff_factor
+                backoff *= 2
         raise RuntimeError("Failed to fetch current nonce after retries")
 
     async def _get_pending_nonce(self) -> int:
         """Get highest nonce from pending transactions."""
         try:
-            pending_nonces = [int(nonce) for nonce in self.pending_transactions]
-            return max(pending_nonces) + 1 if pending_nonces else 0
+            pending = await self.web3.eth.get_transaction_count(self.address, 'pending')
+            logger.debug(f"Pending nonce: {pending}")
+            return pending
         except Exception as e:
-            logger.error(f"Error getting pending nonce: {e}")
-            return 0
+            logger.error(f"Error fetching pending nonce: {e}")
+            return await self._fetch_current_nonce_with_retries()
 
     async def track_transaction(self, tx_hash: str, nonce: int) -> None:
         """Track pending transaction for nonce management."""
         self.pending_transactions.add(nonce)
         try:
-            # Wait for transaction confirmation
-            await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-            self.pending_transactions.discard(nonce)
+            receipt = await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            if receipt.status == 1:
+                logger.info(f"Transaction {tx_hash} succeeded.")
+            else:
+                logger.error(f"Transaction {tx_hash} failed.")
         except Exception as e:
-            logger.error(f"Transaction tracking failed: {e}")
+            logger.error(f"Error tracking transaction {tx_hash}: {e}")
         finally:
             self.pending_transactions.discard(nonce)
 
     async def _handle_nonce_error(self) -> None:
         """Handle nonce-related errors with recovery attempt."""
-        try:
-            await self.sync_nonce_with_chain()
-        except Exception as e:
-            logger.error(f"Nonce error recovery failed: {e}")
-            raise
+        logger.warning("Handling nonce-related error. Refreshing nonce.")
+        await self.refresh_nonce()
 
     async def sync_nonce_with_chain(self) -> None:
         """Force synchronization with chain state."""
         async with self.lock:
-            try:
-                await self._init_nonce()
-                logger.info("Nonce synchronized with chain successfully.")
-            except Exception as e:
-                logger.error(f"Error synchronizing nonce with chain: {e}")
-                raise
-
-    def _should_refresh_cache(self) -> bool:
-        """Determine if cache refresh is needed."""
-        return time.monotonic() - self.last_sync > (self.CACHE_TTL / 2)
+            await self.refresh_nonce()
 
     async def reset(self) -> None:
         """Complete reset of nonce manager state."""
         async with self.lock:
-            try:
-                self.nonce_cache.clear()
-                self.pending_transactions.clear()
-                self._initialized = False
-                logger.info("Nonce_Core reset successfully.")
-            except Exception as e:
-                logger.error(f"Error resetting nonce manager: {e}")
-                raise
+            self.nonce_cache.clear()
+            self.pending_transactions.clear()
+            await self.refresh_nonce()
+            logger.info("Nonce_Core has been reset.")
 
     async def stop(self) -> None:
         """Gracefully stop the nonce manager."""
         try:
             await self.reset()
-            logger.debug("Nonce Core stopped successfully.")
+            logger.info("Nonce_Core stopped gracefully.")
         except Exception as e:
-            logger.error(f"Error stopping nonce core: {e}")
-            raise
+            logger.error(f"Error stopping Nonce_Core: {e}")
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -379,9 +364,10 @@ class API_Config:
         self.session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
             await self.session.close()
+            logger.info("API_Config session closed.")
 
         # API configuration
         self.api_configs = {
@@ -466,33 +452,21 @@ class API_Config:
         """Fetch the price of a token from a specified source."""
         config = self.api_configs.get(source)
         if not config:
-            logger.debug(f"API configuration for {source} not found.")
+            logger.error(f"API source {source} not configured.")
             return None
-        if source == "coingecko":
-            url = f"{config['base_url']}/simple/price"
-            params = {"ids": token, "vs_currencies": vs_currency}
-            response = await self.make_request(source, url, params=params)
-            return Decimal(str(response[token][vs_currency]))
-        elif source == "coinmarketcap":
-            url = f"{config['base_url']}/cryptocurrency/quotes/latest"
-            params = {"symbol": token.upper(), "convert": vs_currency.upper()}
-            headers = {"X-CMC_PRO_API_KEY": config["api_key"]}
-            response = await self.make_request(source, url, params=params, headers=headers)
-            data = response["data"][token.upper()]["quote"][vs_currency.upper()]["price"]
-            return Decimal(str(data))
-        elif source == "cryptocompare":
-            url = f"{config['base_url']}/price"
-            params = {"fsym": token.upper(), "tsyms": vs_currency.upper(), "api_key": config["api_key"]}
-            response = await self.make_request(source, url, params=params)
-            return Decimal(str(response[vs_currency.upper()]))
-        elif source == "binance":
-            url = f"{config['base_url']}/ticker/price"
-            symbol = f"{token.upper()}{vs_currency.upper()}"
-            params = {"symbol": symbol}
-            response = await self.make_request(source, url, params=params)
-            return Decimal(str(response["price"]))
-        else:
-            logger.warning(f"Unsupported price source: {source}")
+
+        try:
+            async with self.session.get(config["base_url"] + f"/simple/price?ids={token}&vs_currencies={vs_currency}") as response:
+                if response.status == 200:
+                    data = await response.json()
+                    price = Decimal(str(data[token][vs_currency]))
+                    logger.debug(f"Fetched price from {source}: {price}")
+                    return price
+                else:
+                    logger.error(f"Failed to fetch price from {source}: Status {response.status}")
+                    return None
+        except Exception as e:
+            logger.error(f"Exception fetching price from {source}: {e}")
             return None
 
     async def make_request(
@@ -560,15 +534,21 @@ class API_Config:
         """Fetch historical prices from a specified source."""
         config = self.api_configs.get(source)
         if not config:
-            logger.debug(f"API configuration for {source} not found.")
+            logger.error(f"API source {source} not configured.")
             return None
-        if source == "coingecko":
-            url = f"{config['base_url']}/coins/{token}/market_chart"
-            params = {"vs_currency": "usd", "days": days}
-            response = await self.make_request(source, url, params=params)
-            return [price[1] for price in response["prices"]]
-        else:
-            logger.debug(f"Unsupported historical price source: {source}")
+
+        try:
+            async with self.session.get(config["base_url"] + f"/coins/{token}/market_chart?vs_currency=eth&days={days}") as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = [price[1] for price in data.get("prices", [])]
+                    logger.debug(f"Fetched historical prices from {source}: {prices}")
+                    return prices
+                else:
+                    logger.error(f"Failed to fetch historical prices from {source}: Status {response.status}")
+                    return None
+        except Exception as e:
+            logger.error(f"Exception fetching historical prices from {source}: {e}")
             return None
 
     async def get_token_volume(self, token: str) -> float:
@@ -677,20 +657,20 @@ class Safety_Net:
         """Get account balance with retries and caching."""
         cache_key = f"balance_{account.address}"
         if cache_key in self.price_cache:
+            logger.debug("Balance fetched from cache.")
             return self.price_cache[cache_key]
 
         for attempt in range(3):
             try:
-                balance_wei = await self.web3.eth.get_balance(account.address)
-                balance_eth = Decimal(self.web3.from_wei(balance_wei, "ether"))
-                self.price_cache[cache_key] = balance_eth
-                logger.debug(f"Balance for {account.address[:10]}...: {balance_eth:.4f} ETH")
-                return balance_eth
+                balance = Decimal(await self.web3.eth.get_balance(account.address)) / Decimal("1e18")
+                self.price_cache[cache_key] = balance
+                logger.debug(f"Fetched balance: {balance} ETH")
+                return balance
             except Exception as e:
-                if attempt == 2:
-                    logger.error(f"Failed to get balance after 3 attempts: {e}")
-                    return Decimal(0)
-                await asyncio.sleep(1 * (attempt + 1))
+                logger.warning(f"Attempt {attempt+1} failed to fetch balance: {e}")
+                await asyncio.sleep(2 ** attempt)
+        logger.error("Failed to fetch account balance after retries.")
+        return Decimal("0")
 
     async def ensure_profit(
         self,
@@ -699,48 +679,38 @@ class Safety_Net:
     ) -> bool:
         """Enhanced profit verification with dynamic thresholds and risk assessment."""
         try:
-            if minimum_profit_eth is None:
-                account_balance = await self.get_balance(self.account)
-                minimum_profit_eth = (
-                    0.003 if account_balance < Decimal("0.5") else 0.01
-                )
-
-            gas_price_gwei = await self.get_dynamic_gas_price()
-            gas_used = await self.estimate_gas(transaction_data)
-
-            if not self._validate_gas_parameters(gas_price_gwei, gas_used):
+            real_time_price = await self.api_config.get_real_time_price(transaction_data['output_token'])
+            if real_time_price is None:
+                logger.error("Real-time price unavailable.")
                 return False
 
-            gas_cost_eth = self._calculate_gas_cost(gas_price_gwei, gas_used)
+            gas_cost_eth = self._calculate_gas_cost(
+                Decimal(transaction_data["gas_price"]),
+                transaction_data["gas_used"]
+            )
+
             slippage = await self.adjust_slippage_tolerance()
-
-            output_token = transaction_data.get("output_token")
-            real_time_price = await self.api_config.get_real_time_price(output_token)
-            if not real_time_price:
-                return False
-
             profit = await self._calculate_profit(
                 transaction_data, real_time_price, slippage, gas_cost_eth
             )
 
-            self._log_profit_calculation(
-                transaction_data, real_time_price, gas_cost_eth, profit, minimum_profit_eth
-            )
+            self._log_profit_calculation(transaction_data, real_time_price, gas_cost_eth, profit, minimum_profit_eth or 0.001)
 
-            return profit > Decimal(minimum_profit_eth)
+            return profit > Decimal(minimum_profit_eth or 0.001)
         except KeyError as e:
-            logger.warning(f"Missing required transaction data key: {e}")
+            logger.error(f"Missing key in transaction data: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Error in profit calculation: {e}")
-        return False
+            logger.error(f"Error in ensure_profit: {e}")
+            return False
 
     def _validate_gas_parameters(self, gas_price_gwei: Decimal, gas_used: int) -> bool:
         """Validate gas parameters against safety thresholds."""
         if gas_used == 0:
-            logger.error("Gas estimation returned zero")
+            logger.error("Gas used cannot be zero.")
             return False
         if gas_price_gwei > self.GAS_CONFIG["max_gas_price_gwei"]:
-            logger.warning(f"Gas price {gas_price_gwei} gwei exceeds maximum threshold")
+            logger.warning(f"Gas price {gas_price_gwei} Gwei exceeds maximum threshold.")
             return False
         return True
 
@@ -3587,36 +3557,24 @@ class Main_Core:
     async def initialize(self) -> None:
         """Initialize all components with  error handling."""
         try:
-            # Initialize account first
-            wallet_key = self.configuration.WALLET_KEY
-            if not wallet_key:
-                raise ValueError("Key in .env is not set")
-
-            try:
-                # Remove '0x' prefix if present and ensure the key is valid hex
-                cleaned_key = wallet_key[2:] if wallet_key.startswith('0x') else wallet_key
-                if not all(c in '0123456789abcdefABCDEF' for c in cleaned_key):
-                    raise ValueError("Invalid wallet key format - must be hexadecimal")
-                # Add '0x' prefix back if it was removed
-                full_key = f"0x{cleaned_key}" if not wallet_key.startswith('0x') else wallet_key
-                self.account = Account.from_key(full_key)
-            except Exception as e:
-                raise ValueError(f"Invalid wallet key format: {e}")
-
-            # Initialize web3 after account is set up
-            self.web3 = await self._initialize_web3()
-            if not self.web3:
-                raise RuntimeError("Failed to initialize Web3 connection")
-
-            if not self.account:
-                raise RuntimeError("Failed to initialize account")
-
-            await self._check_account_balance()
-            await self._initialize_components()
-            logger.info(f"All components initialized successfully. ")
+            await self._load_configuration()
+            await self.nonce_core.initialize()
+            await self.safety_net.initialize()
+            await self.monitor.start_monitoring()
+            logger.info("Initialization successful.")
         except Exception as e:
-            logger.error(f"Fatal error during initialization: {e} !")
-            await self.stop()
+            logger.critical(f"Initialization failed: {e}")
+            raise
+
+    async def _load_configuration(self) -> None:
+        try:
+            # Load API keys and providers
+            self._load_api_keys()
+            self._load_providers_and_account()
+            await self._load_json_elements()
+        except Exception as e:
+            logger.critical(f"Failed to load configuration: {e}")
+            raise
 
     async def _initialize_web3(self) -> Optional[AsyncWeb3]:
         """Initialize Web3 connection with multiple provider fallback."""
@@ -3841,48 +3799,31 @@ class Main_Core:
         """Load contract abi from a file."""
         try:
             with open(abi_path, 'r') as file:
-                abi = json.load(file)
-            await loading_bar(f"Loaded abi from {abi_path} successfully.", 0.1)
-            return abi
+                return json.load(file)
         except Exception as e:
-            logger.warning(f"Failed to load abi from {abi_path}: {e} !")
-            raise
+            logger.error(f"Failed to load ABI from {abi_path}: {e}")
+            return []
 
 # ////////////////////////////////////////////////////////////////////////////
 
 async def main():
     """Main entry point with comprehensive setup and error handling."""
+    core = Main_Core(configuration=Configuration())
     try:
-        # Initialize configuration
-        config = Configuration()
-        await config.load()
-        
-        # Create and initialize core
-        core = Main_Core(config)
         await core.initialize()
-        
-        # Start monitoring and processing
         await core.run()
-        
     except KeyboardInterrupt:
-        logger.warning("Received keyboard interrupt, shutting down...")
+        logger.info("Shutdown initiated by user.")
     except Exception as e:
-        logger.error(f"Fatal error in main: {e}")
+        logger.critical(f"An unexpected error occurred: {e}")
     finally:
-        if 'core' in locals():
-            await core.stop()
+        await core.stop()
+        logger.info("Shutdown complete.")
 
 if __name__ == "__main__":
     try:
-        # Configure logging first
-        configure_logging()
-        logger.info("Starting 0xBuilder...")
-        
-        # Run the async main
         asyncio.run(main())
-        
     except KeyboardInterrupt:
-        logger.warning("Program terminated by user")
+        logger.info("Program terminated by user.")
     except Exception as e:
-        logger.error(f"Unhandled exception: {e}")
-        sys.exit(1)
+        logger.critical(f"Program terminated with an error: {e}")

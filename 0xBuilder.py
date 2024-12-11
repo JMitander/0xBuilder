@@ -933,6 +933,15 @@ class Mempool_Monitor:
 
         except Exception as e:
             logger.warning(f"Failed to setup pending filter: {e}")
+            # Fallback to using public node without filter
+            try:
+                fallback_web3 = AsyncWeb3(AsyncHTTPProvider('https://ethereum-rpc.publicnode.com'))
+                latest_block = await fallback_web3.eth.get_block('latest')
+                tx_hashes = latest_block.transactions
+                await self._handle_new_transactions(tx_hashes)
+                logger.debug("Fallback to public node successful.")
+            except Exception as fallback_error:
+                logger.error(f"Fallback to public node failed: {fallback_error}")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:

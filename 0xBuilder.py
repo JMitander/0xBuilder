@@ -224,6 +224,15 @@ class Configuration:
         }
         return abi_paths.get(abi_name.lower(), "")
 
+    async def initialize(self) -> None:
+        """Initialize configuration with error handling."""
+        try:
+            await self._load_configuration()
+            logger.info("Configuration initialized successfully.")
+        except Exception as e:
+            logger.critical(f"Configuration initialization failed: {e}")
+            raise
+
 #//////////////////////////////////////////////////////////////////////////////
 
 class Nonce_Core:
@@ -608,6 +617,15 @@ class API_Config:
     async def close(self):
         """Close the aiohttp session."""
         await self.session.close()
+
+    async def initialize(self) -> None:
+        """Initialize API configuration."""
+        try:
+            self.session = aiohttp.ClientSession()
+            logger.info("API_Config initialized successfully.")
+        except Exception as e:
+            logger.critical(f"API_Config initialization failed: {e}")
+            raise
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -2430,6 +2448,16 @@ class Market_Monitor:
             logger.warning(f"failed in decoding transaction input: {e}")
             return None
 
+    async def initialize(self) -> None:
+        """Initialize market monitor."""
+        try:
+            self.price_model = LinearRegression()
+            self.model_last_updated = 0
+            logger.info("Market Monitor initialized successfully.")
+        except Exception as e:
+            logger.critical(f"Market Monitor initialization failed: {e}")
+            raise
+
 #//////////////////////////////////////////////////////////////////////////////
 
 @dataclass
@@ -3538,6 +3566,23 @@ class Strategy_Net:
 
     # ========================= End of Strategy Implementations =========================
 
+    async def initialize(self) -> None:
+        """Initialize strategy network."""
+        try:
+            # Initialize performance metrics
+            self.strategy_performance = {
+                strategy_type: StrategyPerformanceMetrics()
+                for strategy_type in self.strategy_types
+            }
+            # Initialize reinforcement weights
+            self.reinforcement_weights = {
+                strategy_type: np.ones(len(self.get_strategies(strategy_type)))
+                for strategy_type in self.strategy_types
+            }
+            logger.info("Strategy Net initialized successfully.")
+        except Exception as e:
+            logger.critical(f"Strategy Net initialization failed: {e}")
+            raise
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -3566,13 +3611,30 @@ class Main_Core:
     async def initialize(self) -> None:
         """Initialize all components with  error handling."""
         try:
-            await self._load_configuration()
-            await self.nonce_core. initialize()
-            await self.safety_net.initialize()
-            await self.monitor.start_monitoring()
-            logger.info("Initialization successful.")
+            # Initialize Web3 connection first
+            self.web3 = await self._initialize_web3()
+            if not self.web3:
+                raise RuntimeError("Failed to initialize Web3 connection")
+
+            # Load configuration
+            await self.configuration.initialize()
+            
+            # Initialize account
+            self.account = Account.from_key(self.configuration.WALLET_KEY)
+            await self._check_account_balance()
+
+            # Initialize all components
+            await self._initialize_components()
+
+            # Initialize each component in order
+            for name, component in self.components.items():
+                if hasattr(component, 'initialize'):
+                    await component.initialize()
+
+            logger.info("Main Core initialization successful.")
+            
         except Exception as e:
-            logger.critical(f"Initialization failed: {e}")
+            logger.critical(f"Main Core initialization failed: {e}")
             raise
 
     async def _load_configuration(self) -> None:

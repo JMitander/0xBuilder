@@ -233,6 +233,14 @@ class Configuration:
             logger.critical(f"Configuration initialization failed: {e}")
             raise
 
+    def get_config_value(self, key: str, default: Any = None) -> Any:
+        """Safe configuration value access with default."""
+        try:
+            return getattr(self, key, default)
+        except AttributeError:
+            logger.warning(f"Configuration key '{key}' not found, using default: {default}")
+            return default
+
 #//////////////////////////////////////////////////////////////////////////////
 
 class Nonce_Core:
@@ -2241,6 +2249,7 @@ class Market_Monitor:
         self.model_last_updated = 0
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
 
+
     async def check_market_conditions(self, token_address: str) -> Dict[str, Any]:
         """
         Check various market conditions for a given token
@@ -3874,6 +3883,7 @@ class Main_Core:
                 return json.load(file)
         except Exception as e:
             logger.error(f"Failed to load ABI from {abi_path}: {e}")
+        except Exception as e:
             return []
 
 # ////////////////////////////////////////////////////////////////////////////
@@ -3892,10 +3902,21 @@ async def main():
         await core.stop()
         logger.info("Shutdown complete.")
 
+
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Program terminated by user.")
     except Exception as e:
+        logger.critical(f"Program terminated with an error: {e}")
+
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Program terminated by user.")
+    except Exception as e:
+        logger.critical(f"Program terminated with an error: {e}")
+
         logger.critical(f"Program terminated with an error: {e}")

@@ -888,7 +888,7 @@ class Mempool_Monitor:
             logger.error(f"Failed to start monitoring: {e}")
             raise
 
-    async def stop_monitoring(self) -> None:
+    async def stop(self) -> None:
         """Gracefully stop monitoring activities."""
         if not self.running:
             return
@@ -3567,7 +3567,7 @@ class Main_Core:
         """Initialize all components with  error handling."""
         try:
             await self._load_configuration()
-            await self.nonce_core.initialize()
+            await self.nonce_core. initialize()
             await self.safety_net.initialize()
             await self.monitor.start_monitoring()
             logger.info("Initialization successful.")
@@ -3577,10 +3577,11 @@ class Main_Core:
 
     async def _load_configuration(self) -> None:
         try:
-            # Load API keys and providers
-            self._load_api_keys()
-            self._load_providers_and_account()
-            await self._load_json_elements()
+            self.configuration._load_api_keys()
+            self.configuration._load_json_file()
+            self.configuration._load_json_elements()
+            self.configuration._load_providers_and_account()
+            self.configuration._construct_abi_path()
         except Exception as e:
             logger.critical(f"Failed to load configuration: {e}")
             raise

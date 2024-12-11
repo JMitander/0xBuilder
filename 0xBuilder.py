@@ -361,12 +361,12 @@ class Nonce_Core:
             logger.info("Nonce_Core has been reset.")
 
     async def stop(self) -> None:
-        """Gracefully stop the nonce manager."""
+        """Stop nonce manager operations."""
         try:
             await self.reset()
-            logger.info("Nonce_Core stopped gracefully.")
+            logger.info("Nonce Core stopped successfully.")
         except Exception as e:
-            logger.error(f"Error stopping Nonce_Core: {e}")
+            logger.error(f"Error stopping Nonce Core: {e}")
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -1202,6 +1202,19 @@ class Mempool_Monitor:
             logger.debug(
                 f"Error logging transaction details for {tx.hash.hex()}: {e}"
             )
+
+    async def initialize(self) -> None:
+        """Initialize mempool monitor."""
+        try:
+            self.running = False
+            self.pending_transactions = asyncio.Queue()
+            self.profitable_transactions = asyncio.Queue()
+            self.processed_transactions = set()
+            self.task_queue = asyncio.Queue()
+            logger.info("Mempool Monitor initialized successfully.")
+        except Exception as e:
+            logger.critical(f"Mempool Monitor initialization failed: {e}")
+            raise
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -3592,6 +3605,17 @@ class Strategy_Net:
         except Exception as e:
             logger.critical(f"Strategy Net initialization failed: {e}")
             raise
+
+    async def stop(self) -> None:
+        """Stop strategy network operations."""
+        try:
+            # Clean up any running strategies
+            self.strategy_performance.clear()
+            self.reinforcement_weights.clear()
+            self.history_data.clear()
+            logger.info("Strategy Net stopped successfully.")
+        except Exception as e:
+            logger.error(f"Error stopping Strategy Net: {e}")
 
 #//////////////////////////////////////////////////////////////////////////////
 

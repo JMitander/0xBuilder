@@ -358,7 +358,7 @@ CRYPTOCOMPARE_API_KEY=your_cryptocompare_api_key
 
 # Ethereum Node Configurationsuration
 HTTP_ENDPOINT=http://127.0.0.1:8545
-WS_ENDPOINT=wss://127.0.0.1:8546
+WEBSOCKET_ENDPOINT=wss://127.0.0.1:8546
 IPC_ENDPOINT=/path/to/geth.ipc
 
 # Wallet Configurationsuration

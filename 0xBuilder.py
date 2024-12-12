@@ -127,7 +127,29 @@ class Configuration:
         self.WEBSOCKET_ENDPOINT = None
         self.WALLET_KEY = None
         self.WALLET_ADDRESS = None
-        # ...other attributes...
+        self.ETHERSCAN_API_KEY = None
+        self.INFURA_PROJECT_ID = None
+        self.COINGECKO_API_KEY = None
+        self.COINMARKETCAP_API_KEY = None
+        self.CRYPTOCOMPARE_API_KEY = None
+        self.AAVE_LENDING_POOL_ADDRESS = None
+        self.TOKEN_ADDRESSES = None
+        self.TOKEN_SYMBOLS = None
+        self.ERC20_ABI = None
+        self.ERC20_SIGNATURES = None
+        self.SUSHISWAP_ROUTER_ABI = None
+        self.SUSHISWAP_ROUTER_ADDRESS = None
+        self.UNISWAP_ROUTER_ABI = None
+        self.UNISWAP_ROUTER_ADDRESS = None
+        self.AAVE_FLASHLOAN_ABI = None
+        self.AAVE_LENDING_POOL_ABI = None
+        self.AAVE_FLASHLOAN_ADDRESS = None
+        self.PANCAKESWAP_ROUTER_ABI = None
+        self.PANCAKESWAP_ROUTER_ADDRESS = None
+        self.BALANCER_ROUTER_ABI = None
+        self.BALANCER_ROUTER_ADDRESS = None
+        
+
 
     async def load(self) -> None:
         """Loads the configuration in the correct order."""
@@ -196,8 +218,8 @@ class Configuration:
             self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
             self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
             self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
-            self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "AAVE_FLASHLOAN_ABI.json")
-            self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "AAVE_LENDING_POOL_ABI.json")
+            self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
+            self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
             self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
             self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
             self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
@@ -957,7 +979,7 @@ class Mempool_Monitor:
         try:
             # Wait for remaining tasks to complete
             while not self.task_queue.empty():
-                await asyncio.sleep(0.1)
+                await self.task_queue.join()  # Await the join method
             logger.info("Mempool monitoring stopped gracefully.")
         except Exception as e:
             logger.error(f"Error during monitoring shutdown: {e}")
@@ -1390,31 +1412,49 @@ class Transaction_Core:
             logger.error(f"Failed to load ERC20 ABI: {e}")
             raise ValueError("ERC20 ABI loading failed") from e
 
-    async def build_transaction(
-        self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """
-        Builds a transaction dictionary from a contract function call.
-
-        :param function_call: Contract function call object.
-        :param additional_params: Additional transaction parameters.
-        :return: Transaction dictionary.
-        """
+    async def build_transaction(self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Enhanced transaction building with EIP-1559 support and proper gas estimation."""
         additional_params = additional_params or {}
         try:
-            tx_details = function_call.buildTransaction({
-                'chainId': await self.web3.eth.chain_id,
+            # Get chain ID
+            chain_id = await self.web3.eth.chain_id
+            
+            # Check if chain supports EIP-1559
+            latest_block = await self.web3.eth.get_block('latest')
+            supports_eip1559 = 'baseFeePerGas' in latest_block
+            
+            # Base transaction parameters
+            tx_params = {
+                'chainId': chain_id,
                 'nonce': await self.nonce_core.get_nonce(),
                 'from': self.account.address,
-            })
+            }
+            
+            # Add EIP-1559 specific parameters if supported
+            if supports_eip1559:
+                base_fee = latest_block['baseFeePerGas']
+                priority_fee = await self.web3.eth.max_priority_fee
+                
+                tx_params.update({
+                    'maxFeePerGas': base_fee * 2,  # Double the base fee
+                    'maxPriorityFeePerGas': priority_fee
+                })
+            else:
+                # Legacy gas price
+                tx_params.update(await self.get_dynamic_gas_price())
+            
+            # Build transaction
+            tx_details = function_call.buildTransaction(tx_params)
+            
+            # Add additional parameters
             tx_details.update(additional_params)
-            tx_details["gas"] = await self.estimate_gas_smart(tx_details)
-            tx_details.update(await self.get_dynamic_gas_price())
-            logger.debug(f"Built transaction: {tx_details}")
+            
+            # Estimate gas with buffer
+            estimated_gas = await self.estimate_gas_smart(tx_details)
+            tx_details['gas'] = int(estimated_gas * 1.1)  # Add 10% buffer
+            
             return tx_details
-        except KeyError as e:
-            logger.error(f"Missing transaction parameter: {e}")
-            raise
+            
         except Exception as e:
             logger.error(f"Error building transaction: {e}")
             raise
@@ -2566,6 +2606,7 @@ class Strategy_Net:
         self.safety_net = safety_net
         self.api_config = api_config
 
+        # Initialize strategy types
         self.strategy_types = [
             "eth_transaction",
             "front_run",
@@ -2573,22 +2614,8 @@ class Strategy_Net:
             "sandwich_attack"
         ]
 
-        self.strategy_performance: Dict[str, StrategyPerformanceMetrics] = {
-            strategy_type: StrategyPerformanceMetrics()
-            for strategy_type in self.strategy_types
-        }
-
-        self.reinforcement_weights: Dict[str, np.ndarray] = {
-            strategy_type: np.ones(len(self.get_strategies(strategy_type)))
-            for strategy_type in self.strategy_types
-        }
-
-        self.configuration = StrategyConfiguration()
-
-        self.history_data: List[Dict[str, Any]] = []
-
-        # Dynamic strategy registry
-        self._strategy_registry: Dict[str, List[Callable[[Dict[str, Any]], asyncio.Future]]] = {
+        # Initialize strategy registry before using it
+        self._strategy_registry = {
             "eth_transaction": [self.high_value_eth_transfer],
             "front_run": [
                 self.aggressive_front_run,
@@ -2609,6 +2636,21 @@ class Strategy_Net:
                 self.advanced_sandwich_attack,
             ],
         }
+
+        # Initialize performance metrics after strategy registry
+        self.strategy_performance = {
+            strategy_type: StrategyPerformanceMetrics()
+            for strategy_type in self.strategy_types
+        }
+
+        # Initialize reinforcement weights after strategy registry
+        self.reinforcement_weights = {
+            strategy_type: np.ones(len(self._strategy_registry[strategy_type]))
+            for strategy_type in self.strategy_types
+        }
+
+        self.configuration = StrategyConfiguration()
+        self.history_data = []
 
         logger.debug("StrategyNet initialized with enhanced configuration")
 
@@ -3554,7 +3596,7 @@ class Strategy_Net:
         estimated_profit = estimated_amount * Decimal("0.02")
         if estimated_profit > self.configuration.min_profit_threshold:
             gas_price = await self.transaction_core.get_dynamic_gas_price()
-            if gas_price > 200:
+            if (gas_price > 200):
                 logger.debug(f"Gas price too high for sandwich attack: {gas_price} Gwei")
                 return False
             logger.debug(f"Executing sandwich with estimated profit: {estimated_profit:.4f} ETH")
@@ -3672,26 +3714,26 @@ class Main_Core:
     """
 
     def __init__(self, configuration: Configuration) -> None:
-        
         self.configuration = configuration
         self.web3: Optional[AsyncWeb3] = None
         self.account: Optional[Account] = None
+        self.running: bool = False
         self.components: Dict[str, Any] = {
-            'api_config': API_Config, 
-            'nonce_core': Nonce_Core,
-            'safety_net': Safety_Net,
-            'market_monitor': Market_Monitor,
-            'mempool_monitor': Mempool_Monitor,
-            'transaction_core': Transaction_Core,
-            'strategy_net': Strategy_Net,
+            'api_config': None,
+            'nonce_core': None, 
+            'safety_net': None,
+            'market_monitor': None,
+            'mempool_monitor': None,
+            'transaction_core': None,
+            'strategy_net': None,
         }
-        logger.info(f"Main Core initialized successfully. ")
+        logger.info("Main Core initialized successfully.")
 
     async def initialize(self) -> None:
-        """Initialize all components with  error handling."""
+        """Initialize all components with error handling."""
         try:
-            # First load the configuration
-            await self.configuration.load()
+            # Load configuration first
+            await self._load_configuration()
             
             # Then initialize Web3 connection
             self.web3 = await self._initialize_web3()
@@ -3712,19 +3754,19 @@ class Main_Core:
             raise
 
     async def _load_configuration(self) -> None:
+        """Load all configuration elements in the correct order."""
         try:
-            self.configuration._load_api_keys()
-            self.configuration._load_json_file()
-            self.configuration._load_json_elements()
-            self.configuration._load_providers_and_account()
-            self.configuration._construct_abi_path()
+            # First load the configuration itself
+            await self.configuration.load()
+            
+            logger.info("Configuration loaded successfully")
         except Exception as e:
             logger.critical(f"Failed to load configuration: {e}")
             raise
 
     async def _initialize_web3(self) -> Optional[AsyncWeb3]:
         """Initialize Web3 connection with multiple provider fallback."""
-        providers = self._get_providers()
+        providers = self._get_providers()  # Remove await here
         if not providers:
             logger.error(f"No valid endpoints provided. !")
             return None
@@ -3747,37 +3789,11 @@ class Main_Core:
     def _get_providers(self) -> List[Tuple[str, Union[AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider]]]:
         """Get list of available providers with validation."""
         providers = []
-        # if error in one provider it tries the next one*IPC endpoint, http and WS. 
-        if self.configuration.IPC_ENDPOINT:
-            providers.append(("IPC", AsyncIPCProvider(self.configuration.IPC_ENDPOINT)))
-            if AttributeError:
-                logger.error(f"IPC endpoint not found, trying next provider.")
+
+   
         if self.configuration.HTTP_ENDPOINT:
-            providers.append(("HTTP", AsyncHTTPProvider(self.configuration.HTTP_ENDPOINT)))
-            if AttributeError:
-                logger.error(f"HTTP endpoint not found, trying next provider.")
-        if self.configuration.WS_ENDPOINT:
-            providers.append(("WS", WebSocketProvider(self.configuration.WS_ENDPOINT)))
-            if AttributeError:
-                logger.error(f"WS endpoint not found, trying next provider.")
-        if not providers:
-        
-            logger.error(f"No valid endpoints provided.")
+            providers.append(("HTTP Provider", AsyncHTTPProvider(self.configuration.HTTP_ENDPOINT)))
         return providers
-
-        
-            
-                
-            
-             
-            
-            
-
-        
-        
-
-
-
 
 
     async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
@@ -3859,13 +3875,10 @@ class Main_Core:
 
             # Initialize monitoring components
             self.components['mempool_monitor'] = Mempool_Monitor( 
-                running=self.running==True,
                 web3=self.web3,
                 safety_net=self.components['safety_net'],
                 nonce_core=self.components['nonce_core'],
                 api_config=api_config,
-                
-                
                 monitored_tokens=await self.configuration.get_token_addresses(),
                 erc20_abi=erc20_abi,
                 configuration=self.configuration
@@ -3929,33 +3942,24 @@ class Main_Core:
             await self.stop()
 
     async def stop(self) -> None:
-        
         logger.warning(f"Shutting down Core...")
         self.running = False  # Set running to False when stopping
 
         try:
-            if self.components['mempool_monitor']:
-                await self.components['mempool_monitor'].stop()
-
-            if self.components['transaction_core']:
-                await self.components['transaction_core'].stop()
-            
-            if self.components['nonce_core']:
-                await self.components['nonce_core'].stop()
-
-            if self.web3:
-                await self.web3.close()
-                
+            for component in self.components.values():
+                if component:
+                    await component.stop()
         except Exception as e: 
-            logger.error(f"Error during shutdown: {e}")
+            logger.error(f"Error stopping component: {e}")
         finally:
-            sys.exit(0)
-        """Process profitable transactions from the queue."""
+            await asyncio.sleep(1)  # Ensure all tasks are completed
+            logger.info("Core shutdown complete.")
+
     async def _process_profitable_transactions(self) -> None:
+        """Process profitable transactions from the queue."""
         strategy = self.components['strategy_net']
         monitor = self.components['mempool_monitor']
-        strategy = self.components['strategy_net']
-
+        
         while not monitor.profitable_transactions.empty():
             try:
                 try:
@@ -3964,14 +3968,17 @@ class Main_Core:
                     strategy_type = tx.get('strategy_type', 'Unknown')
                 except asyncio.TimeoutError:
                     continue
+                
                 logger.debug(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
-
                 success = await strategy.execute_best_strategy(tx, strategy_type)
 
                 if success:
-                    logger.debug(f"Strategy execution successful for tx: {tx_hash} ")
+                    logger.debug(f"Strategy execution successful for tx: {tx_hash}")
                 else:
-                    logger.warning(f"Strategy execution failed for tx: {tx_hash} !")
+                    logger.warning(f"Strategy execution failed for tx: {tx_hash}")
+
+                # Mark task as done
+                monitor.profitable_transactions.task_done()
 
             except Exception as e:
                 logger.error(f"Error processing transaction: {e}")
@@ -3986,6 +3993,7 @@ class Main_Core:
         except Exception as e:
             return []
 
+
 # ////////////////////////////////////////////////////////////////////////////
 async def main():
     """Main entry point with comprehensive setup and error handling."""
@@ -3994,7 +4002,6 @@ async def main():
     try:
         await core.initialize()
         await core._load_configuration()
-        await core._get_providers()
         await core.run()
     except KeyboardInterrupt:
         logger.info("Shutdown initiated by user.")
@@ -4003,9 +4010,7 @@ async def main():
     finally:
         await core.stop()
         logger.info("Shutdown complete.")
-        logger.info("Shutdown complete.")
-
-
+        sys.exit(0)
 
 if __name__ == "__main__":
     try:
@@ -4015,14 +4020,4 @@ if __name__ == "__main__":
     except Exception as e:
         logger.critical(f"Program terminated with an error: {e}")
 
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Program terminated by user.")
-    except Exception as e:
-        logger.critical(f"Program terminated with an error: {e}")
 
-        logger.critical(f"Program terminated with an error: {e}")
-
-
-        logger.critical(f"Program terminated with an error: {e}")

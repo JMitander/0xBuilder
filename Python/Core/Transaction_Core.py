@@ -8,10 +8,10 @@ class TransactionCore:
         self,
         web3: AsyncWeb3,
         account: Account,
-        aave_flashloan_address: str,
-        aave_flashloan_abi: List[Dict[str, Any]],
-        aave_lending_pool_address: str,
-        aave_lending_pool_abi: List[Dict[str, Any]],
+        AAVE_FLASHLOAN_ADDRESS: str,
+        AAVE_FLASHLOAN_ABI: List[Dict[str, Any]],
+        AAVE_LENDING_POOL_ADDRESS: str,
+        AAVE_LENDING_POOL_ABI: List[Dict[str, Any]],
         monitor: MempoolMonitor,
         noncecore: NonceCore,
         safetynet: SafetyNet,
@@ -34,20 +34,20 @@ class TransactionCore:
         self.retry_delay = retry_delay
         self.erc20_abi = erc20_abi or []
         self.current_profit = Decimal("0")
-        self.aave_flashloan_address = aave_flashloan_address
-        self.aave_flashloan_abi = aave_flashloan_abi
-        self.aave_lending_pool_address = aave_lending_pool_address
-        self.aave_lending_pool_abi = aave_lending_pool_abi
+        self.AAVE_FLASHLOAN_ADDRESS = AAVE_FLASHLOAN_ADDRESS
+        self.AAVE_FLASHLOAN_ABI = AAVE_FLASHLOAN_ABI
+        self.AAVE_LENDING_POOL_ADDRESS = AAVE_LENDING_POOL_ADDRESS
+        self.AAVE_LENDING_POOL_ABI = AAVE_LENDING_POOL_ABI
 
     async def initialize(self):
         self.flashloan_contract = await self._initialize_contract(
-            self.aave_flashloan_address,
-            self.aave_flashloan_abi,
+            self.AAVE_FLASHLOAN_ADDRESS,
+            self.AAVE_FLASHLOAN_ABI,
             "Flashloan Contract",
         )
         self.lending_pool_contract = await self._initialize_contract(
-            self.aave_lending_pool_address,
-            self.aave_lending_pool_abi,
+            self.AAVE_LENDING_POOL_ADDRESS,
+            self.AAVE_LENDING_POOL_ABI,
             "Lending Pool Contract",
         )
         self.uniswap_router_contract = await self._initialize_contract(

@@ -98,8 +98,8 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   │   └── erc20_signatures.json          # ERC20 function signatures
 │   ├── abi/
 │   │   ├── erc20_abi.json
-│   │   ├── aave_flashloan_abi.json
-│   │   ├── aave_lending_pool_abi.json
+│   │   ├── AAVE_FLASHLOAN_ABI.json
+│   │   ├── AAVE_LENDING_POOL_ABI.json
 │   │   ├── uniswap_router_abi.json
 │   │   ├── sushiswap_router_abi.json
 │   │   ├── pancakeswap_router_abi.json
@@ -133,8 +133,8 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   │   └── erc20_signatures.json           # ERC20 function signatures
 │   ├── abi/
 │   │   ├── erc20_abi.json
-│   │   ├── aave_flashloan_abi.json
-│   │   ├── aave_lending_pool_abi.json
+│   │   ├── AAVE_FLASHLOAN_ABI.json
+│   │   ├── AAVE_LENDING_POOL_ABI.json
 │   │   ├── uniswap_router_abi.json
 │   │   ├── sushiswap_router_abi.json
 │   │   ├── pancakeswap_router_abi.json

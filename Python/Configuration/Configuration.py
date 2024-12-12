@@ -47,8 +47,8 @@ class Configuration:
         self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
         self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
         self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
-        self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
-        self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
+        self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "AAVE_FLASHLOAN_ABI.json")
+        self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "AAVE_LENDING_POOL_ABI.json")
         self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
         self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
         self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
@@ -96,8 +96,8 @@ class Configuration:
             "erc20_abi": self.ERC20_ABI,
             "sushiswap_router_abi": self.SUSHISWAP_ROUTER_ABI,
             "uniswap_router_abi": self.UNISWAP_ROUTER_ABI,
-            "aave_flashloan_abi": self.AAVE_FLASHLOAN_ABI,
-            "aave_lending_pool_abi": self.AAVE_LENDING_POOL_ABI,
+            "AAVE_FLASHLOAN_ABI": self.AAVE_FLASHLOAN_ABI,
+            "AAVE_LENDING_POOL_ABI": self.AAVE_LENDING_POOL_ABI,
             "pancakeswap_router_abi": self.PANCAKESWAP_ROUTER_ABI,
             "balancer_router_abi": self.BALANCER_ROUTER_ABI,
         }

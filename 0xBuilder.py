@@ -10,7 +10,7 @@ import aiofiles
 import aiohttp
 import numpy as np
 import hexbytes
-
+from eth_account.messages import encode_defunct
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from decimal import Decimal
@@ -20,6 +20,7 @@ from dataclasses import *
 from web3 import AsyncWeb3
 from web3.exceptions import TransactionNotFound, ContractLogicError
 from eth_account import Account
+()
 from web3.providers import AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider
 from web3.middleware import ExtraDataToPOAMiddleware
 from web3.eth import AsyncEth
@@ -119,16 +120,36 @@ class Configuration:
     Loads configuration from environment variables and monitored tokens from a JSON file.
     """
 
+    def __init__(self):
+        """Initialize configuration attributes with None values."""
+        self.IPC_ENDPOINT = None
+        self.HTTP_ENDPOINT = None
+        self.WEBSOCKET_ENDPOINT = None
+        self.WALLET_KEY = None
+        self.WALLET_ADDRESS = None
+        # ...other attributes...
+
     async def load(self) -> None:
-        """Loads the configuration."""
-        await self._load_configuration()
+        """Loads the configuration in the correct order."""
+        try:
+            await self._load_configuration()
+            logger.info("Configuration loaded successfully.")
+        except Exception as e:
+            logger.error(f"Error loading configuration: {e}")
+            raise
 
     async def _load_configuration(self) -> None:
+        """Load configuration in the correct order."""
         try:
-            self._load_api_keys()
+            # First load providers and account
             self._load_providers_and_account()
+            
+            # Then load API keys
+            self._load_api_keys()
+            
+            # Finally load JSON elements
             await self._load_json_elements()
-            logger.info("Configuration loaded successfully.")
+            
         except Exception as e:
             logger.error(f"Error loading configuration: {e}")
             raise
@@ -141,11 +162,22 @@ class Configuration:
         self.CRYPTOCOMPARE_API_KEY = self._get_env_variable("CRYPTOCOMPARE_API_KEY")
 
     def _load_providers_and_account(self) -> None:
-        self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT")
-        self.IPC_ENDPOINT = self._get_env_variable("IPC_ENDPOINT")
-        self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT")
-        self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
-        self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
+        """Load provider endpoints and account information."""
+        try:
+            self.IPC_ENDPOINT = self._get_env_variable("IPC_ENDPOINT", default=None)
+            self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT", default=None)
+            self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT", default=None)
+            
+            # Ensure at least one endpoint is configured
+            if not any([self.IPC_ENDPOINT, self.HTTP_ENDPOINT, self.WEBSOCKET_ENDPOINT]):
+                raise ValueError("At least one endpoint (IPC, HTTP, or WebSocket) must be configured")
+
+            self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
+            self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
+            
+        except Exception as e:
+            logger.error(f"Error loading providers and account: {e}")
+            raise
 
     async def _load_json_elements(self) -> None:
         try:
@@ -164,8 +196,8 @@ class Configuration:
             self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
             self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
             self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
-            self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
-            self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
+            self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "AAVE_FLASHLOAN_ABI.json")
+            self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "AAVE_LENDING_POOL_ABI.json")
             self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
             self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
             self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
@@ -217,8 +249,8 @@ class Configuration:
             "erc20_abi": self.ERC20_ABI,
             "sushiswap_router_abi": self.SUSHISWAP_ROUTER_ABI,
             "uniswap_router_abi": self.UNISWAP_ROUTER_ABI,
-            "aave_flashloan_abi": self.AAVE_FLASHLOAN_ABI,
-            "aave_lending_pool_abi": self.AAVE_LENDING_POOL_ABI,
+            "AAVE_FLASHLOAN_ABI": self.AAVE_FLASHLOAN_ABI,
+            "AAVE_LENDING_POOL_ABI": self.AAVE_LENDING_POOL_ABI,
             "pancakeswap_router_abi": self.PANCAKESWAP_ROUTER_ABI,
             "balancer_router_abi": self.BALANCER_ROUTER_ABI,
         }
@@ -362,6 +394,8 @@ class Nonce_Core:
 
     async def stop(self) -> None:
         """Stop nonce manager operations."""
+        if not self._initialized:
+            return
         try:
             await self.reset()
             logger.info("Nonce Core stopped successfully.")
@@ -833,14 +867,15 @@ class Safety_Net:
             return congestion_level
         except Exception as e:
             logger.error(f"Error fetching network congestion: {e}")
-            return 0.5  # Assume medium congestion if unknown
-
     async def stop(self) -> None:
          """Stops the 0xBuilder gracefully."""
          try:
-            await self.api_config.close()
+            if self.api_config:
+                await self.api_config.close()
             logger.debug("Safety Net stopped successfully.")
          except Exception as e:
+             logger.error(f"Error stopping safety net: {e}")
+             raise
              logger.error(f"Error stopping safety net: {e}")
              raise
 
@@ -876,12 +911,13 @@ class Mempool_Monitor:
 
         # Monitoring state
         self.running = False
-        self.stop = False
         self.pending_transactions = asyncio.Queue()
         self.monitored_tokens = set(monitored_tokens or [])
         self.profitable_transactions = asyncio.Queue()
         self.processed_transactions = set()
 
+       
+        
         # Configuration
         self.erc20_abi = erc20_abi or []
         self.minimum_profit_threshold = Decimal("0.001")
@@ -911,20 +947,20 @@ class Mempool_Monitor:
 
         except Exception as e:
             self.running = False
-            logger.error(f"Failed to start monitoring: {e}")
-            raise
-
     async def stop(self) -> None:
         """Gracefully stop monitoring activities."""
         if not self.running:
             return
 
         self.running = False
+        self.stopping = True
         try:
             # Wait for remaining tasks to complete
             while not self.task_queue.empty():
                 await asyncio.sleep(0.1)
             logger.info("Mempool monitoring stopped gracefully.")
+        except Exception as e:
+            logger.error(f"Error during monitoring shutdown: {e}")
             sys.exit(0)
         except Exception as e:
             logger.error(f"Error during monitoring shutdown: {e}")
@@ -1215,7 +1251,17 @@ class Mempool_Monitor:
         except Exception as e:
             logger.critical(f"Mempool Monitor initialization failed: {e}")
             raise
-
+        
+    async def stop(self) -> None:
+        """Gracefully stop the Mempool Monitor."""
+        try:
+            self.running = False
+            self.stopping = True
+            self.task_queue.join()
+            logger.info("Mempool Monitor stopped gracefully.")
+        except Exception as e:
+            logger.error(f"Error stopping Mempool Monitor: {e}")
+            raise
 #//////////////////////////////////////////////////////////////////////////////
 
 class Transaction_Core:
@@ -1231,10 +1277,10 @@ class Transaction_Core:
         self,
         web3: AsyncWeb3,
         account: Account,
-        aave_flashloan_address: str,
-        aave_flashloan_abi: List[Dict[str, Any]],
-        aave_lending_pool_address: str,
-        aave_lending_pool_abi: List[Dict[str, Any]],
+        AAVE_FLASHLOAN_ADDRESS: str,
+        AAVE_FLASHLOAN_ABI: List[Dict[str, Any]],
+        AAVE_LENDING_POOL_ADDRESS: str,
+        AAVE_LENDING_POOL_ABI: List[Dict[str, Any]],
         api_config: Optional[API_Config] = None,
         monitor: Optional[Mempool_Monitor] = None,
         nonce_core: Optional[Nonce_Core] = None,
@@ -1254,21 +1300,21 @@ class Transaction_Core:
         self.RETRY_ATTEMPTS = self.MAX_RETRIES
         self.erc20_abi = erc20_abi or []
         self.current_profit = Decimal("0")
-        self.aave_flashloan_address = aave_flashloan_address
-        self.aave_flashloan_abi = aave_flashloan_abi
-        self.aave_lending_pool_address = aave_lending_pool_address
-        self.aave_lending_pool_abi = aave_lending_pool_abi
+        self.AAVE_FLASHLOAN_ADDRESS = AAVE_FLASHLOAN_ADDRESS
+        self.AAVE_FLASHLOAN_ABI = AAVE_FLASHLOAN_ABI
+        self.AAVE_LENDING_POOL_ADDRESS = AAVE_LENDING_POOL_ADDRESS
+        self.AAVE_LENDING_POOL_ABI = AAVE_LENDING_POOL_ABI
 
     async def initialize(self):
         """Initializes all required contracts."""
         self.flashloan_contract = await self._initialize_contract(
-            self.aave_flashloan_address,
-            self.aave_flashloan_abi,
+            self.AAVE_FLASHLOAN_ADDRESS,
+            self.AAVE_FLASHLOAN_ABI,
             "Flashloan Contract",
         )
         self.lending_pool_contract = await self._initialize_contract(
-            self.aave_lending_pool_address,
-            self.aave_lending_pool_abi,
+            self.AAVE_LENDING_POOL_ADDRESS,
+            self.AAVE_LENDING_POOL_ABI,
             "Lending Pool Contract",
         )
         self.uniswap_router_contract = await self._initialize_contract(
@@ -3644,25 +3690,20 @@ class Main_Core:
     async def initialize(self) -> None:
         """Initialize all components with  error handling."""
         try:
-            # Initialize Web3 connection first
+            # First load the configuration
+            await self.configuration.load()
+            
+            # Then initialize Web3 connection
             self.web3 = await self._initialize_web3()
             if not self.web3:
                 raise RuntimeError("Failed to initialize Web3 connection")
 
-            # Load configuration
-            await self.configuration.initialize()
-            
             # Initialize account
             self.account = Account.from_key(self.configuration.WALLET_KEY)
             await self._check_account_balance()
 
-            # Initialize all components
+            # Initialize all other components
             await self._initialize_components()
-
-            # Initialize each component in order
-            for name, component in self.components.items():
-                if hasattr(component, 'initialize'):
-                    await component.initialize()
 
             logger.info("Main Core initialization successful.")
             
@@ -3706,13 +3747,37 @@ class Main_Core:
     def _get_providers(self) -> List[Tuple[str, Union[AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider]]]:
         """Get list of available providers with validation."""
         providers = []
-        if self.configuration.IPC_ENDPOINT and os.path.exists(self.configuration.IPC_ENDPOINT):
+        # if error in one provider it tries the next one*IPC endpoint, http and WS. 
+        if self.configuration.IPC_ENDPOINT:
             providers.append(("IPC", AsyncIPCProvider(self.configuration.IPC_ENDPOINT)))
+            if AttributeError:
+                logger.error(f"IPC endpoint not found, trying next provider.")
         if self.configuration.HTTP_ENDPOINT:
             providers.append(("HTTP", AsyncHTTPProvider(self.configuration.HTTP_ENDPOINT)))
-        if self.configuration.WEBSOCKET_ENDPOINT:
-            providers.append(("WebSocket", WebSocketProvider(self.configuration.WEBSOCKET_ENDPOINT)))
+            if AttributeError:
+                logger.error(f"HTTP endpoint not found, trying next provider.")
+        if self.configuration.WS_ENDPOINT:
+            providers.append(("WS", WebSocketProvider(self.configuration.WS_ENDPOINT)))
+            if AttributeError:
+                logger.error(f"WS endpoint not found, trying next provider.")
+        if not providers:
+        
+            logger.error(f"No valid endpoints provided.")
         return providers
+
+        
+            
+                
+            
+             
+            
+            
+
+        
+        
+
+
+
 
 
     async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
@@ -3767,10 +3832,14 @@ class Main_Core:
         """Initialize all bot components with  error handling."""
         try:
             # Initialize core components
-            self.components['nonce_core'] = Nonce_Core(
-                self.web3, self.account.address, self.configuration
-            )
-            await self.components['nonce_core'].initialize()
+            try:
+                self.components['nonce_core'] = Nonce_Core(
+                    self.web3, self.account.address, self.configuration
+                )
+                await self.components['nonce_core'].initialize()
+            except Exception as e:
+                logger.error(f"Failed to initialize nonce core: {e}")
+                raise
 
             api_config = API_Config(self.configuration)
 
@@ -3780,8 +3849,8 @@ class Main_Core:
 
             # Load contract ABIs
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            aave_flashloan_abi = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI)
-            aave_lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
+            AAVE_FLASHLOAN_ABI = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI)
+            AAVE_LENDING_POOL_ABI = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
 
             # Initialize analysis components
             self.components['market_monitor'] = Market_Monitor(
@@ -3789,25 +3858,28 @@ class Main_Core:
             )
 
             # Initialize monitoring components
-            self.components['mempool_monitor'] = Mempool_Monitor(
+            self.components['mempool_monitor'] = Mempool_Monitor( 
+                running=self.running==True,
                 web3=self.web3,
                 safety_net=self.components['safety_net'],
                 nonce_core=self.components['nonce_core'],
                 api_config=api_config,
                 
+                
                 monitored_tokens=await self.configuration.get_token_addresses(),
                 erc20_abi=erc20_abi,
                 configuration=self.configuration
+                
             )
 
             # Initialize transaction components
             self.components['transaction_core'] = Transaction_Core(
                 web3=self.web3,
                 account=self.account,
-                aave_flashloan_address=self.configuration.AAVE_FLASHLOAN_ADDRESS,
-                aave_flashloan_abi=aave_flashloan_abi,
-                aave_lending_pool_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
-                aave_lending_pool_abi=aave_lending_pool_abi,
+                AAVE_FLASHLOAN_ADDRESS=self.configuration.AAVE_FLASHLOAN_ADDRESS,
+                AAVE_FLASHLOAN_ABI=AAVE_FLASHLOAN_ABI,
+                AAVE_LENDING_POOL_ADDRESS=self.configuration.AAVE_LENDING_POOL_ADDRESS,
+                AAVE_LENDING_POOL_ABI=AAVE_LENDING_POOL_ABI,
                 monitor=self.components['mempool_monitor'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
@@ -3834,21 +3906,21 @@ class Main_Core:
     async def run(self) -> None:
         """Main execution loop with improved error handling."""
         logger.debug(f"Starting 0xBuilder... ")
+        self.running = True  # Set running to True when starting
 
         try:
             if 'mempool_monitor' in self.components and self.components['mempool_monitor'] is not None:
                 await self.components['mempool_monitor'].start_monitoring()
             else:
-                raise RuntimeError("Mempool monitor not ly initialized")
+                raise RuntimeError("Mempool monitor not properly initialized")
 
-            while True:
+            while self.running:  # Use running flag in loop
                 try:
                     await self._process_profitable_transactions()
                     await asyncio.sleep(1)
                 except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Error in main loop: {e}")
+                    logger.error(f"Error in main loop")
+                    await asyncio.sleep(5)  # Back off on error
                     await asyncio.sleep(5)  # Back off on error
 
         except KeyboardInterrupt:
@@ -3857,37 +3929,41 @@ class Main_Core:
             await self.stop()
 
     async def stop(self) -> None:
-        """Graceful shutdown of all components."""
+        
         logger.warning(f"Shutting down Core...")
+        self.running = False  # Set running to False when stopping
 
         try:
             if self.components['mempool_monitor']:
                 await self.components['mempool_monitor'].stop()
 
             if self.components['transaction_core']:
-                await self.components[Any].stop()
+                await self.components['transaction_core'].stop()
             
             if self.components['nonce_core']:
-                await self.components[Any].stop()
+                await self.components['nonce_core'].stop()
 
-            if self.web3: # Close Web3 connection
-                await self.web3.close(any=True)
+            if self.web3:
+                await self.web3.close()
                 
         except Exception as e: 
             logger.error(f"Error during shutdown: {e}")
         finally:
             sys.exit(0)
-                
-    async def _process_profitable_transactions(self) -> None:
         """Process profitable transactions from the queue."""
+    async def _process_profitable_transactions(self) -> None:
+        strategy = self.components['strategy_net']
         monitor = self.components['mempool_monitor']
         strategy = self.components['strategy_net']
 
         while not monitor.profitable_transactions.empty():
             try:
-                tx = await monitor.profitable_transactions.get()
-                tx_hash = tx.get('tx_hash', 'Unknown')[:10]
-                strategy_type = tx.get('strategy_type', 'Unknown')
+                try:
+                    tx = await asyncio.wait_for(monitor.profitable_transactions.get(), timeout=1.0)
+                    tx_hash = tx.get('tx_hash', 'Unknown')
+                    strategy_type = tx.get('strategy_type', 'Unknown')
+                except asyncio.TimeoutError:
+                    continue
                 logger.debug(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
 
                 success = await strategy.execute_best_strategy(tx, strategy_type)
@@ -3911,19 +3987,22 @@ class Main_Core:
             return []
 
 # ////////////////////////////////////////////////////////////////////////////
-
 async def main():
     """Main entry point with comprehensive setup and error handling."""
-    core = Main_Core(configuration=Configuration())
+    configuration = Configuration()  # Create configuration instance
+    core = Main_Core(configuration)
     try:
         await core.initialize()
+        await core._load_configuration()
+        await core._get_providers()
         await core.run()
     except KeyboardInterrupt:
         logger.info("Shutdown initiated by user.")
     except Exception as e:
-        logger.critical(f"An unexpected error occurred: {e}")
+        logger.critical(f"An unexpected error occurred: {str(e)}")
     finally:
         await core.stop()
+        logger.info("Shutdown complete.")
         logger.info("Shutdown complete.")
 
 
@@ -3942,5 +4021,8 @@ if __name__ == "__main__":
         logger.info("Program terminated by user.")
     except Exception as e:
         logger.critical(f"Program terminated with an error: {e}")
+
+        logger.critical(f"Program terminated with an error: {e}")
+
 
         logger.critical(f"Program terminated with an error: {e}")

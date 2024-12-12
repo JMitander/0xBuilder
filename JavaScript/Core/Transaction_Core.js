@@ -23,10 +23,10 @@ class TransactionCore {
      *
      * @param {Web3} web3 - The Web3 instance for blockchain interactions.
      * @param {Object} account - The account object containing address and private key.
-     * @param {string} aave_flashloan_address - The address of the Aave Flashloan contract.
-     * @param {Array<Object>} aave_flashloan_abi - The ABI of the Aave Flashloan contract.
-     * @param {string} aave_lending_pool_address - The address of the Aave Lending Pool contract.
-     * @param {Array<Object>} aave_lending_pool_abi - The ABI of the Aave Lending Pool contract.
+     * @param {string} AAVE_FLASHLOAN_ADDRESS - The address of the Aave Flashloan contract.
+     * @param {Array<Object>} AAVE_FLASHLOAN_ABI - The ABI of the Aave Flashloan contract.
+     * @param {string} AAVE_LENDING_POOL_ADDRESS - The address of the Aave Lending Pool contract.
+     * @param {Array<Object>} AAVE_LENDING_POOL_ABI - The ABI of the Aave Lending Pool contract.
      * @param {APIConfig} apiconfig - The API configuration instance.
      * @param {MempoolMonitor} monitor - The mempool monitor instance.
      * @param {NonceCore} noncecore - The nonce management instance.
@@ -38,10 +38,10 @@ class TransactionCore {
     constructor(
         web3,
         account,
-        aave_flashloan_address,
-        aave_flashloan_abi,
-        aave_lending_pool_address,
-        aave_lending_pool_abi,
+        AAVE_FLASHLOAN_ADDRESS,
+        AAVE_FLASHLOAN_ABI,
+        AAVE_LENDING_POOL_ADDRESS,
+        AAVE_LENDING_POOL_ABI,
         apiconfig = null,
         monitor = null,
         noncecore = null,
@@ -61,10 +61,10 @@ class TransactionCore {
         this.retry_attempts = TransactionCore.MAX_RETRIES;
         this.erc20_abi = erc20_abi;
         this.current_profit = new Decimal(0);
-        this.aave_flashloan_address = aave_flashloan_address;
-        this.aave_flashloan_abi = aave_flashloan_abi;
-        this.aave_lending_pool_address = aave_lending_pool_address;
-        this.aave_lending_pool_abi = aave_lending_pool_abi;
+        this.AAVE_FLASHLOAN_ADDRESS = AAVE_FLASHLOAN_ADDRESS;
+        this.AAVE_FLASHLOAN_ABI = AAVE_FLASHLOAN_ABI;
+        this.AAVE_LENDING_POOL_ADDRESS = AAVE_LENDING_POOL_ADDRESS;
+        this.AAVE_LENDING_POOL_ABI = AAVE_LENDING_POOL_ABI;
 
         this._abi_cache = {};
     }
@@ -75,13 +75,13 @@ class TransactionCore {
     async initialize() {
         try {
             this.flashloan_contract = await this._initialize_contract(
-                this.aave_flashloan_address,
-                this.aave_flashloan_abi,
+                this.AAVE_FLASHLOAN_ADDRESS,
+                this.AAVE_FLASHLOAN_ABI,
                 "Flashloan Contract"
             );
             this.lending_pool_contract = await this._initialize_contract(
-                this.aave_lending_pool_address,
-                this.aave_lending_pool_abi,
+                this.AAVE_LENDING_POOL_ADDRESS,
+                this.AAVE_LENDING_POOL_ABI,
                 "Lending Pool Contract"
             );
             this.uniswap_router_contract = await this._initialize_contract(

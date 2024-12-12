@@ -153,8 +153,8 @@ class MainCore:
 
             # Load contract ABIs
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            aave_flashloan_abi = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI)
-            aave_lending_pool_abi = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
+            AAVE_FLASHLOAN_ABI = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI)
+            AAVE_LENDING_POOL_ABI = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
 
             # Initialize analysis components
             self.components['marketmonitor'] = MarketMonitor(
@@ -177,10 +177,10 @@ class MainCore:
             self.components['transactioncore'] = TransactionCore(
                 web3=self.web3,
                 account=self.account,
-                aave_flashloan_address=self.configuration.AAVE_FLASHLOAN_ADDRESS,
-                aave_flashloan_abi=aave_flashloan_abi,
-                aave_lending_pool_address=self.configuration.AAVE_LENDING_POOL_ADDRESS,
-                aave_lending_pool_abi=aave_lending_pool_abi,
+                AAVE_FLASHLOAN_ADDRESS=self.configuration.AAVE_FLASHLOAN_ADDRESS,
+                AAVE_FLASHLOAN_ABI=AAVE_FLASHLOAN_ABI,
+                AAVE_LENDING_POOL_ADDRESS=self.configuration.AAVE_LENDING_POOL_ADDRESS,
+                AAVE_LENDING_POOL_ABI=AAVE_LENDING_POOL_ABI,
                 monitor=self.components['mempoolmonitor'],
                 noncecore=self.components['noncecore'],
                 safetynet=self.components['safetynet'],

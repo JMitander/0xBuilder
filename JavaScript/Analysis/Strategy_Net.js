@@ -94,7 +94,7 @@ class StrategyNet {
         }
         this._strategy_registry[strategy_type].push(strategy_func.bind(this));
         this.reinforcement_weights[strategy_type].push(1.0);
-        logger.info(`Registered new strategy '${strategy_func.name}' under '${strategy_type}'`);
+        logger.debug(`Registered new strategy '${strategy_func.name}' under '${strategy_type}'`);
     }
 
     /**
@@ -399,7 +399,7 @@ class StrategyNet {
             const threshold_bn = this.web3.utils.toBN(threshold);
             if (eth_value_bn.gt(threshold_bn)) {
                 const eth_value_eth = this.web3.utils.fromWei(eth_value_bn, 'ether');
-                logger.info(
+                logger.debug(
                     `High-value ETH transfer detected:\n` +
                     `Value: ${eth_value_eth} ETH\n` +
                     `Threshold: ${threshold_eth} ETH`
@@ -494,7 +494,7 @@ class StrategyNet {
                     }
                 }
 
-                logger.info(
+                logger.debug(
                     `Executing aggressive front-run:\n` +
                     `Transaction: ${tx_hash}\n` +
                     `Value: ${value_eth} ETH\n` +
@@ -686,7 +686,7 @@ class StrategyNet {
 
             // Step 6: Execute if conditions are favorable
             if (opportunity_score >= 75) { // High confidence threshold
-                logger.info(
+                logger.debug(
                     `Executing predictive front-run for ${token_symbol} ` +
                     `(Score: ${opportunity_score}/100, Expected Change: ${price_change.toFixed(2)}%)`
                 );
@@ -819,7 +819,7 @@ class StrategyNet {
 
             // Execute based on volatility thresholds
             if (volatility_score >= 75) { // High volatility threshold
-                logger.info(
+                logger.debug(
                     `Executing volatility-based front-run for ${token_symbol} ` +
                     `(Volatility Score: ${volatility_score}/100)`
                 );

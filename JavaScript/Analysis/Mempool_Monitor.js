@@ -50,7 +50,7 @@ class MempoolMonitor {
                 }
             });
 
-            logger.info("Mempool monitoring started.");
+            logger.debug("Mempool monitoring started.");
         } catch (e) {
             logger.error(`Failed to start monitoring: ${e.message}`);
             throw e;
@@ -65,7 +65,7 @@ class MempoolMonitor {
             if (this.subscription) {
                 this.subscription.unsubscribe((error, success) => {
                     if (success) {
-                        logger.info("Successfully unsubscribed from pending transactions.");
+                        logger.debug("Successfully unsubscribed from pending transactions.");
                     }
                 });
             }
@@ -75,7 +75,7 @@ class MempoolMonitor {
                 await new Promise(res => setTimeout(res, 100));
             }
 
-            logger.info("Mempool monitoring stopped gracefully.");
+            logger.debug("Mempool monitoring stopped gracefully.");
             process.exit(0);
         } catch (e) {
             logger.error(`Error during monitoring shutdown: ${e.message}`);

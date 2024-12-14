@@ -131,33 +131,33 @@ def move_file(file_path, target_paths):
         for target in target_paths:
             if not target.parent.exists():
                 target.parent.mkdir(parents=True, exist_ok=True)
-                logger.info(f"Created directory: {target.parent}")
+                logger.debug(f"Created directory: {target.parent}")
             try:
                 shutil.move(str(file_path), str(target))
-                logger.info(f"Moved {file_path} -> {target}")
+                logger.debug(f"Moved {file_path} -> {target}")
             except Exception as e:
                 logger.error(f"Failed to move {file_path} to {target}: {e}")
     else:
         target = target_paths
         if not target.parent.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Created directory: {target.parent}")
+            logger.debug(f"Created directory: {target.parent}")
         try:
             shutil.move(str(file_path), str(target))
-            logger.info(f"Moved {file_path} -> {target}")
+            logger.debug(f"Moved {file_path} -> {target}")
         except Exception as e:
             logger.error(f"Failed to move {file_path} to {target}: {e}")
 
 def organize_project(root_dir):
     """Organize the 0xBuilder project directory."""
     root_path = Path(root_dir).resolve()
-    logger.info(f"Starting organization in root directory: {root_path}")
+    logger.debug(f"Starting organization in root directory: {root_path}")
 
     # Create Shared directory if it doesn't exist
     shared_dir = root_path / 'Shared'
     if not shared_dir.exists():
         shared_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Created directory: {shared_dir}")
+        logger.debug(f"Created directory: {shared_dir}")
 
     # Traverse the directory tree
     for dirpath, dirnames, filenames in os.walk(root_path):
@@ -191,24 +191,24 @@ def organize_project(root_dir):
             # Move to Python/Contracts/
             if not python_contracts_dir.exists():
                 python_contracts_dir.mkdir(parents=True, exist_ok=True)
-                logger.info(f"Created directory: {python_contracts_dir}")
+                logger.debug(f"Created directory: {python_contracts_dir}")
             try:
                 shutil.copy2(str(sol_file), str(python_contracts_dir / sol_file.name))
-                logger.info(f"Copied {sol_file} -> {python_contracts_dir / sol_file.name}")
+                logger.debug(f"Copied {sol_file} -> {python_contracts_dir / sol_file.name}")
             except Exception as e:
                 logger.error(f"Failed to copy {sol_file} to {python_contracts_dir}: {e}")
 
             # Move to JavaScript/Contracts/
             if not js_contracts_dir.exists():
                 js_contracts_dir.mkdir(parents=True, exist_ok=True)
-                logger.info(f"Created directory: {js_contracts_dir}")
+                logger.debug(f"Created directory: {js_contracts_dir}")
             try:
                 shutil.copy2(str(sol_file), str(js_contracts_dir / sol_file.name))
-                logger.info(f"Copied {sol_file} -> {js_contracts_dir / sol_file.name}")
+                logger.debug(f"Copied {sol_file} -> {js_contracts_dir / sol_file.name}")
             except Exception as e:
                 logger.error(f"Failed to copy {sol_file} to {js_contracts_dir}: {e}")
 
-    logger.info("Organization complete.")
+    logger.debug("Organization complete.")
 
 def main():
     args = parse_arguments()

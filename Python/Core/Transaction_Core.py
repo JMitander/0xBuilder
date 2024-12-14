@@ -357,7 +357,7 @@ class TransactionCore:
                                     )
                                     raise ValueError(response_data["error"])
                                     
-                                logger.info(f"Bundle sent successfully via {builder['name']}. ")
+                                logger.debug(f"Bundle sent successfully via {builder['name']}. ")
                                 successes.append(builder['name'])
                                 break  # Success, move to next builder
                                 
@@ -369,7 +369,7 @@ class TransactionCore:
                             sleep_time = self.retry_delay * attempt
                             await asyncio.sleep(sleep_time)
                     except ValueError as e:
-                        logger.info(f"Bundle submission error via {builder['name']}: {e} ")
+                        logger.debug(f"Bundle submission error via {builder['name']}: {e} ")
                         break  # Move to next builder
                     except Exception as e:
                         logger.debug(f"Unexpected error with {builder['name']}: {e} !")
@@ -378,7 +378,7 @@ class TransactionCore:
             # Update nonce if any submissions succeeded
             if successes:
                 await self.noncecore.refresh_nonce()
-                logger.info(f"Bundle successfully sent to builders: {', '.join(successes)}")
+                logger.debug(f"Bundle successfully sent to builders: {', '.join(successes)}")
                 return True
             else:
                 logger.warning(f"failed to send bundle to any MEV builders !")
@@ -469,7 +469,7 @@ class TransactionCore:
                     return False
                     
             except Exception as e:
-                logger.info(f"Bundle submission error: {str(e)} !")
+                logger.debug(f"Bundle submission error: {str(e)} !")
                 return False
 
         except Exception as e:
@@ -560,7 +560,7 @@ class TransactionCore:
                         
                 except Exception as e:
                     if attempt == 2:
-                        logger.info(f"Bundle submission failed: {str(e)} !")
+                        logger.debug(f"Bundle submission failed: {str(e)} !")
                         return False
                     continue
 

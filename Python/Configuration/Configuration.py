@@ -13,7 +13,7 @@ class Configuration:
             self._load_api_keys()
             self._load_providers_and_account()
             await self._load_json_elements()
-            logger.info("Configuration loaded successfully.")
+            logger.debug("Configuration loaded successfully.")
         except Exception as e:
             raise RuntimeError(f"Failed to load configuration: {e}") from e
         

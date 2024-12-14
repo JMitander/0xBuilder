@@ -38,7 +38,7 @@ class StrategyNet:
         }
 
         self.history_data = []
-        logger.info(f"StrategyNet initialized with enhanced configuration ")
+        logger.debug(f"StrategyNet initialized with enhanced configuration ")
 
     async def execute_best_strategy(self, target_tx: Dict[str, Any], strategy_type: str) -> bool:
         """Execute the best strategy for the given strategy type."""

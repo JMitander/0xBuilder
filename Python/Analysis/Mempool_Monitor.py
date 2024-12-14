@@ -56,7 +56,7 @@ class MempoolMonitor:
             monitoring_task = asyncio.create_task(self._run_monitoring())
             processor_task = asyncio.create_task(self._process_task_queue())
 
-            logger.info("Mempool monitoring started.")
+            logger.debug("Mempool monitoring started.")
             await asyncio.gather(monitoring_task, processor_task)
 
         except Exception as e:
@@ -74,7 +74,7 @@ class MempoolMonitor:
             # Wait for remaining tasks to complete
             while not self.task_queue.empty():
                 await asyncio.sleep(0.1)
-            logger.info("Mempool monitoring stopped gracefully.")
+            logger.debug("Mempool monitoring stopped gracefully.")
             sys.exit(0)
         except Exception as e:
             logger.error(f"Error during monitoring shutdown: {e}")

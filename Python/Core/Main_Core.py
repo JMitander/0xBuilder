@@ -94,7 +94,7 @@ class MainCore:
             try:
                 if await web3.is_connected():
                     chain_id = await web3.eth.chain_id
-                    logger.info(f"Connected to network {name} (Chain ID: {chain_id}) ")
+                    logger.debug(f"Connected to network {name} (Chain ID: {chain_id}) ")
                     return True
             except Exception as e:
                 logger.debug(f"Connection attempt {attempt + 1} failed: {e}")
@@ -126,7 +126,7 @@ class MainCore:
             balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
             balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
 
-            logger.info(f"Account {self.account.address} initialized")
+            logger.debug(f"Account {self.account.address} initialized")
             logger.debug(f"Balance: {balance_eth:.4f} ETH")
 
             if balance_eth < 0.1:
@@ -271,7 +271,7 @@ class MainCore:
         try:
             with open(abi_path, 'r') as file:
                 abi = json.load(file)
-            logger.info(f"Loaded abi from {abi_path} successfully. ")
+            logger.debug(f"Loaded abi from {abi_path} successfully. ")
             return abi
         except Exception as e:
             logger.warning(f"failed to load abi from {abi_path}: {e} !")

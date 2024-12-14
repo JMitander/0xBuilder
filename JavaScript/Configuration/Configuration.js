@@ -53,7 +53,7 @@ class Configuration {
             this._load_providers_and_account();
             this._load_ML_models();
             await this._load_json_elements();
-            logger.info("Configuration loaded successfully.");
+            logger.debug("Configuration loaded successfully.");
         } catch (e) {
             throw new Error(`Failed to load configuration: ${e.message}`);
         }

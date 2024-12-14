@@ -109,7 +109,7 @@ class TransactionCore {
                 this.erc20_abi = await this._load_erc20_abi();
             }
 
-            logger.info("All contracts initialized successfully.");
+            logger.debug("All contracts initialized successfully.");
         } catch (error) {
             logger.error(`Initialization failed: ${error.message}`);
             throw error;
@@ -144,7 +144,7 @@ class TransactionCore {
                 abiContent,
                 this.web3.utils.toChecksumAddress(contract_address)
             );
-            logger.info(`Loaded ${contract_name} successfully.`);
+            logger.debug(`Loaded ${contract_name} successfully.`);
             return contractInstance;
         } catch (error) {
             logger.error(`Failed to load ${contract_name} at ${contract_address}: ${error.message}`);
@@ -160,7 +160,7 @@ class TransactionCore {
     async _load_erc20_abi() {
         try {
             const abi = await this.apiconfig._load_abi(this.configuration.ERC20_ABI);
-            logger.info("ERC20 ABI loaded successfully.");
+            logger.debug("ERC20 ABI loaded successfully.");
             return abi;
         } catch (error) {
             logger.error(`Failed to load ERC20 ABI: ${error.message}`);
@@ -242,7 +242,7 @@ class TransactionCore {
             try {
                 const signedTx = await this.sign_transaction(tx);
                 const receipt = await this.web3.eth.sendSignedTransaction(signedTx);
-                logger.info(`Transaction sent successfully with hash: ${receipt.transactionHash}`);
+                logger.debug(`Transaction sent successfully with hash: ${receipt.transactionHash}`);
                 await this.noncecore.refreshNonce();
                 return receipt.transactionHash;
             } catch (error) {
@@ -272,7 +272,7 @@ class TransactionCore {
                 transaction,
                 this.account.privateKey
             );
-            logger.info(`Transaction signed successfully: Nonce ${transaction.nonce}.`);
+            logger.debug(`Transaction signed successfully: Nonce ${transaction.nonce}.`);
             return signedTx.rawTransaction;
         } catch (error) {
             logger.error(`Error signing transaction: ${error.message}`);
@@ -314,10 +314,10 @@ class TransactionCore {
             tx_details.gasPrice = parseInt(original_gas_price * 1.1); // Increase gas price by 10%
 
             const eth_value_ether = this.web3.utils.fromWei(eth_value.toString(), "ether");
-            logger.info(`Building ETH front-run transaction for ${eth_value_ether} ETH to ${tx_details.to}`);
+            logger.debug(`Building ETH front-run transaction for ${eth_value_ether} ETH to ${tx_details.to}`);
             const tx_hash_executed = await this.execute_transaction(tx_details);
             if (tx_hash_executed) {
-                logger.info(`Successfully executed ETH transaction with hash: ${tx_hash_executed}`);
+                logger.debug(`Successfully executed ETH transaction with hash: ${tx_hash_executed}`);
                 return true;
             } else {
                 logger.warn("Failed to execute ETH transaction.");
@@ -442,7 +442,7 @@ class TransactionCore {
                             logger.error(`Bundle submission error via ${builder.name}: ${response.data.error}`);
                             throw new Error(response.data.error.message);
                         }
-                        logger.info(`Bundle sent successfully via ${builder.name}.`);
+                        logger.debug(`Bundle sent successfully via ${builder.name}.`);
                         successes.push(builder.name);
                         break; // Success, move to next builder
                     } catch (error) {
@@ -458,7 +458,7 @@ class TransactionCore {
 
             if (successes.length > 0) {
                 await this.noncecore.refreshNonce();
-                logger.info(`Bundle successfully sent to builders: ${successes.join(', ')}`);
+                logger.debug(`Bundle successfully sent to builders: ${successes.join(', ')}`);
                 return true;
             } else {
                 logger.warn("Failed to send bundle to any MEV builders.");
@@ -551,7 +551,7 @@ class TransactionCore {
                 // Send transaction bundle
                 const bundle_sent = await this.send_bundle([flashloan_tx, front_run_tx_details]);
                 if (bundle_sent) {
-                    logger.info("Front-run transaction bundle sent successfully.");
+                    logger.debug("Front-run transaction bundle sent successfully.");
                     return true;
                 } else {
                     logger.warning("Failed to send front-run transaction bundle!");
@@ -628,7 +628,7 @@ class TransactionCore {
             // Send back-run transaction
             const bundle_sent = await this.send_bundle([back_run_tx_details]);
             if (bundle_sent) {
-                logger.info("Back-run transaction bundle sent successfully.");
+                logger.debug("Back-run transaction bundle sent successfully.");
                 return true;
             } else {
                 logger.warning("Failed to send back-run transaction bundle!");
@@ -723,7 +723,7 @@ class TransactionCore {
             // Execute transaction bundle
             const bundle_sent = await this.send_bundle([flashloan_tx, front_run_tx_details, back_run_tx_details]);
             if (bundle_sent) {
-                logger.info("Sandwich attack transaction bundle sent successfully.");
+                logger.debug("Sandwich attack transaction bundle sent successfully.");
                 return true;
             } else {
                 logger.warning("Failed to send sandwich attack transaction bundle!");
@@ -784,7 +784,7 @@ class TransactionCore {
             const front_run_function = contract.methods[function_name](...Object.values(function_params));
             // Build the transaction
             const front_run_tx = await this.build_transaction(front_run_function);
-            logger.info(`Prepared front-run transaction on ${name} successfully.`);
+            logger.debug(`Prepared front-run transaction on ${name} successfully.`);
             return front_run_tx;
         } catch (error) {
             logger.error(`Error preparing front-run transaction: ${error.message}`);
@@ -847,7 +847,7 @@ class TransactionCore {
             const back_run_function = contract.methods[function_name](...Object.values(function_params));
             // Build the transaction
             const back_run_tx = await this.build_transaction(back_run_function);
-            logger.info(`Prepared back-run transaction on ${name} successfully.`);
+            logger.debug(`Prepared back-run transaction on ${name} successfully.`);
             return back_run_tx;
         } catch (error) {
             logger.error(`Error preparing back-run transaction: ${error.message}`);

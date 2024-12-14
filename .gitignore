@@ -1,9 +1,9 @@
-/.env
-/.venv
-/.vscode
-/.ethereum
-/geth.ipc
-/myenv
-/env
-/0xBuilder.cpython-312.pyc
+.env
+.venv
+.vscode
+.ethereum
+geth.ipc
+myenv
+env
+/__pycache__
 __pycache__

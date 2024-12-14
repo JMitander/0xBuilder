@@ -1,3 +1,15 @@
+import asyncio
+from asyncio.log import logger
+from decimal import Decimal
+import random
+import time
+from typing import Any, Callable, Dict, List, Optional
+
+import numpy as np
+
+from utils.Javascript.strategyexecutionerror import StrategyExecutionError
+
+
 class Strategy_Net:
     def __init__(
         self,
@@ -1111,3 +1123,17 @@ class Strategy_Net:
             logger.error(f"Error stopping Strategy Net: {e}")
 
 #//////////////////////////////////////////////////////////////////////////////
+class StrategyConfiguration:
+    decay_factor: float = 0.95
+    min_profit_threshold: Decimal = Decimal("0.01")
+    learning_rate: float = 0.01
+    exploration_rate: float = 0.1
+
+class StrategyPerformanceMetrics:
+    successes: int = 0
+    failures: int = 0
+    profit: Decimal = Decimal("0")
+    avg_execution_time: float = 0.0
+    success_rate: float = 0.0
+    total_executions: int = 0
+

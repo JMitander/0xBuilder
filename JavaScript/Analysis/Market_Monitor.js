@@ -63,9 +63,9 @@ class MarketMonitor {
                 const data = await joblib.load(this.model_path);
                 this.price_model = data.model;
                 this.model_last_updated = data.model_last_updated || 0;
-                logger.info("ML model and training data loaded successfully.");
+                logger.debug("ML model and training data loaded successfully.");
             } else {
-                logger.info("No existing ML model found. Starting fresh.");
+                logger.debug("No existing ML model found. Starting fresh.");
             }
         } catch (error) {
             logger.error(`Failed to load ML model: ${error.message}`);
@@ -88,7 +88,7 @@ class MarketMonitor {
                 model_last_updated: this.model_last_updated,
             };
             await joblib.dump(data, this.model_path);
-            logger.info(`ML model saved to ${this.model_path}.`);
+            logger.debug(`ML model saved to ${this.model_path}.`);
         } catch (error) {
             logger.error(`Failed to save ML model: ${error.message}`);
         } finally {
@@ -175,7 +175,7 @@ class MarketMonitor {
                 // Fit the Linear Regression model with the new data
                 this.price_model = new LinearRegression(X_combined, y_combined);
                 this.model_last_updated = Date.now() / 1000;
-                logger.info(`ML model updated and trained for ${token_symbol}.`);
+                logger.debug(`ML model updated and trained for ${token_symbol}.`);
 
                 // Persist the updated model to disk
                 await this.save_model();

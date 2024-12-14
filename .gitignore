@@ -5,3 +5,5 @@
 /geth.ipc
 /myenv
 /env
+/0xBuilder.cpython-312.pyc
+__pycache__

@@ -118,10 +118,11 @@ class Configuration:
     async def load(self) -> None:
         """Loads the configuration in the correct order."""
         try:
-            logger.info("Loading configuration...")
+            logger.info("Loading configuration... ⏳")
             time.sleep(1) # ensuring proper initialization
             await self._load_configuration()
-            logger.info ("OK ✅")
+            logger.info ("System reporting go for launch ✅...")
+            time.sleep(3) # ensuring proper initialization
         except Exception as e:
             logger.error(f"Error loading configuration: {e}")
             raise
@@ -165,6 +166,7 @@ class Configuration:
 
             logger.info("Providers OK ✅")
             logger.info("Account OK ✅")
+            logger.info("API Keys OK ✅")
             
         except Exception as e:
             logger.error(f"Error loading providers and account: {e}")
@@ -263,7 +265,7 @@ class Configuration:
         except AttributeError:
             logger.warning(f"Configuration key '{key}' not found, using default: {default}")
             return default
-    logger.info("All Configurations and Environment Variables Loaded Successfully ✅") 
+    logger.debug("All Configurations and Environment Variables Loaded Successfully ✅") 
 
 #//////////////////////////////////////////////////////////////////////////////
 
@@ -297,7 +299,7 @@ class Nonce_Core:
         try:
             await self._init_nonce()
             self._initialized = True
-            logger.info("Noncecore initialized ✅")
+            logger.debug("Noncecore initialized ✅")
         except Exception as e:
             logger.error(f"Failed to initialize Nonce_Core: {e}")
             raise
@@ -346,7 +348,7 @@ class Nonce_Core:
         """Get highest nonce from pending transactions."""
         try:
             pending = await self.web3.eth.get_transaction_count(self.address, 'pending')
-            logger.info(f"Pending nonce: {pending}")
+            logger.info(f"NonceCore Reports pending nonce: {pending}")
             return pending
         except Exception as e:
             logger.error(f"Error fetching pending nonce: {e}")
@@ -703,7 +705,8 @@ class Safety_Net:
         self.gas_price_cache = TTLCache(maxsize=1, ttl=self.GAS_PRICE_CACHE_TTL)
 
         self.price_lock = asyncio.Lock()
-        logger.info("Safety Net initialized ✅")
+        logger.info("SafetyNet is reporting for duty 🛡️")
+        time.sleep(3) # ensuring proper initialization
 
     async def get_balance(self, account: Any) -> Decimal:
         """Get account balance with retries and caching."""
@@ -927,7 +930,8 @@ class Mempool_Monitor:
         self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
         self.task_queue = asyncio.Queue()
 
-        logger.info("Mempool_Monitor initialized ✅")
+        logger.info("Go for main engine start! ✅...")
+        time.sleep(3) # ensuring proper initialization
 
     async def start_monitoring(self) -> None:
         """Start monitoring the mempool with improved error handling."""
@@ -940,8 +944,10 @@ class Mempool_Monitor:
             monitoring_task = asyncio.create_task(self._run_monitoring())
             processor_task = asyncio.create_task(self._process_task_queue())
 
-            logger.info("Mempool monitoring started. 🚀")
+            logger.info("Lift-off 🚀🚀🚀")
+            logger.info("Monitoring mempool activities... 📡")
             await asyncio.gather(monitoring_task, processor_task)
+            
 
         except Exception as e:
             self.running = False
@@ -974,44 +980,84 @@ class Mempool_Monitor:
             raise
 
     async def _run_monitoring(self) -> None:
-        """Enhanced mempool monitoring with automatic recovery.""" 
+        """Enhanced mempool monitoring with automatic recovery and fallback.""" 
         retry_count = 0
-
+        
         while self.running:
             try:
-                pending_filter = await self._setup_pending_filter()
-                if not pending_filter:
-                    raise RuntimeError("Failed to set up pending filter")
-
-                while self.running:
-                    tx_hashes = await pending_filter.get_new_entries()
-                    await self._handle_new_transactions(tx_hashes)
+                # Try setting up filter first
+                try:
+                    pending_filter = await self._setup_pending_filter()
+                    if pending_filter:
+                        while self.running:
+                            tx_hashes = await pending_filter.get_new_entries()
+                            await self._handle_new_transactions(tx_hashes)
+                            await asyncio.sleep(0.1)  # Prevent tight loop
+                    else:
+                        # Fallback to polling if filter not available
+                        await self._poll_pending_transactions()
+                except Exception as filter_error:
+                    logger.warning(f"Filter-based monitoring failed: {filter_error}")
+                    logger.info("Switching to polling-based monitoring...")
+                    await self._poll_pending_transactions()
 
             except Exception as e:
                 logger.error(f"Error in monitoring loop: {e}")
                 retry_count += 1
                 await asyncio.sleep(self.RETRY_DELAY * retry_count)
 
+    async def _poll_pending_transactions(self) -> None:
+        """Fallback method to poll for pending transactions when filters aren't available."""
+        last_block = await self.web3.eth.block_number
+        
+        while self.running:
+            try:
+                # Get current block
+                current_block = await self.web3.eth.block_number
+                
+                # Process new blocks
+                for block_num in range(last_block + 1, current_block + 1):
+                    block = await self.web3.eth.get_block(block_num, full_transactions=True)
+                    if block and block.transactions:
+                        # Convert transactions to hash list format
+                        tx_hashes = [tx.hash.hex() if hasattr(tx, 'hash') else tx['hash'].hex() 
+                                   for tx in block.transactions]
+                        await self._handle_new_transactions(tx_hashes)
+                
+                # Get pending transactions from mempool
+                try:
+                    pending_txs = await self.web3.eth.get_pending_transactions()
+                    if pending_txs:
+                        tx_hashes = [tx.hash.hex() if hasattr(tx, 'hash') else tx['hash'].hex() 
+                                   for tx in pending_txs]
+                        await self._handle_new_transactions(tx_hashes)
+                except Exception as e:
+                    logger.debug(f"Could not get pending transactions: {e}")
+                
+                last_block = current_block
+                await asyncio.sleep(1)  # Poll interval
+
+            except Exception as e:
+                logger.error(f"Error in polling loop: {e}")
+                await asyncio.sleep(2)  # Error cooldown
+
     async def _setup_pending_filter(self) -> Optional[Any]:
         """Set up pending transaction filter with validation.""" 
         try:
+            # Try to create a filter
             pending_filter = await self.web3.eth.filter("pending")
-            logger.debug(
-                f"Connected to network via {self.web3.provider.__class__.__name__}"
-            )
-            return pending_filter
-
+            
+            # Validate the filter works
+            try:
+                await pending_filter.get_new_entries()
+                logger.debug("Successfully set up pending transaction filter")
+                return pending_filter
+            except Exception as e:
+                logger.warning(f"Filter validation failed: {e}")
+                return None
+                
         except Exception as e:
             logger.warning(f"Failed to setup pending filter: {e}")
-            # Fallback to using public node without filter
-            try:
-                fallback_web3 = AsyncWeb3(AsyncHTTPProvider('https://ethereum-rpc.publicnode.com'))
-                latest_block = await fallback_web3.eth.get_block('latest')
-                tx_hashes = latest_block.transactions
-                await self._handle_new_transactions(tx_hashes)
-                logger.debug("Fallback to public node successful.")
-            except Exception as fallback_error:
-                logger.error(f"Fallback to public node failed: {fallback_error}")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
@@ -1348,7 +1394,8 @@ class Transaction_Core:
 
         self.erc20_abi = self.erc20_abi or await self._load_erc20_abi()
 
-        logger.info("Transaction Core initialized with all lights green ✅")
+        logger.info("Transaction Core initialized with all lights green... Booster ignition.. ✅")
+        time.sleep(3)  # ensuring proper initialization
 
     async def _initialize_contract(
         self,
@@ -1576,7 +1623,7 @@ class Transaction_Core:
             tx_hash_executed = await self.execute_transaction(tx_details)
             if tx_hash_executed:
                 logger.debug(
-                    f"Successfully executed ETH transaction with hash: {tx_hash_executed} 🚀 "
+                    f"Successfully executed ETH transaction with hash: {tx_hash_executed} ✅ "
                 )
                 return True
             else:
@@ -1723,7 +1770,7 @@ class Transaction_Core:
                                     )
                                     raise ValueError(response_data["error"])
 
-                                logger.info(f"Bundle sent successfully via {builder['name']}. 🚀 ")
+                                logger.info(f"Bundle sent successfully via {builder['name']}. ✅ ")
                                 successes.append(builder['name'])
                                 break  # Success, move to next builder
 
@@ -1748,7 +1795,7 @@ class Transaction_Core:
             # Update nonce if any submissions succeeded
             if successes:
                 await self.nonce_core.refresh_nonce()
-                logger.info(f"Bundle successfully sent to builders: {', '.join(successes)} 🚀 ")
+                logger.info(f"Bundle successfully sent to builders: {', '.join(successes)} ✅ ")
                 return True
             else:
                 logger.warning("Failed to send bundle to any MEV builders. ⚠️ ")
@@ -1770,7 +1817,7 @@ class Transaction_Core:
             return False
 
         tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Attempting front-run on target transaction: {tx_hash} 🚀 ")
+        logger.debug(f"Attempting front-run on target transaction: {tx_hash} ✅ ")
 
         # Validate required transaction parameters
         required_fields = ["input", "to", "value", "gasPrice"]
@@ -1833,7 +1880,7 @@ class Transaction_Core:
 
             # Send transaction bundle
             if await self.send_bundle([flashloan_tx, front_run_tx_details]):
-                logger.info("Front-run transaction bundle sent successfully. 🚀 ")
+                logger.info("Front-run transaction bundle sent successfully. ✅ ")
                 return True
             else:
                 logger.warning("Failed to send front-run transaction bundle! ⚠️ ")
@@ -1858,7 +1905,7 @@ class Transaction_Core:
             return False
 
         tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Attempting back-run on target transaction: {tx_hash} 🚀 ")
+        logger.debug(f"Attempting back-run on target transaction: {tx_hash} ✅ ")
 
         # Validate required transaction parameters
         required_fields = ["input", "to", "value", "gasPrice"]
@@ -1902,7 +1949,7 @@ class Transaction_Core:
 
             # Send back-run transaction
             if await self.send_bundle([back_run_tx_details]):
-                logger.info("Back-run transaction bundle sent successfully. 🚀 ")
+                logger.info("Back-run transaction bundle sent successfully. ✅ ")
                 return True
             else:
                 logger.warning("Failed to send back-run transaction bundle! ⚠️ ")
@@ -2062,7 +2109,7 @@ class Transaction_Core:
 
             # Build the transaction
             front_run_tx = await self.build_transaction(front_run_function)
-            logger.info(f"Prepared front-run transaction on {exchange_name} successfully. 🚀 ")
+            logger.info(f"Prepared front-run transaction on {exchange_name} successfully. ✅ ")
             return front_run_tx
 
         except Exception as e:
@@ -3726,7 +3773,7 @@ class Main_Core:
             'transaction_core': None,
             'strategy_net': None,
         }
-        logger.info("Main Core initialized  ✅")
+        logger.info("Starting 0xBuilder...")
 
     async def initialize(self) -> None:
         """Initialize all components with error handling."""
@@ -3773,7 +3820,7 @@ class Main_Core:
         MAX_RETRIES = 3
         RETRY_DELAY = 2
 
-        providers = self._get_providers()
+        providers = await self._get_providers()
         if not providers:
             logger.error("No valid endpoints provided!")
             return None
@@ -3807,15 +3854,47 @@ class Main_Core:
         logger.error("Failed to initialize Web3 with any provider")
         return None
 
-    def _get_providers(self) -> List[Tuple[str, Union[AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider]]]:
+    async def _get_providers(self) -> List[Tuple[str, Union[AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider]]]:
         """Get list of available providers with validation."""
         providers = []
-
-   
+    
         if self.configuration.HTTP_ENDPOINT:
-            providers.append(("HTTP Provider", AsyncHTTPProvider(self.configuration.HTTP_ENDPOINT)))
+            try:
+                http_provider = AsyncHTTPProvider(self.configuration.HTTP_ENDPOINT)
+                await http_provider.make_request('eth_blockNumber', [])
+                providers.append(("HTTP Provider", http_provider))
+                logger.info("Linked to Ethereum network via HTTP Provider. ✅")
+                return providers
+            except Exception as e:
+                logger.warning(f"HTTP Provider failed. {e} ❌ - Attempting WebSocket... ")
+    
+        if self.configuration.WEBSOCKET_ENDPOINT:
+            try:
+                ws_provider = WebSocketProvider(self.configuration.WEBSOCKET_ENDPOINT)
+                await ws_provider.connect()
+                try:
+                    await ws_provider.make_request('eth_blockNumber', [])
+                    providers.append(("WebSocket Provider", ws_provider))
+                    logger.info("Linked to Ethereum network via WebSocket Provider. ✅")
+                    return providers
+                except Exception as e:
+                    await ws_provider.disconnect()
+                    raise
+            except Exception as e:
+                logger.warning(f"WebSocket Provider failed {e} ❌ - Attempting IPC... ")
+    
+        if self.configuration.IPC_ENDPOINT:
+            try:
+                ipc_provider = AsyncIPCProvider(self.configuration.IPC_ENDPOINT)
+                await ipc_provider.make_request('eth_blockNumber', [])
+                providers.append(("IPC Provider", ipc_provider))
+                logger.info("Linked to Ethereum network via IPC Provider. ✅")
+                return providers
+            except Exception as e:
+                logger.warning(f"IPC Provider failed: {e} ❌ All providers failed.")
+        logger.critical("No more providers are available! ❌")
         return providers
-
+    
 
     async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
         """Test Web3 connection with retries."""
@@ -3838,7 +3917,7 @@ class Main_Core:
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
                 logger.debug(f"Injected POA middleware.")
             elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
-                logger.debug(f"No middleware required for ETH network.")
+                logger.debug(f"ETH network.")
                 pass
             else:
                 logger.warning(f"Unknown network; no middleware injected.")
@@ -3855,7 +3934,7 @@ class Main_Core:
             balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
             balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
 
-            logger.debug(f"Account {self.account.address} initialized")
+            logger.debug(f"Account {self.account.address} initialized ")
             logger.debug(f"Balance: {balance_eth:.4f} ETH")
 
             if balance_eth < 0.01:
@@ -4032,14 +4111,17 @@ class Main_Core:
                         logger.error(f"Error disconnecting web3: {e}")
 
                 logger.debug("Core shutdown complete.")
+                sys.exit(0)
             except Exception as e:
                 logger.error(f"Error during shutdown: {e}")
 
             # Stop tracemalloc
             tracemalloc.stop()
             logger.debug("Core shutdown complete.")
+            sys.exit(0)
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
+            sys.exit("forced exit")
 
     async def _process_profitable_transactions(self) -> None:
         """Process profitable transactions from the queue."""
@@ -4124,5 +4206,3 @@ if __name__ == "__main__":
         top_stats = snapshot.statistics('lineno')
         for stat in top_stats[:10]:
             logger.debug(str(stat))
-
-

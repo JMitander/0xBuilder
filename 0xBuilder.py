@@ -59,7 +59,7 @@ def configure_logging():
     handler.setFormatter(ColorFormatter("%(asctime)s [%(levelname)s] %(message)s"))
 
     logging.basicConfig(
-        level=logging.INFO,  # Global logging level
+        level=logging.DEBUG,  # Global logging level
         handlers=[handler]
     )
 
@@ -1026,7 +1026,7 @@ class Mempool_Monitor:
                 
                 # Get pending transactions from mempool
                 try:
-                    pending_txs = await self.web3.eth.get_pending_transactions()
+                    pending_txs = await self.web3.eth.get_raw_transaction_by_block()
                     if pending_txs:
                         tx_hashes = [tx.hash.hex() if hasattr(tx, 'hash') else tx['hash'].hex() 
                                    for tx in pending_txs]
@@ -2191,20 +2191,51 @@ class Transaction_Core:
         try:
             # Load the contract ABI
             contract = self.web3.eth.contract(address=contract_address, abi=self.erc20_abi)
-            function_obj, function_params = contract.decode_function_input(input_data)
-            decoded_data = {
-                "function_name": function_obj.fn_name,
-                "params": function_params,
-            }
-            logger.debug(
-                f"Decoded transaction input: {decoded_data}"
-            )
-            return decoded_data
-        except ContractLogicError as e:
-            logger.debug(f"Contract logic error during decoding: {e}")
-            return None
+            
+            # Get function signature (first 4 bytes of input data)
+            function_signature = input_data[:10]
+            
+            # Decode the function call
+            try:
+                function_obj, function_params = contract.decode_function_input(input_data)
+                # Get function name from the function object's FallbackFn or type name
+                function_name = getattr(function_obj, '_name', None) or getattr(function_obj, 'fn_name', None)
+                if not function_name and hasattr(function_obj, 'function_identifier'):
+                    function_name = function_obj.function_identifier
+                    
+                if not function_name:
+                    # Fallback to checking known signatures
+                    for name, sig in self.configuration.ERC20_SIGNATURES.items():
+                        if sig == function_signature:
+                            function_name = name
+                            break
+                
+                decoded_data = {
+                    "function_name": function_name,
+                    "params": function_params,
+                    "signature": function_signature
+                }
+                
+                logger.debug(
+                    f"Decoded transaction input: function={function_name}, "
+                    f"signature={function_signature}"
+                )
+                return decoded_data
+                
+            except Exception as decode_error:
+                # Fallback to signature lookup if decoding fails
+                for name, sig in self.configuration.ERC20_SIGNATURES.items():
+                    if sig == function_signature:
+                        # For known signatures, return basic decoded data
+                        return {
+                            "function_name": name,
+                            "params": {},
+                            "signature": function_signature
+                        }
+                raise decode_error
+                
         except Exception as e:
-            logger.error(f"Error decoding transaction input: {e}")
+            logger.debug(f"Error decoding transaction input: {e}")
             return None
 
     async def cancel_transaction(self, nonce: int) -> bool:
@@ -3059,7 +3090,7 @@ class Strategy_Net:
             # Gas price impact
             gas_price = int(tx.get("gasPrice", 0))
             gas_price_gwei = float(self.transaction_core.web3.from_wei(gas_price, "gwei"))
-            if gas_price_gwei > 300:
+            if (gas_price_gwei > 300):
                 risk_score *= 0.7  # High gas price increases risk
 
             # Contract interaction check

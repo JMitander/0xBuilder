@@ -55,29 +55,57 @@
 
 ## Introduction
 
-**0xBuilder** is an advanced Ethereum trading bot designed for high-frequency trading and MEV (Maximal Extractable Value) opportunities. It implements strategies like front-running, back-running, sandwich attacks, and flashloan executions using both Python and JavaScript. The bot continuously monitors the Ethereum mempool for profitable transactions and executes trades automatically.
+**0xBuilder** is an advanced Ethereum MEV bot designed for high-frequency trading and MEV (Maximal Extractable Value) opportunities. The bot leverages multiple advanced components for mempool monitoring, real-time market analysis, and efficient transaction execution with comprehensive risk management and safety checks.
 
-The bot is highly configurable, allowing users to adjust parameters, strategies, and risk levels based on their preferences. It supports multiple wallets, tokens, and trading pairs, with real-time market analysis and safety checks. The bot can be run on any Ethereum-compatible network, with support for various APIs and external data sources.
+## Core Features
 
-**Note:** 0xBuilder is a work in progress and is not production-ready. Use it at your own risk and discretion.
+- **Advanced Mempool Monitoring**
+  - Real-time transaction monitoring with parallel processing
+  - Smart filtering and deduplication of transactions
+  - Automatic failover between filter and polling-based monitoring
+  - Dynamic batch processing with configurable concurrency limits
 
-## Features
+- **Sophisticated Market Analysis**
+  - Real-time price analysis using multiple data sources
+  - Machine learning-based price movement predictions
+  - Advanced volatility and market condition monitoring
+  - Historical price analysis with caching
+  - Multi-source volume and liquidity tracking
 
-- **Mempool Monitoring**: Continuously monitors the Ethereum mempool for potential arbitrage and profit opportunities.
-- **Strategy Execution**: Implements various strategies, including front-running, back-running, sandwich attacks, and flashloan executions.
-- **Flashloan Integration**: Utilizes flashloans to maximize capital efficiency without initial capital requirements.
-- **Market Analysis**: Analyzes market conditions using data from multiple APIs and external data sources.
-- **Dynamic Gas Pricing**: Adjusts gas prices based on network conditions to optimize transaction inclusion and costs.
-- **Nonce Management**: Manages nonces effectively to prevent transaction failures due to nonce collisions.
-- **Safety Mechanisms**: Includes safety checks and validations to manage risks and ensure profitability.
-- **Smart Contract Interactions**: Interacts with various DeFi protocols, including Uniswap, Aave, Sushiswap, PancakeSwap, and Balancer.
-- **Transaction Bundling**: Groups multiple transactions into a single block for efficiency.
-- **API Integration**: Connects to various APIs for blockchain data, pricing, and market data.
-- **Configurable Parameters**: Allows users to adjust parameters, strategies, and risk levels based on preferences.
-- **Detailed Logging**: Provides detailed logs of bot activities, transactions, and strategies for analysis and debugging.
-- **Customizable**: Supports multiple wallets, tokens, and trading pairs, with the ability to add new strategies and features.
-- **Dual Language Support**: Available in both Python and JavaScript for flexibility and integration with different systems.
+- **Dynamic Strategy Execution**
+  - Reinforcement learning-based strategy selection
+  - Adaptive slippage tolerance
+  - Multiple execution strategies including:
+    - High-value ETH transfer strategy
+    - Aggressive front-running with risk assessment
+    - Predictive front-running with market analysis
+    - Volatility-based front-running
+    - Advanced back-running strategies
+    - Flash loan-based strategies
+    - Price boost sandwich attacks
+    - Arbitrage-based sandwich attacks
 
+- **Transaction Management**
+  - Advanced nonce management with caching
+  - Dynamic gas price optimization
+  - EIP-1559 support
+  - Smart transaction bundling
+  - Automatic transaction retry with exponential backoff
+
+- **Risk Management & Safety**
+  - Real-time profit verification
+  - Dynamic risk scoring
+  - Multi-factor market condition analysis
+  - Gas cost optimization
+  - Smart contract interaction validation
+  - Comprehensive error handling and recovery
+
+- **API Integration**
+  - Rate-limited API access
+  - Multiple provider fallback
+  - Smart caching with TTL
+  - Automatic failover between providers
+  - Weighted price aggregation
 
 ## Project Structure
 
@@ -121,7 +149,7 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 ├── JavaScript/
 │   ├── Configuration/
 │   │   └── Configuration.js                # Configuration management
-│   │   └── DataApiClient.js                # API client for external data sources
+│   │   └─�� DataApiClient.js                # API client for external data sources
 │   ├── Core/
 │   │   ├── MainCore.js                    # Main bot script
 │   │   ├── NonceCore.js                   # Manages Ethereum nonces

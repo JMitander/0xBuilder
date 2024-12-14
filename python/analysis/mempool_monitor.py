@@ -156,13 +156,28 @@ class Mempool_Monitor:
                                    for tx in block.transactions]
                         await self._handle_new_transactions(tx_hashes)
                 
-                # Get pending transactions from mempool
+                # Try to get pending transactions from txpool
                 try:
-                    pending_txs = await self.web3.eth.get_raw_transaction_by_block()
-                    if pending_txs:
-                        tx_hashes = [tx.hash.hex() if hasattr(tx, 'hash') else tx['hash'].hex() 
-                                   for tx in pending_txs]
-                        await self._handle_new_transactions(tx_hashes)
+                    # Use txpool.content() if available
+                    if hasattr(self.web3, 'txpool'):
+                        txpool_content = await self.web3.txpool.content()
+                        pending_txs = []
+                        
+                        # Extract pending transactions from txpool
+                        if 'pending' in txpool_content:
+                            for account in txpool_content['pending'].values():
+                                for nonce in account.values():
+                                    pending_txs.append(nonce)
+                        
+                        if pending_txs:
+                            tx_hashes = [tx['hash'] for tx in pending_txs if 'hash' in tx]
+                            await self._handle_new_transactions(tx_hashes)
+                    else:
+                        # Fallback to getting pending transaction hashes
+                        block = await self.web3.eth.get_block('pending', full_transactions=False)
+                        if block and block.transactions:
+                            await self._handle_new_transactions(block.transactions)
+                            
                 except Exception as e:
                     logger.debug(f"Could not get pending transactions: {e}")
                 
@@ -309,8 +324,37 @@ class Mempool_Monitor:
                 return {"is_profitable": False}
 
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_abi)
-            function_abi, function_params = contract.decode_function_input(tx.input)
-            function_name = function_abi.name
+            
+            try:
+                # Handle function decoding
+                function_obj = contract.decode_function_input(tx.input)
+                if not function_obj or len(function_obj) != 2:
+                    return {"is_profitable": False}
+                
+                func_info, function_params = function_obj
+                
+                # Get function name - handle both string and object cases
+                function_name = None
+                if isinstance(func_info, str):
+                    function_name = func_info
+                elif hasattr(func_info, 'fn_name'):
+                    function_name = func_info.fn_name
+                elif hasattr(func_info, 'function_identifier'):
+                    function_name = func_info.function_identifier
+                else:
+                    # Try to get function signature from input data
+                    function_selector = tx.input[:10]
+                    if function_selector in self.configuration.ERC20_SIGNATURES:
+                        function_name = self.configuration.ERC20_SIGNATURES[function_selector]
+                
+                if not function_name:
+                    logger.debug(f"Could not determine function name for tx {tx.hash.hex()}")
+                    return {"is_profitable": False}
+
+            except (Web3ValueError, ValueError) as e:
+                logger.debug(f"Error decoding function input: {e}")
+                return {"is_profitable": False}
+
             if function_name in self.configuration.ERC20_SIGNATURES:
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
@@ -329,19 +373,12 @@ class Mempool_Monitor:
                         "value": tx.value,
                         "gasPrice": tx.gasPrice,
                     }
-                else:
-                    logger.debug(
-                        f"Transaction {tx.hash.hex()} is below threshold. Skipping..."
-                    )
-                    return {"is_profitable": False}
-            else:
-                logger.debug(
-                    f"Function {function_name} not in ERC20_SIGNATURES. Skipping."
-                )
-                return {"is_profitable": False}
+            
+            return {"is_profitable": False}
+
         except Exception as e:
             logger.debug(
-                f"Error decoding function input for transaction {tx.hash.hex()}: {e}"
+                f"Error analyzing token transaction {tx.hash.hex()}: {e}"
             )
             return {"is_profitable": False}
 

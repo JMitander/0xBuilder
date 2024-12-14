@@ -1,3 +1,17 @@
+import time
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from cachetools import TTLCache
+from typing import Any, Dict, List, Optional
+from web3 import AsyncWeb3
+import logging
+
+from configuration.api_config import API_Config
+from configuration.configuration import Configuration
+
+logger = logging.getLogger(__name__)
+
+
 class Market_Monitor:
     MODEL_UPDATE_INTERVAL = 3600  # Update model every hour
     VOLATILITY_THRESHOLD = 0.05  # 5% standard deviation
@@ -244,5 +258,3 @@ class Market_Monitor:
             logger.error(f"Error stopping Market Monitor: {e}")
 
 #//////////////////////////////////////////////////////////////////////////////
-
-@dataclass

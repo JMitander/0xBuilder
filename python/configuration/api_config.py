@@ -1,7 +1,7 @@
-class APIConfig:
-    def __init__(self, Configuration: Any):
-        self.configuration = Configuration
-        self.session = None
+class API_Config:
+    def __init__(self, configuration: Optional[Configuration] = None):
+        self.configuration = configuration
+        self.session = None 
         self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
         self.token_symbol_cache = TTLCache(maxsize=1000, ttl=86400)  # Cache for 1 day
 
@@ -9,12 +9,13 @@ class APIConfig:
         self.session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
             await self.session.close()
+            logger.debug("APIconfig session closed.")
 
         # API configuration
-        self.apiconfig = {
+        self.api_configs = {
             "binance": {
                 "base_url": "https://api.binance.com/api/v3",
                 "success_rate": 1.0,
@@ -47,7 +48,7 @@ class APIConfig:
         self.api_lock = asyncio.Lock()
         self.rate_limiters = {
             provider: asyncio.Semaphore(config.get("rate_limit", 10))
-            for provider, config in self.apiconfig.items()
+            for provider, config in self.api_configs.items()
         }
 
     async def get_token_symbol(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
@@ -76,7 +77,7 @@ class APIConfig:
         prices = []
         weights = []
         async with self.api_lock:
-            for source, config in self.apiconfig.items():
+            for source, config in self.api_configs.items():
                 try:
                     price = await self._fetch_price(source, token, vs_currency)
                     if price:
@@ -94,35 +95,23 @@ class APIConfig:
 
     async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
         """Fetch the price of a token from a specified source."""
-        config = self.apiconfig.get(source)
+        config = self.api_configs.get(source)
         if not config:
-            logger.debug(f"API configuration for {source} not found.")
+            logger.error(f"API source {source} not configured.")
             return None
-        if source == "coingecko":
-            url = f"{config['base_url']}/simple/price"
-            params = {"ids": token, "vs_currencies": vs_currency}
-            response = await self.make_request(source, url, params=params)
-            return Decimal(str(response[token][vs_currency]))
-        elif source == "coinmarketcap":
-            url = f"{config['base_url']}/cryptocurrency/quotes/latest"
-            params = {"symbol": token.upper(), "convert": vs_currency.upper()}
-            headers = {"X-CMC_PRO_API_KEY": config["api_key"]}
-            response = await self.make_request(source, url, params=params, headers=headers)
-            data = response["data"][token.upper()]["quote"][vs_currency.upper()]["price"]
-            return Decimal(str(data))
-        elif source == "cryptocompare":
-            url = f"{config['base_url']}/price"
-            params = {"fsym": token.upper(), "tsyms": vs_currency.upper(), "api_key": config["api_key"]}
-            response = await self.make_request(source, url, params=params)
-            return Decimal(str(response[vs_currency.upper()]))
-        elif source == "binance":
-            url = f"{config['base_url']}/ticker/price"
-            symbol = f"{token.upper()}{vs_currency.upper()}"
-            params = {"symbol": symbol}
-            response = await self.make_request(source, url, params=params)
-            return Decimal(str(response["price"]))
-        else:
-            logger.warning(f"Unsupported price source: {source}")
+
+        try:
+            async with self.session.get(config["base_url"] + f"/simple/price?ids={token}&vs_currencies={vs_currency}") as response:
+                if response.status == 200:
+                    data = await response.json()
+                    price = Decimal(str(data[token][vs_currency]))
+                    logger.debug(f"Fetched price from {source}: {price}")
+                    return price
+                else:
+                    logger.error(f"Failed to fetch price from {source}: Status {response.status}")
+                    return None
+        except Exception as e:
+            logger.error(f"Exception fetching price from {source}: {e}")
             return None
 
     async def make_request(
@@ -138,8 +127,8 @@ class APIConfig:
         rate_limiter = self.rate_limiters.get(provider_name)
         
         if rate_limiter is None:
-            rate_limiter = asyncio.Semaphore(10)
-            self.rate_limiters[provider_name] = rate_limiter
+            logger.error(f"No rate limiter for provider {provider_name}")
+            return None
         
         async with rate_limiter:
             for attempt in range(max_attempts):
@@ -188,17 +177,23 @@ class APIConfig:
 
     async def _fetch_historical_prices(self, source: str, token: str, days: int) -> Optional[List[float]]:
         """Fetch historical prices from a specified source."""
-        config = self.apiconfig.get(source)
+        config = self.api_configs.get(source)
         if not config:
-            logger.debug(f"API configuration for {source} not found.")
+            logger.error(f"API source {source} not configured.")
             return None
-        if source == "coingecko":
-            url = f"{config['base_url']}/coins/{token}/market_chart"
-            params = {"vs_currency": "usd", "days": days}
-            response = await self.make_request(source, url, params=params)
-            return [price[1] for price in response["prices"]]
-        else:
-            logger.debug(f"Unsupported historical price source: {source}")
+
+        try:
+            async with self.session.get(config["base_url"] + f"/coins/{token}/market_chart?vs_currency=eth&days={days}") as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = [price[1] for price in data.get("prices", [])]
+                    logger.debug(f"Fetched historical prices from {source}: {prices}")
+                    return prices
+                else:
+                    logger.error(f"Failed to fetch historical prices from {source}: Status {response.status}")
+                    return None
+        except Exception as e:
+            logger.error(f"Exception fetching historical prices from {source}: {e}")
             return None
 
     async def get_token_volume(self, token: str) -> float:
@@ -217,7 +212,7 @@ class APIConfig:
 
     async def _fetch_token_volume(self, source: str, token: str) -> Optional[float]:
         """Fetch token volume from a specified source."""
-        config = self.apiconfig.get(source)
+        config = self.api_configs.get(source)
         if not config:
             logger.debug(f"API configuration for {source} not found.")
             return None
@@ -232,7 +227,7 @@ class APIConfig:
 
     async def _fetch_from_services(self, fetch_func, description: str):
         """Helper method to fetch data from multiple services."""
-        for service in self.apiconfig.keys():
+        for service in self.api_configs.keys():
             try:
                 logger.debug(f"Fetching {description} using {service}...")
                 result = await fetch_func(service)
@@ -258,3 +253,14 @@ class APIConfig:
     async def close(self):
         """Close the aiohttp session."""
         await self.session.close()
+
+    async def initialize(self) -> None:
+        """Initialize API configuration."""
+        try:
+            self.session = aiohttp.ClientSession()
+            logger.info("API_Config initialized ✅")
+        except Exception as e:
+            logger.critical(f"API_Config initialization failed: {e}")
+            raise
+
+#//////////////////////////////////////////////////////////////////////////////

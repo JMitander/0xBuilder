@@ -1,4 +1,4 @@
-class MempoolMonitor:
+class Mempool_Monitor:
     """
     Advanced mempool monitoring system that identifies and analyzes profitable transactions.
     Includes sophisticated profit estimation, caching, and parallel processing capabilities.
@@ -12,9 +12,9 @@ class MempoolMonitor:
     def __init__(
         self,
         web3: AsyncWeb3,
-        safetynet: SafetyNet,
-        noncecore: NonceCore,
-        apiconfig: APIConfig,
+        safety_net: Safety_Net,
+        nonce_core: Nonce_Core,
+        api_config: API_Config,
         monitored_tokens: Optional[List[str]] = None,
         erc20_abi: List[Dict[str, Any]] = None,
         configuration: Optional[Configuration] = None,
@@ -22,16 +22,19 @@ class MempoolMonitor:
         # Core components
         self.web3 = web3
         self.configuration = configuration
-        self.safetynet = safetynet
-        self.noncecore = noncecore
-        self.apiconfig = apiconfig
+        self.safety_net = safety_net
+        self.nonce_core = nonce_core
+        self.api_config = api_config
 
         # Monitoring state
         self.running = False
+        self.pending_transactions = asyncio.Queue()
         self.monitored_tokens = set(monitored_tokens or [])
         self.profitable_transactions = asyncio.Queue()
         self.processed_transactions = set()
 
+       
+        
         # Configuration
         self.erc20_abi = erc20_abi or []
         self.minimum_profit_threshold = Decimal("0.001")
@@ -43,7 +46,8 @@ class MempoolMonitor:
         self.semaphore = asyncio.Semaphore(self.max_parallel_tasks)
         self.task_queue = asyncio.Queue()
 
-        logger.debug("MempoolMonitor initialized with enhanced configuration.")
+        logger.info("Go for main engine start! ✅...")
+        time.sleep(3) # ensuring proper initialization
 
     async def start_monitoring(self) -> None:
         """Start monitoring the mempool with improved error handling."""
@@ -56,68 +60,124 @@ class MempoolMonitor:
             monitoring_task = asyncio.create_task(self._run_monitoring())
             processor_task = asyncio.create_task(self._process_task_queue())
 
-            logger.debug("Mempool monitoring started.")
+            logger.info("Lift-off 🚀🚀🚀")
+            logger.info("Monitoring mempool activities... 📡")
             await asyncio.gather(monitoring_task, processor_task)
+            
 
         except Exception as e:
             self.running = False
-            logger.error(f"Failed to start monitoring: {e}")
-            raise
-
-    async def stop_monitoring(self) -> None:
-        """Gracefully stop monitoring activities."""
+    async def stop(self) -> None:
+        """Gracefully stop monitoring activities.""" 
         if not self.running:
             return
 
         self.running = False
+        self.stopping = True
         try:
-            # Wait for remaining tasks to complete
+            # Wait for remaining tasks with timeout
+            try:
+                # Set a timeout of 5 seconds for remaining tasks
+                await asyncio.wait_for(self.task_queue.join(), timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("Timed out waiting for tasks to complete")
+            
+            # Cancel any remaining tasks
             while not self.task_queue.empty():
-                await asyncio.sleep(0.1)
+                try:
+                    self.task_queue.get_nowait()
+                    self.task_queue.task_done()
+                except asyncio.QueueEmpty:
+                    break
+                
             logger.debug("Mempool monitoring stopped gracefully.")
-            sys.exit(0)
         except Exception as e:
             logger.error(f"Error during monitoring shutdown: {e}")
+            raise
 
     async def _run_monitoring(self) -> None:
-        """Enhanced mempool monitoring with automatic recovery."""
+        """Enhanced mempool monitoring with automatic recovery and fallback.""" 
         retry_count = 0
-
+        
         while self.running:
             try:
-                pending_filter = await self._setup_pending_filter()
-                if not pending_filter:
-                    continue
-
-                while self.running:
-                    tx_hashes = await pending_filter.get_new_entries()
-                    if tx_hashes:
-                        await self._handle_new_transactions(tx_hashes)
-                    await asyncio.sleep(0.1)
+                # Try setting up filter first
+                try:
+                    pending_filter = await self._setup_pending_filter()
+                    if pending_filter:
+                        while self.running:
+                            tx_hashes = await pending_filter.get_new_entries()
+                            await self._handle_new_transactions(tx_hashes)
+                            await asyncio.sleep(0.1)  # Prevent tight loop
+                    else:
+                        # Fallback to polling if filter not available
+                        await self._poll_pending_transactions()
+                except Exception as filter_error:
+                    logger.warning(f"Filter-based monitoring failed: {filter_error}")
+                    logger.info("Switching to polling-based monitoring...")
+                    await self._poll_pending_transactions()
 
             except Exception as e:
+                logger.error(f"Error in monitoring loop: {e}")
                 retry_count += 1
-                wait_time = min(self.backoff_factor ** retry_count, 30)
-                logger.error(
-                    f"Monitoring error (attempt {retry_count}): {e}"
-                )
-                await asyncio.sleep(wait_time)
+                await asyncio.sleep(self.RETRY_DELAY * retry_count)
+
+    async def _poll_pending_transactions(self) -> None:
+        """Fallback method to poll for pending transactions when filters aren't available."""
+        last_block = await self.web3.eth.block_number
+        
+        while self.running:
+            try:
+                # Get current block
+                current_block = await self.web3.eth.block_number
+                
+                # Process new blocks
+                for block_num in range(last_block + 1, current_block + 1):
+                    block = await self.web3.eth.get_block(block_num, full_transactions=True)
+                    if block and block.transactions:
+                        # Convert transactions to hash list format
+                        tx_hashes = [tx.hash.hex() if hasattr(tx, 'hash') else tx['hash'].hex() 
+                                   for tx in block.transactions]
+                        await self._handle_new_transactions(tx_hashes)
+                
+                # Get pending transactions from mempool
+                try:
+                    pending_txs = await self.web3.eth.get_raw_transaction_by_block()
+                    if pending_txs:
+                        tx_hashes = [tx.hash.hex() if hasattr(tx, 'hash') else tx['hash'].hex() 
+                                   for tx in pending_txs]
+                        await self._handle_new_transactions(tx_hashes)
+                except Exception as e:
+                    logger.debug(f"Could not get pending transactions: {e}")
+                
+                last_block = current_block
+                await asyncio.sleep(1)  # Poll interval
+
+            except Exception as e:
+                logger.error(f"Error in polling loop: {e}")
+                await asyncio.sleep(2)  # Error cooldown
 
     async def _setup_pending_filter(self) -> Optional[Any]:
-        """Set up pending transaction filter with validation."""
+        """Set up pending transaction filter with validation.""" 
         try:
+            # Try to create a filter
             pending_filter = await self.web3.eth.filter("pending")
-            logger.debug(
-                f"Connected to network via {self.web3.provider.__class__.__name__}"
-            )
-            return pending_filter
-
+            
+            # Validate the filter works
+            try:
+                await pending_filter.get_new_entries()
+                logger.debug("Successfully set up pending transaction filter")
+                return pending_filter
+            except Exception as e:
+                logger.warning(f"Filter validation failed: {e}")
+                return None
+                
         except Exception as e:
             logger.warning(f"Failed to setup pending filter: {e}")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
-        """Process new transactions in parallel with rate limiting."""
+        """Process new transactions in parallel with rate limiting.""" 
         async def process_batch(batch):
             await asyncio.gather(
                 *(self._queue_transaction(tx_hash) for tx_hash in batch)
@@ -130,17 +190,17 @@ class MempoolMonitor:
                 await process_batch(batch)
 
         except Exception as e:
-            logger.error(f"Error processing transaction batch: {e}")
+            logger.error(f"Error handling new transactions: {e}")
 
     async def _queue_transaction(self, tx_hash: str) -> None:
-        """Queue transaction for processing with deduplication."""
+        """Queue transaction for processing with deduplication.""" 
         tx_hash_hex = tx_hash.hex() if isinstance(tx_hash, bytes) else tx_hash
         if tx_hash_hex not in self.processed_transactions:
             self.processed_transactions.add(tx_hash_hex)
             await self.task_queue.put(tx_hash_hex)
 
     async def _process_task_queue(self) -> None:
-        """Process queued transactions with concurrency control."""
+        """Process queued transactions with concurrency control.""" 
         while self.running:
             try:
                 tx_hash = await self.task_queue.get()
@@ -150,10 +210,10 @@ class MempoolMonitor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Task processing error: {e}")
+                logger.error(f"Error processing task queue: {e}")
 
     async def process_transaction(self, tx_hash: str) -> None:
-        """Process individual transactions with enhanced error handling."""
+        """Process individual transactions with enhanced error handling.""" 
         try:
             tx = await self._get_transaction_with_retry(tx_hash)
             if not tx:
@@ -167,7 +227,7 @@ class MempoolMonitor:
             logger.debug(f"Error processing transaction {tx_hash}: {e}")
 
     async def _get_transaction_with_retry(self, tx_hash: str) -> Optional[Any]:
-        """Fetch transaction details with exponential backoff."""
+        """Fetch transaction details with exponential backoff.""" 
         for attempt in range(self.retry_attempts):
             try:
                 return await self.web3.eth.get_transaction(tx_hash)
@@ -180,11 +240,11 @@ class MempoolMonitor:
                 return None
 
     async def _handle_profitable_transaction(self, analysis: Dict[str, Any]) -> None:
-        """Process and queue profitable transactions."""
+        """Process and queue profitable transactions.""" 
         try:
             await self.profitable_transactions.put(analysis)
-            logger.debug(
-                f"Profitable transaction identified: {analysis['tx_hash']} "
+            logger.info(
+                f"Profitable transaction identified: {analysis['tx_hash']}"
                 f"(Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
             )
         except Exception as e:
@@ -229,7 +289,7 @@ class MempoolMonitor:
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
         try:
             if not self.erc20_abi:
-                logger.warning("ERC20 ABI not loaded. Cannot analyze token transaction.")
+                logger.critical("ERC20 ABI not loaded. Cannot analyze token transaction.")
                 return {"is_profitable": False}
 
             contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_abi)
@@ -238,7 +298,7 @@ class MempoolMonitor:
             if function_name in self.configuration.ERC20_SIGNATURES:
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
-                    logger.debug(
+                    logger.info(
                         f"Identified profitable transaction {tx.hash.hex()} with estimated profit: {estimated_profit:.4f} ETH"
                     )
                     await self._log_transaction_details(tx)
@@ -281,7 +341,7 @@ class MempoolMonitor:
 
     async def _estimate_eth_transaction_profit(self, tx: Any) -> Decimal:
         try:
-            gas_price_gwei = await self.safetynet.get_dynamic_gas_price()
+            gas_price_gwei = await self.safety_net.get_dynamic_gas_price()
             gas_used = tx.gas if tx.gas else await self.web3.eth.estimate_gas(tx)
             gas_cost_eth = Decimal(gas_price_gwei) * Decimal(gas_used) * Decimal("1e-9")
             eth_value = Decimal(self.web3.from_wei(tx.value, "ether"))
@@ -305,13 +365,13 @@ class MempoolMonitor:
                 )
                 return Decimal(0)
             output_token_address = path[-1]
-            output_token_symbol = await self.apiconfig.get_token_symbol(self.web3, output_token_address)
+            output_token_symbol = await self.api_config.get_token_symbol(self.web3, output_token_address)
             if not output_token_symbol:
                 logger.debug(
                     f"Output token symbol not found for address {output_token_address}. Skipping."
                 )
                 return Decimal(0)
-            market_price = await self.apiconfig.get_real_time_price(
+            market_price = await self.api_config.get_real_time_price(
                 output_token_symbol.lower()
             )
             if market_price is None or market_price == 0:
@@ -348,3 +408,28 @@ class MempoolMonitor:
             logger.debug(
                 f"Error logging transaction details for {tx.hash.hex()}: {e}"
             )
+
+    async def initialize(self) -> None:
+        """Initialize mempool monitor.""" 
+        try:
+            self.running = False
+            self.pending_transactions = asyncio.Queue()
+            self.profitable_transactions = asyncio.Queue()
+            self.processed_transactions = set()
+            self.task_queue = asyncio.Queue()
+            logger.info("MempoolMonitor initialized ✅")
+        except Exception as e:
+            logger.critical(f"Mempool Monitor initialization failed: {e}")
+            raise
+        
+    async def stop(self) -> None:
+        """Gracefully stop the Mempool Monitor.""" 
+        try:
+            self.running = False
+            self.stopping = True
+            await self.task_queue.join()
+            logger.debug("Mempool Monitor stopped gracefully.")
+        except Exception as e:
+            logger.error(f"Error stopping Mempool Monitor: {e}")
+            raise
+#//////////////////////////////////////////////////////////////////////////////

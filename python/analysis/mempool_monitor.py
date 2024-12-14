@@ -362,6 +362,10 @@ class Mempool_Monitor:
                 try:
                     contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_abi)
                     func_obj, decoded_params = contract.decode_function_input(tx.input)
+                    encode_params = contract.encode_abi(func_obj.fn_name, decoded_params)
+                    if encode_params != tx.input:
+                        logger.debug(f"Decoded parameters do not match input for transaction {tx.hash.hex()}")
+                        return {"is_profitable": False}
                     
                     if hasattr(func_obj, 'fn_name'):
                         function_name = func_obj.fn_name

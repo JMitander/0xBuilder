@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import signal
@@ -50,11 +49,11 @@ class Main_Core:
         logger.info("Starting 0xBuilder...")
 
     async def initialize(self) -> None:
-        """Initialize all components with error handling."""
+        """Initialize all components with error handling and proper sequencing."""
         try:
-            # Take memory snapshot before initialization
             before_snapshot = tracemalloc.take_snapshot()
             
+            # Sequential initialization of critical components
             await self._load_configuration()
             self.web3 = await self._initialize_web3()
             if not self.web3:
@@ -62,14 +61,30 @@ class Main_Core:
 
             self.account = Account.from_key(self.configuration.WALLET_KEY)
             await self._check_account_balance()
-            await self._initialize_components()
 
-            # Take memory snapshot after initialization and compare
+            # Initialize components in parallel where possible
+            init_tasks = [
+                self._initialize_component('api_config', API_Config(self.configuration)),
+                self._initialize_component('nonce_core', Nonce_Core(
+                    self.web3, self.account.address, self.configuration
+                )),
+                self._initialize_component('safety_net', Safety_Net(
+                    self.web3, self.configuration, self.account, self.components['api_config']
+                )),
+            ]
+            
+            await asyncio.gather(*init_tasks)
+
+            # Sequential initialization for dependent components
+            await self._initialize_monitoring_components()
+            await self._initialize_transaction_components()
+            await self._initialize_strategy_components()
+
             after_snapshot = tracemalloc.take_snapshot()
             top_stats = after_snapshot.compare_to(before_snapshot, 'lineno')
             
             logger.debug("Memory allocation during initialization:")
-            for stat in top_stats[:3]:  # Show top 3 memory changes
+            for stat in top_stats[:3]:
                 logger.debug(str(stat))
 
             logger.debug("Main Core initialization successful.")
@@ -218,48 +233,44 @@ class Main_Core:
             logger.error(f"Balance check failed: {e}")
             raise
 
-    async def _initialize_components(self) -> None:
-        """Initialize all bot components with  error handling."""
+    async def _initialize_component(self, name: str, component: Any) -> None:
+        """Initialize a single component with error handling."""
         try:
-            # Initialize core components
-            try:
-                self.components['nonce_core'] = Nonce_Core(
-                    self.web3, self.account.address, self.configuration
-                )
-                await self.components['nonce_core'].initialize()
-            except Exception as e:
-                logger.error(f"Failed to initialize nonce core: {e}")
-                raise
+            if hasattr(component, 'initialize'):
+                await component.initialize()
+            self.components[name] = component
+            logger.debug(f"Initialized {name} successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize {name}: {e}")
+            raise
 
-            api_config = API_Config(self.configuration)
+    async def _initialize_monitoring_components(self) -> None:
+        """Initialize monitoring components in the correct order."""
+        # First initialize market monitor as it's needed by mempool monitor
+        await self._initialize_component('market_monitor', Market_Monitor(
+            self.web3, 
+            self.configuration, 
+            self.components['api_config']
+        ))
 
-            self.components['safety_net'] = Safety_Net(
-                self.web3, self.configuration, self.account, api_config
-            )
+        # Then initialize mempool monitor with required dependencies
+        await self._initialize_component('mempool_monitor', Mempool_Monitor(
+            web3=self.web3,
+            safety_net=self.components['safety_net'],
+            nonce_core=self.components['nonce_core'],
+            api_config=self.components['api_config'],
+            monitored_tokens=await self.configuration.get_token_addresses(),
+            erc20_abi=await self._load_abi(self.configuration.ERC20_ABI),
+            configuration=self.configuration
+        ))
 
-            # Load contract ABIs
-            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
+    async def _initialize_transaction_components(self) -> None:
+        """Initialize transaction components."""
+        try:
             AAVE_FLASHLOAN_ABI = await self._load_abi(self.configuration.AAVE_FLASHLOAN_ABI)
             AAVE_LENDING_POOL_ABI = await self._load_abi(self.configuration.AAVE_LENDING_POOL_ABI)
+            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
 
-            # Initialize analysis components
-            self.components['market_monitor'] = Market_Monitor(
-                self.web3, self.configuration, api_config
-            )
-
-            # Initialize monitoring components
-            self.components['mempool_monitor'] = Mempool_Monitor( 
-                web3=self.web3,
-                safety_net=self.components['safety_net'],
-                nonce_core=self.components['nonce_core'],
-                api_config=api_config,
-                monitored_tokens=await self.configuration.get_token_addresses(),
-                erc20_abi=erc20_abi,
-                configuration=self.configuration
-                
-            )
-
-            # Initialize transaction components
             self.components['transaction_core'] = Transaction_Core(
                 web3=self.web3,
                 account=self.account,
@@ -270,28 +281,30 @@ class Main_Core:
                 monitor=self.components['mempool_monitor'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
-                api_config=api_config,
+                api_config=self.components['api_config'],
                 configuration=self.configuration,
-                
                 erc20_abi=erc20_abi
             )
             await self.components['transaction_core'].initialize()
+        except Exception as e:
+            logger.error(f"Failed to initialize transaction components: {e}")
+            raise
 
-            # Initialize strategy components
+    async def _initialize_strategy_components(self) -> None:
+        """Initialize strategy components."""
+        try:
             self.components['strategy_net'] = Strategy_Net(
                 transaction_core=self.components['transaction_core'],
                 market_monitor=self.components['market_monitor'],
                 safety_net=self.components['safety_net'],
-                api_config=api_config,
-                
+                api_config=self.components['api_config'],
             )
-
         except Exception as e:
-            logger.error(f"Component initialization failed: {e}")
+            logger.error(f"Failed to initialize strategy components: {e}")
             raise
 
     async def run(self) -> None:
-        """Main execution loop with improved error handling and memory tracking."""
+        """Main execution loop with improved task management."""
         logger.debug("Starting 0xBuilder...")
         self.running = True
 
@@ -302,60 +315,57 @@ class Main_Core:
             # Take initial memory snapshot
             initial_snapshot = tracemalloc.take_snapshot()
             last_memory_check = time.time()
-            MEMORY_CHECK_INTERVAL = 300  # Check memory every 5 minutes
+            MEMORY_CHECK_INTERVAL = 300
 
-            monitoring_task = asyncio.create_task(
-                self.components['mempool_monitor'].start_monitoring()
-            )
+            # Create task groups for different operations
+            async with asyncio.TaskGroup() as tg:
+                # Start monitoring task
+                monitoring_task = tg.create_task(
+                    self.components['mempool_monitor'].start_monitoring()
+                )
+                
+                # Start processing task
+                processing_task = tg.create_task(
+                    self._process_profitable_transactions()
+                )
 
-            while self.running:
-                try:
-                    await self._process_profitable_transactions()
-                    
-                    # Periodic memory checks
-                    current_time = time.time()
-                    if current_time - last_memory_check > MEMORY_CHECK_INTERVAL:
-                        current_snapshot = tracemalloc.take_snapshot()
-                        top_stats = current_snapshot.compare_to(initial_snapshot, 'lineno')
-                        
-                        logger.debug("Memory allocation changes:")
-                        for stat in top_stats[:3]:  # Show top 3 memory changes
-                            logger.debug(str(stat))
-                            
-                        last_memory_check = current_time
+                # Start memory monitoring task
+                memory_task = tg.create_task(
+                    self._monitor_memory(initial_snapshot)
+                )
 
-                    await asyncio.sleep(1)
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Error in main loop: {e}")
-                    await asyncio.sleep(5)
-
-        except Exception as e:
+            # Tasks will be automatically cancelled when leaving the context
+                
+        except* asyncio.CancelledError:
+            logger.info("Tasks cancelled during shutdown")
+        except* Exception as e:
             logger.error(f"Fatal error in run loop: {e}")
         finally:
-            if 'monitoring_task' in locals():
-                monitoring_task.cancel()
-                try:
-                    await monitoring_task
-                except asyncio.CancelledError:
-                    pass
+            await self.stop()
+
+    async def _monitor_memory(self, initial_snapshot) -> None:
+        """Separate task for memory monitoring."""
+        while self.running:
+            try:
+                current_snapshot = tracemalloc.take_snapshot()
+                top_stats = current_snapshot.compare_to(initial_snapshot, 'lineno')
+                
+                logger.debug("Memory allocation changes:")
+                for stat in top_stats[:3]:
+                    logger.debug(str(stat))
+                    
+                await asyncio.sleep(300)  # Check every 5 minutes
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in memory monitoring: {e}")
 
     async def stop(self) -> None:
-        """Gracefully stop all components with final memory snapshot."""
+        """Gracefully stop all components in the correct order."""
         logger.warning("Shutting down Core...")
         self.running = False
 
         try:
-            # Take final memory snapshot and compare with initial
-            final_snapshot = tracemalloc.take_snapshot()
-            top_stats = final_snapshot.compare_to(self.memory_snapshot, 'lineno')
-            
-            logger.debug("Final memory allocation changes:")
-            for stat in top_stats[:5]:  # Show top 5 memory changes
-                logger.debug(str(stat))
-
-            # Define component shutdown order
             shutdown_order = [
                 'mempool_monitor',  # Stop monitoring first
                 'strategy_net',     # Stop strategies
@@ -366,36 +376,42 @@ class Main_Core:
                 'api_config'       # Stop API connections last
             ]
 
-            try:
-                for component_name in shutdown_order:
-                    component = self.components.get(component_name)
-                    if component:
-                        try:
-                            await component.stop()
-                            logger.debug(f"Stopped {component_name}")
-                        except Exception as e:
-                            logger.error(f"Error stopping {component_name}: {e}")
+            # Stop components in parallel where possible
+            stop_tasks = []
+            for component_name in shutdown_order:
+                component = self.components.get(component_name)
+                if component and hasattr(component, 'stop'):
+                    stop_tasks.append(self._stop_component(component_name, component))
+            
+            if stop_tasks:
+                await asyncio.gather(*stop_tasks, return_exceptions=True)
 
-                # Clean up web3 connection
-                if self.web3:
-                    try:
-                        await self.web3.provider.disconnect()
-                        self.web3 = None
-                    except Exception as e:
-                        logger.error(f"Error disconnecting web3: {e}")
+            # Clean up web3 connection
+            if self.web3 and hasattr(self.web3.provider, 'disconnect'):
+                await self.web3.provider.disconnect()
 
-                logger.debug("Core shutdown complete.")
-                sys.exit(0)
-            except Exception as e:
-                logger.error(f"Error during shutdown: {e}")
+            # Final memory snapshot
+            final_snapshot = tracemalloc.take_snapshot()
+            top_stats = final_snapshot.compare_to(self.memory_snapshot, 'lineno')
+            
+            logger.debug("Final memory allocation changes:")
+            for stat in top_stats[:5]:
+                logger.debug(str(stat))
 
-            # Stop tracemalloc
-            tracemalloc.stop()
             logger.debug("Core shutdown complete.")
-            sys.exit(0)
+
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
-            sys.exit("forced exit")
+        finally:
+            tracemalloc.stop()
+
+    async def _stop_component(self, name: str, component: Any) -> None:
+        """Stop a single component with error handling."""
+        try:
+            await component.stop()
+            logger.debug(f"Stopped {name}")
+        except Exception as e:
+            logger.error(f"Error stopping {name}: {e}")
 
     async def _process_profitable_transactions(self) -> None:
         """Process profitable transactions from the queue."""

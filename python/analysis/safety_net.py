@@ -2,7 +2,7 @@ import asyncio
 import time
 from decimal import Decimal
 from cachetools import TTLCache
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from web3 import AsyncWeb3
 from eth_account import Account
 import logging
@@ -12,11 +12,17 @@ from configuration.configuration import Configuration
 
 logger = logging.getLogger(__name__)
 
+# Add risk thresholds
+RISK_THRESHOLDS = {
+    'gas_price': 500,  # Gwei
+    'min_profit': 0.01,  # ETH
+    'max_slippage': 0.05,  # 5%
+    'congestion': 0.8  # 80%
+}
 
 class Safety_Net:
     """
-    Safety_Net provides risk management and price verification functionality
-    with multiple data sources, automatic failover, and dynamic adjustments.
+    Enhanced safety system for risk management and transaction validation.
     """
 
     CACHE_TTL = 300  # Cache TTL in seconds
@@ -55,6 +61,9 @@ class Safety_Net:
         self.price_lock = asyncio.Lock()
         logger.info("SafetyNet is reporting for duty 🛡️")
         time.sleep(3) # ensuring proper initialization
+
+        # Add safety checks cache
+        self.safety_cache = TTLCache(maxsize=100, ttl=60)  # 1 minute cache
 
     async def get_balance(self, account: Any) -> Decimal:
         """Get account balance with retries and caching."""
@@ -216,6 +225,57 @@ class Safety_Net:
             return congestion_level
         except Exception as e:
             logger.error(f"Error fetching network congestion: {e}")
+
+    async def check_transaction_safety(
+        self, 
+        tx_data: Dict[str, Any],
+        check_type: str = 'all'
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """Unified safety check method for transactions."""
+        try:
+            results = {
+                'is_safe': True,
+                'gas_ok': True,
+                'profit_ok': True,
+                'slippage_ok': True,
+                'congestion_ok': True,
+                'messages': []
+            }
+
+            # Check gas price
+            if check_type in ['all', 'gas']:
+                gas_price = await self.get_dynamic_gas_price()
+                if gas_price > RISK_THRESHOLDS['gas_price']:
+                    results['gas_ok'] = False
+                    results['messages'].append(f"Gas price too high: {gas_price} Gwei")
+
+            # Check profit potential
+            if check_type in ['all', 'profit']:
+                profit = await self._calculate_profit(tx_data)
+                if profit < RISK_THRESHOLDS['min_profit']:
+                    results['profit_ok'] = False
+                    results['messages'].append(f"Insufficient profit: {profit} ETH")
+
+            # Check network congestion
+            if check_type in ['all', 'network']:
+                congestion = await self.get_network_congestion()
+                if congestion > RISK_THRESHOLDS['congestion']:
+                    results['congestion_ok'] = False
+                    results['messages'].append(f"High network congestion: {congestion:.1%}")
+
+            results['is_safe'] = all([
+                results['gas_ok'],
+                results['profit_ok'],
+                results['slippage_ok'],
+                results['congestion_ok']
+            ])
+
+            return results['is_safe'], results
+
+        except Exception as e:
+            logger.error(f"Safety check error: {e}")
+            return False, {'is_safe': False, 'messages': [str(e)]}
+
     async def stop(self) -> None:
          """Stops the 0xBuilder gracefully."""
          try:

@@ -2,41 +2,66 @@ import time
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from cachetools import TTLCache
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, Tuple
 from web3 import AsyncWeb3
 import logging
+from decimal import Decimal
 
 from configuration.api_config import API_Config
 from configuration.configuration import Configuration
 
 logger = logging.getLogger(__name__)
 
+# Add new cache settings
+CACHE_SETTINGS = {
+    'price': {'ttl': 300, 'size': 1000},
+    'volume': {'ttl': 900, 'size': 500},
+    'volatility': {'ttl': 600, 'size': 200}
+}
 
 class Market_Monitor:
-    MODEL_UPDATE_INTERVAL = 3600  # Update model every hour
-    VOLATILITY_THRESHOLD = 0.05  # 5% standard deviation
-    LIQUIDITY_THRESHOLD = 100000  # $100,000 in 24h volume
+    """Advanced market monitoring system for real-time analysis and prediction."""
+
+    # Class Constants
+    MODEL_UPDATE_INTERVAL: int = 3600  # Update model every hour
+    VOLATILITY_THRESHOLD: float = 0.05  # 5% standard deviation
+    LIQUIDITY_THRESHOLD: int = 100_000  # $100,000 in 24h volume
 
     def __init__(
         self,
         web3: AsyncWeb3,
         configuration: Optional[Configuration],
         api_config: Optional[API_Config],
-    ):
+    ) -> None:
+        """Initialize Market Monitor with required components."""
         self.web3 = web3
         self.configuration = configuration
         self.api_config = api_config
         self.price_model = LinearRegression()
         self.model_last_updated = 0
-        self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
 
+        # Add separate caches for different data types
+        self.caches = {
+            'price': TTLCache(maxsize=CACHE_SETTINGS['price']['size'], 
+                            ttl=CACHE_SETTINGS['price']['ttl']),
+            'volume': TTLCache(maxsize=CACHE_SETTINGS['volume']['size'], 
+                             ttl=CACHE_SETTINGS['volume']['ttl']),
+            'volatility': TTLCache(maxsize=CACHE_SETTINGS['volatility']['size'], 
+                                 ttl=CACHE_SETTINGS['volatility']['ttl'])
+        }
 
-    async def check_market_conditions(self, token_address: str) -> Dict[str, Any]:
+    async def check_market_conditions(
+        self, 
+        token_address: str
+    ) -> Dict[str, bool]:
         """
-        Check various market conditions for a given token
-
-        :param token_address: Address of the token to check
-        :return: Dictionary of market conditions
+        Analyze current market conditions for a given token.
+        
+        Args:
+            token_address: Token contract address
+            
+        Returns:
+            Dictionary containing market condition indicators
         """
         market_conditions = {
             "high_volatility": False,
@@ -49,7 +74,7 @@ class Market_Monitor:
             logger.debug(f"Cannot get token symbol for address {token_address}!")
             return market_conditions
 
-        prices = await self.fetch_historical_prices(token_symbol, days=1)
+        prices = await self.get_price_data(token_symbol, data_type='historical', timeframe=1)
         if len(prices) < 2:
             logger.debug(f"Not enough price data to analyze market conditions for {token_symbol}")
             return market_conditions
@@ -71,37 +96,61 @@ class Market_Monitor:
 
         return market_conditions
 
-    def _calculate_volatility(self, prices: List[float]) -> float:
+    # Price Analysis Methods
+    async def predict_price_movement(
+        self, 
+        token_symbol: str
+    ) -> float:
         """
-        Calculate the volatility of a list of prices.
-
-        :param prices: List of prices
-        :return: Volatility as standard deviation of returns
+        Predict future price movement using linear regression model.
+        
+        Args:
+            token_symbol: Token symbol to analyze
+            
+        Returns:
+            Predicted price value
         """
-        prices_array = np.array(prices)
-        returns = np.diff(prices_array) / prices_array[:-1]
-        return np.std(returns)
+        current_time = time.time()
+        if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
+            await self._update_price_model(token_symbol)
+        prices = await self.get_price_data(token_symbol, data_type='historical', timeframe=1)
+        if not prices:
+            logger.debug(f"No recent prices available for {token_symbol}.")
+            return 0.0
+        next_time = np.array([[len(prices)]])
+        predicted_price = self.price_model.predict(next_time)[0]
+        logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
+        return float(predicted_price)
 
-    async def fetch_historical_prices(self, token_symbol: str, days: int = 30) -> List[float]:
-        """
-        Fetch historical price data for a given token symbol.
+    # Market Data Methods
+    async def get_price_data(
+        self, 
+        token_symbol: str,
+        data_type: str = 'current',
+        timeframe: int = 1
+    ) -> Union[float, List[float]]:
+        """Unified method for fetching price-related data."""
+        cache_key = f"{data_type}_{token_symbol}_{timeframe}"
+        cache = self.caches['price']
 
-        :param token_symbol: Token symbol to fetch prices for
-        :param days: Number of days to fetch prices for
-        :return: List of historical prices
-        """
-        cache_key = f"historical_prices_{token_symbol}_{days}"
-        if cache_key in self.price_cache:
-            logger.debug(f"Returning cached historical prices for {token_symbol}.")
-            return self.price_cache[cache_key]
+        if cache_key in cache:
+            return cache[cache_key]
 
-        prices = await self._fetch_from_services(
-            lambda _: self.api_config.fetch_historical_prices(token_symbol, days=days),
-            f"historical prices for {token_symbol}"
-        )
-        if prices:
-            self.price_cache[cache_key] = prices
-        return prices or []
+        try:
+            if data_type == 'current':
+                data = await self.api_config.get_real_time_price(token_symbol)
+            elif data_type == 'historical':
+                data = await self.api_config.fetch_historical_prices(token_symbol, days=timeframe)
+            else:
+                raise ValueError(f"Invalid data type: {data_type}")
+
+            if data is not None:
+                cache[cache_key] = data
+                return data
+
+        except Exception as e:
+            logger.error(f"Error fetching {data_type} price data: {e}")
+            return [] if data_type == 'historical' else 0.0
 
     async def get_token_volume(self, token_symbol: str) -> float:
         """
@@ -111,19 +160,19 @@ class Market_Monitor:
         :return: 24-hour trading volume
         """
         cache_key = f"token_volume_{token_symbol}"
-        if cache_key in self.price_cache:
+        if cache_key in self.caches['volume']:
             logger.debug(f"Returning cached trading volume for {token_symbol}.")
-            return self.price_cache[cache_key]
+            return self.caches['volume'][cache_key]
 
         volume = await self._fetch_from_services(
             lambda _: self.api_config.get_token_volume(token_symbol),
             f"trading volume for {token_symbol}"
         )
         if volume is not None:
-            self.price_cache[cache_key] = volume
+            self.caches['volume'][cache_key] = volume
         return volume or 0.0
 
-    async def _fetch_from_services(self, fetch_func, description: str):
+    async def _fetch_from_services(self, fetch_func, description: str) -> Optional[Union[List[float], float]]:
         """
         Helper method to fetch data from multiple services.
 
@@ -142,27 +191,31 @@ class Market_Monitor:
         logger.warning(f"failed to fetch {description}.")
         return None
 
-    async def predict_price_movement(self, token_symbol: str) -> float:
-        """Predict the next price movement for a given token symbol.""" 
-        current_time = time.time()
-        if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
-            await self._update_price_model(token_symbol)
-        prices = await self.fetch_historical_prices(token_symbol, days=1)
-        if not prices:
-            logger.debug(f"No recent prices available for {token_symbol}.")
-            return 0.0
-        next_time = np.array([[len(prices)]])
-        predicted_price = self.price_model.predict(next_time)[0]
-        logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
-        return float(predicted_price)
+    # Helper Methods
+    def _calculate_volatility(
+        self, 
+        prices: List[float]
+    ) -> float:
+        """
+        Calculate price volatility using standard deviation of returns.
+        
+        Args:
+            prices: List of historical prices
+            
+        Returns:
+            Volatility measure as float
+        """
+        prices_array = np.array(prices)
+        returns = np.diff(prices_array) / prices_array[:-1]
+        return np.std(returns)
 
-    async def _update_price_model(self, token_symbol: str):
+    async def _update_price_model(self, token_symbol: str) -> None:
         """
         Update the price prediction model.
 
         :param token_symbol: Token symbol to update the model for
         """
-        prices = await self.fetch_historical_prices(token_symbol)
+        prices = await self.get_price_data(token_symbol, data_type='historical')
         if len(prices) > 10:
             X = np.arange(len(prices)).reshape(-1, 1)
             y = np.array(prices)
@@ -239,7 +292,7 @@ class Market_Monitor:
             return None
 
     async def initialize(self) -> None:
-        """Initialize market monitor.""" 
+        """Initialize market monitor components."""
         try:
             self.price_model = LinearRegression()
             self.model_last_updated = 0
@@ -249,12 +302,11 @@ class Market_Monitor:
             raise
 
     async def stop(self) -> None:
-        """Stop market monitor operations.""" 
+        """Clean up resources and stop monitoring."""
         try:
             # Clear caches and clean up resources
-            self.price_cache.clear()
+            for cache in self.caches.values():
+                cache.clear()
             logger.debug("Market Monitor stopped.")
         except Exception as e:
             logger.error(f"Error stopping Market Monitor: {e}")
-
-#//////////////////////////////////////////////////////////////////////////////

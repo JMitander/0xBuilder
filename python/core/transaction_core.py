@@ -507,257 +507,126 @@ class Transaction_Core:
             logger.error(f"Unexpected error in send_bundle: {e} ⚠️ ")
             return False
 
-    async def front_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Executes a front-run transaction with  validation and error handling.
-
-        :param target_tx: Target transaction dictionary.
-        :return: True if successful, else False.
-        """
-        if not isinstance(target_tx, dict):
+    async def _validate_transaction(self, tx: Dict[str, Any], operation: str) -> Optional[Dict[str, Any]]:
+        """Common transaction validation logic."""
+        if not isinstance(tx, dict):
             logger.debug("Invalid transaction format provided!")
-            return False
+            return None
 
-        tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Attempting front-run on target transaction: {tx_hash} ✅ ")
-
-        # Validate required transaction parameters
         required_fields = ["input", "to", "value", "gasPrice"]
-        if not all(field in target_tx for field in required_fields):
-            missing = [field for field in required_fields if field not in target_tx]
-            logger.debug(f"Missing required transaction parameters: {missing}. Skipping...")
+        if not all(field in tx for field in required_fields):
+            missing = [field for field in required_fields if field not in tx]
+            logger.debug(f"Missing required parameters for {operation}: {missing}")
+            return None
+
+        # Decode and validate transaction input
+        decoded_tx = await self.decode_transaction_input(
+            tx.get("input", "0x"),
+            self.web3.to_checksum_address(tx.get("to", ""))
+        )
+        if not decoded_tx or "params" not in decoded_tx:
+            logger.debug(f"Failed to decode transaction input for {operation}")
+            return None
+
+        # Validate path parameter
+        path = decoded_tx["params"].get("path", [])
+        if not path or not isinstance(path, list) or len(path) < 2:
+            logger.debug(f"Invalid path parameter for {operation}")
+            return None
+
+        return decoded_tx
+
+    async def front_run(self, target_tx: Dict[str, Any]) -> bool:
+        """Execute front-run transaction with validation."""
+        decoded_tx = await self._validate_transaction(target_tx, "front-run")
+        if not decoded_tx:
             return False
 
         try:
-            # Decode transaction input with validation
-            decoded_tx = await self.decode_transaction_input(
-                target_tx.get("input", "0x"),
-                self.web3.to_checksum_address(target_tx.get("to", ""))
-            )
-            if not decoded_tx or "params" not in decoded_tx:
-                logger.debug("Failed to decode transaction input for front-run. Skipping...")
+            path = decoded_tx["params"]["path"]
+            flashloan_tx = await self._prepare_flashloan(path[0], target_tx)
+            front_run_tx = await self._prepare_front_run_transaction(target_tx)
+
+            if not all([flashloan_tx, front_run_tx]):
                 return False
 
-            # Extract and validate path parameter
-            path = decoded_tx["params"].get("path", [])
-            if not path or not isinstance(path, list) or len(path) < 2:
-                logger.debug("Transaction has invalid or no path parameter. Skipping...")
-                return False
-
-            # Prepare flashloan
-            try:
-                flashloan_asset = self.web3.to_checksum_address(path[0])
-                flashloan_amount = self.calculate_flashloan_amount(target_tx)
-
-                if flashloan_amount <= 0:
-                    logger.debug("Insufficient flashloan amount calculated. Skipping...")
-                    return False
-
-                flashloan_tx = await self.prepare_flashloan_transaction(
-                    flashloan_asset, flashloan_amount
-                )
-                if not flashloan_tx:
-                    logger.debug("Failed to prepare flashloan transaction!")
-                    return False
-
-            except (ValueError, IndexError) as e:
-                logger.error(f"Error preparing flashloan: {str(e)}")
-                return False
-
-            # Prepare front-run transaction
-            front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
-            if not front_run_tx_details:
-                logger.warning("Failed to prepare front-run transaction! Skipping...")
-                return False
-
-            # Simulate transactions
-            simulation_success = await asyncio.gather(
-                self.simulate_transaction(flashloan_tx),
-                self.simulate_transaction(front_run_tx_details)
-            )
-
-            if not all(simulation_success):
-                logger.error("Transaction simulation failed! Skipping...")
-                return False
-
-            # Send transaction bundle
-            if await self.send_bundle([flashloan_tx, front_run_tx_details]):
-                logger.info("Front-run transaction bundle sent successfully. ✅ ")
+            # Validate and send transaction bundle
+            if await self._validate_and_send_bundle([flashloan_tx, front_run_tx]):
+                logger.info("Front-run executed successfully ✅")
                 return True
-            else:
-                logger.warning("Failed to send front-run transaction bundle! ⚠️ ")
-                return False
 
-        except KeyError as e:
-            logger.error(f"Missing required transaction parameter: {e} ⚠️ ")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error in front-run execution: {str(e)}")
+            logger.error(f"Front-run execution failed: {e}")
             return False
 
     async def back_run(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Executes a back-run transaction with validation and error handling.
-
-        :param target_tx: Target transaction dictionary.
-        :return: True if successful, else False.
-        """
-        if not isinstance(target_tx, dict):
-            logger.debug("Invalid transaction format provided!")
-            return False
-
-        tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Attempting back-run on target transaction: {tx_hash} ✅ ")
-
-        # Validate required transaction parameters
-        required_fields = ["input", "to", "value", "gasPrice"]
-        if not all(field in target_tx for field in required_fields):
-            missing = [field for field in required_fields if field not in target_tx]
-            logger.debug(f"Missing required transaction parameters: {missing}. Skipping... ⚠️ ")
+        """Execute back-run transaction with validation."""
+        decoded_tx = await self._validate_transaction(target_tx, "back-run")
+        if not decoded_tx:
             return False
 
         try:
-            # Decode transaction input with validation
-            decoded_tx = await self.decode_transaction_input(
-                target_tx.get("input", "0x"),
-                self.web3.to_checksum_address(target_tx.get("to", ""))
-            )
-            if not decoded_tx or "params" not in decoded_tx:
-                logger.debug("Failed to decode transaction input for back-run. Skipping...")
+            back_run_tx = await self._prepare_back_run_transaction(target_tx, decoded_tx)
+            if not back_run_tx:
                 return False
 
-            # Extract and validate path parameter
-            path = decoded_tx["params"].get("path", [])
-            if not path or not isinstance(path, list) or len(path) < 2:
-                logger.debug("Transaction has invalid or no path parameter. Skipping...")
-                return False
-
-            # Reverse the path for back-run
-            reversed_path = path[::-1]
-            decoded_tx["params"]["path"] = reversed_path
-
-            # Prepare back-run transaction
-            back_run_tx_details = await self._prepare_back_run_transaction(target_tx, decoded_tx)
-            if not back_run_tx_details:
-                logger.warning("Failed to prepare back-run transaction! Skipping...")
-                return False
-
-            # Simulate back-run transaction
-            simulation_success = await self.simulate_transaction(back_run_tx_details)
-
-            if not simulation_success:
-                logger.error("Back-run transaction simulation failed! Skipping...")
-                return False
-
-            # Send back-run transaction
-            if await self.send_bundle([back_run_tx_details]):
-                logger.info("Back-run transaction bundle sent successfully. ✅ ")
+            if await self._validate_and_send_bundle([back_run_tx]):
+                logger.info("Back-run executed successfully ✅")
                 return True
-            else:
-                logger.warning("Failed to send back-run transaction bundle! ⚠️ ")
-                return False
 
-        except KeyError as e:
-            logger.error(f"Missing required transaction parameter: {e} ⚠️ ")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error in back-run execution: {e}  ⚠️ ")
+            logger.error(f"Back-run execution failed: {e}")
             return False
 
     async def execute_sandwich_attack(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Executes a sandwich attack on the target transaction.
-
-        :param target_tx: Target transaction dictionary.
-        :return: True if successful, else False.
-        """
-        if not isinstance(target_tx, dict):
-            logger.critical("Invalid transaction format provided! 🚨 ")
-            return False
-
-        tx_hash = target_tx.get("tx_hash", "Unknown")
-        logger.debug(f"Attempting sandwich attack on target transaction: {tx_hash} 🥪 ")
-
-        # Validate required transaction parameters
-        required_fields = ["input", "to", "value", "gasPrice"]
-        if not all(field in target_tx for field in required_fields):
-            missing = [field for field in required_fields if field not in target_tx]
-            logger.debug(f"Missing required transaction parameters: {missing}. Skipping...")
+        """Execute sandwich attack with validation."""
+        decoded_tx = await self._validate_transaction(target_tx, "sandwich")
+        if not decoded_tx:
             return False
 
         try:
-            # Decode transaction input with validation
-            decoded_tx = await self.decode_transaction_input(
-                target_tx.get("input", "0x"),
-                self.web3.to_checksum_address(target_tx.get("to", ""))
-            )
-            if not decoded_tx or "params" not in decoded_tx:
-                logger.debug("Failed to decode transaction input for sandwich attack. Skipping...")
+            path = decoded_tx["params"]["path"]
+            flashloan_tx = await self._prepare_flashloan(path[0], target_tx)
+            front_tx = await self._prepare_front_run_transaction(target_tx)
+            back_tx = await self._prepare_back_run_transaction(target_tx, decoded_tx)
+
+            if not all([flashloan_tx, front_tx, back_tx]):
                 return False
 
-            # Extract and validate path parameter
-            path = decoded_tx["params"].get("path", [])
-            if not path or not isinstance(path, list) or len(path) < 2:
-                logger.debug("Transaction has invalid or no path parameter. Skipping...")
-                return False
-
-            flashloan_asset = self.web3.to_checksum_address(path[0])
-            flashloan_amount = self.calculate_flashloan_amount(target_tx)
-
-            if flashloan_amount <= 0:
-                logger.debug("Insufficient flashloan amount calculated. Skipping...")
-                return False
-
-            # Prepare flashloan transaction
-            flashloan_tx = await self.prepare_flashloan_transaction(
-                flashloan_asset, flashloan_amount
-            )
-            if not flashloan_tx:
-                logger.debug("Failed to prepare flashloan transaction! Skipping...")
-                return False
-
-            # Prepare front-run transaction
-            front_run_tx_details = await self._prepare_front_run_transaction(target_tx)
-            if not front_run_tx_details:
-                logger.warning("Failed to prepare front-run transaction! Skipping...")
-                return False
-
-            # Prepare back-run transaction
-            back_run_tx_details = await self._prepare_back_run_transaction(target_tx, decoded_tx)
-            if not back_run_tx_details:
-                logger.warning("Failed to prepare back-run transaction! Skipping...")
-                return False
-
-            # Simulate all transactions
-            simulation_results = await asyncio.gather(
-                self.simulate_transaction(flashloan_tx),
-                self.simulate_transaction(front_run_tx_details),
-                self.simulate_transaction(back_run_tx_details),
-                return_exceptions=True
-            )
-
-            if any(isinstance(result, Exception) for result in simulation_results):
-                logger.critical("One or more transaction simulations failed! 🚨")
-                return False
-
-            if not all(simulation_results):
-                logger.warning("Not all transaction simulations were successful!")
-                return False
-
-            # Execute transaction bundle
-            if await self.send_bundle([flashloan_tx, front_run_tx_details, back_run_tx_details]):
-                logger.info("Sandwich attack transaction bundle sent successfully. 🥪✅")
+            if await self._validate_and_send_bundle([flashloan_tx, front_tx, back_tx]):
+                logger.info("Sandwich attack executed successfully 🥪✅")
                 return True
-            else:
-                logger.warning("Failed to send sandwich attack transaction bundle! ⚠️ ")
-                return False
 
-        except KeyError as e:
-            logger.error(f"Missing required transaction parameter: {e} ⚠️ ")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error in sandwich attack execution: {e} ⚠️ ")
+            logger.error(f"Sandwich attack execution failed: {e}")
             return False
+
+    async def _prepare_flashloan(self, asset: str, target_tx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Helper to prepare flashloan transaction."""
+        flashloan_amount = self.calculate_flashloan_amount(target_tx)
+        if flashloan_amount <= 0:
+            return None
+        return await self.prepare_flashloan_transaction(
+            self.web3.to_checksum_address(asset),
+            flashloan_amount
+        )
+
+    async def _validate_and_send_bundle(self, transactions: List[Dict[str, Any]]) -> bool:
+        """Validate and send a bundle of transactions."""
+        # Simulate all transactions
+        simulations = await asyncio.gather(
+            *[self.simulate_transaction(tx) for tx in transactions],
+            return_exceptions=True
+        )
+
+        if any(isinstance(result, Exception) or not result for result in simulations):
+            logger.warning("Transaction simulation failed")
+            return False
+
+        return await self.send_bundle(transactions)
 
     async def _prepare_front_run_transaction(
         self, target_tx: Dict[str, Any]

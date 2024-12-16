@@ -495,16 +495,13 @@ class Strategy_Net:
         return False
 
     async def _get_price_change(self, token_symbol: str) -> float:
-        """Get price change for a token."""
-        try:
-            current_price = await self.api_config.get_real_time_price(token_symbol)
-            predicted_price = await self.market_monitor.predict_price_movement(token_symbol)
-            if current_price and predicted_price:
-                return (predicted_price / float(current_price) - 1) * 100
-            return 0.0
-        except Exception as e:
-            logger.error(f"Error getting price change for {token_symbol}: {e}")
-            return 0.0
+        """Get price change using centralized price fetching."""
+        current_price = await self.api_config.get_token_price_data(token_symbol, 'current')
+        predicted_price = await self.market_monitor.predict_price_movement(token_symbol)
+        
+        if current_price and predicted_price:
+            return (predicted_price / float(current_price) - 1) * 100
+        return 0.0
 
     async def predictive_front_run(self, target_tx: Dict[str, Any]) -> bool:
         """

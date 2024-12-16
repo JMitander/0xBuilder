@@ -11,7 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'python'))
 
 # Import core components
 from core.main_core import Main_Core
-from configuration.configuration import Configuration
+from configuration import Configuration
 
 # Configure logging
 logging.basicConfig(

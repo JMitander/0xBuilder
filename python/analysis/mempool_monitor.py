@@ -11,6 +11,7 @@ from analysis.safety_net import Safety_Net
 from configuration.api_config import API_Config
 from configuration.configuration import Configuration
 from core.nonce_core import Nonce_Core
+from utils.abi_manager import ABI_Manager
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,8 @@ class Mempool_Monitor:
         }
         if configuration and hasattr(configuration, 'ERC20_SIGNATURES'):
             self.function_signatures.update(configuration.ERC20_SIGNATURES)
+
+        self.abi_manager = ABI_Manager()
 
         logger.info("Go for main engine start! ✅...")
         time.sleep(3) # ensuring proper initialization
@@ -353,7 +356,7 @@ class Mempool_Monitor:
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
-        """Analyze token transactions with improved function decoding."""
+        """Enhanced token transaction analysis with better validation."""
         try:
             if not self.erc20_abi or not tx.input or len(tx.input) < 10:
                 logger.debug("Missing ERC20 ABI or invalid transaction input")
@@ -420,9 +423,17 @@ class Mempool_Monitor:
 
             # Process decoded transaction if successful
             if decoded and function_name in ('transfer', 'transferFrom', 'swap'):
-                # Validate parameters
-                if not function_params:
-                    logger.debug(f"No parameters decoded for {function_name}")
+                # Enhanced parameter validation
+                params = await self._extract_transaction_params(tx, function_name, function_params)
+                if not params:
+                    logger.debug(f"Could not extract valid parameters for {function_name}")
+                    return {"is_profitable": False}
+
+                amounts = await self._validate_token_amounts(params)
+                if not amounts['valid']:
+                    logger.debug(f"Invalid token amounts: {amounts['reason']}")
+                    if 'details' in amounts:
+                        logger.debug(f"Validation details: {amounts['details']}")
                     return {"is_profitable": False}
 
                 estimated_profit = await self._estimate_profit(tx, function_params)
@@ -535,14 +546,54 @@ class Mempool_Monitor:
         except Exception as e:
             return {'valid': False, 'reason': str(e)}
 
-    async def _validate_token_amounts(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate and convert token amounts with improved precision."""
+    async def _validate_token_amounts(self, function_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Improved token amount validation with better hex value handling."""
         try:
-            input_amount_wei = Decimal(params.get("amountIn", 0))
-            output_amount_wei = Decimal(params.get("amountOutMin", 0))
+            # Extract amounts with more comprehensive fallbacks
+            input_amount = function_params.get("amountIn", 
+                function_params.get("value", 
+                function_params.get("amount",
+                function_params.get("_value", 0)
+            )))
+            output_amount = function_params.get("amountOutMin",
+                function_params.get("amountOut",
+                function_params.get("amount",
+                function_params.get("_amount", 0)
+            )))
 
-            if input_amount_wei <= 0 or output_amount_wei <= 0:
-                return {'valid': False, 'reason': 'Invalid amounts'}
+            # Enhanced hex string handling
+            def parse_amount(amount: Any) -> int:
+                if isinstance(amount, str):
+                    if amount.startswith("0x"):
+                        return int(amount, 16)
+                    if amount.isnumeric():
+                        return int(amount)
+                return int(amount) if amount else 0
+
+            # Parse amounts
+            try:
+                input_amount_wei = Decimal(str(parse_amount(input_amount)))
+                output_amount_wei = Decimal(str(parse_amount(output_amount)))
+            except (ValueError, TypeError) as e:
+                return {
+                    'valid': False,
+                    'reason': f'Amount parsing error: {str(e)}',
+                    'details': {
+                        'input_raw': input_amount,
+                        'output_raw': output_amount
+                    }
+                }
+
+            # Validate amounts
+            if input_amount_wei <= 0 and output_amount_wei <= 0:
+                return {
+                    'valid': False,
+                    'reason': 'Both input and output amounts are zero or negative',
+                    'details': {
+                        'input_wei': str(input_amount_wei),
+                        'output_wei': str(output_amount_wei)
+                    }
+                }
 
             # Convert to ETH with higher precision
             input_amount_eth = Decimal(self.web3.from_wei(input_amount_wei, "ether")).quantize(Decimal("0.000000001"))
@@ -557,8 +608,17 @@ class Mempool_Monitor:
                     'output_wei': output_amount_wei
                 }
             }
+
         except Exception as e:
-            return {'valid': False, 'reason': str(e)}
+            logger.error(f"Unexpected error in token amount validation: {e}")
+            return {
+                'valid': False,
+                'reason': 'Unknown validation error',
+                'details': {
+                    'error': str(e),
+                    'params': str(function_params)
+                }
+            }
 
     async def _get_market_data(self, token_address: str) -> Dict[str, Any]:
         """Get comprehensive market data for profit calculation."""
@@ -591,7 +651,7 @@ class Mempool_Monitor:
         try:
             volume = await self.api_config.get_token_volume(token_symbol)
             # Adjust slippage based on volume (higher volume = lower slippage)
-            if volume > 1_000_000:  # High volume
+            if (volume > 1_000_000):  # High volume
                 return Decimal("0.995")  # 0.5% slippage
             elif volume > 500_000:  # Medium volume
                 return Decimal("0.99")   # 1% slippage
@@ -667,9 +727,94 @@ class Mempool_Monitor:
                 f"Error logging transaction details for {tx.hash.hex()}: {e}"
             )
 
-    async def initialize(self) -> None:
-        """Initialize mempool monitor.""" 
+    async def _extract_transaction_params(
+        self,
+        tx: Any,
+        function_name: str,
+        decoded_params: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Extract and validate transaction parameters with improved parsing."""
         try:
+            params = {}
+            
+            # Enhanced transfer parameter handling
+            if function_name in ['transfer', 'transferFrom']:
+                # Handle different parameter naming conventions
+                amount = decoded_params.get('amount', decoded_params.get('_value', 
+                    decoded_params.get('value', decoded_params.get('wad', 0))))
+                
+                to_addr = decoded_params.get('to', decoded_params.get('_to',
+                    decoded_params.get('dst', decoded_params.get('recipient'))))
+                
+                if function_name == 'transferFrom':
+                    from_addr = decoded_params.get('from', decoded_params.get('_from',
+                        decoded_params.get('src', decoded_params.get('sender'))))
+                    params['from'] = from_addr
+
+                params.update({
+                    'amount': amount,
+                    'to': to_addr
+                })
+
+            # Enhanced swap parameter handling
+            elif function_name in ['swap', 'swapExactTokensForTokens', 'swapTokensForExactTokens']:
+                # Handle different swap parameter formats
+                params = {
+                    'amountIn': decoded_params.get('amountIn', 
+                        decoded_params.get('amount0', 
+                        decoded_params.get('amountInMax', 0))),
+                    'amountOutMin': decoded_params.get('amountOutMin',
+                        decoded_params.get('amount1',
+                        decoded_params.get('amountOut', 0))),
+                    'path': decoded_params.get('path', [])
+                }
+
+            # Validate parameters presence and format
+            if not self._validate_params_format(params, function_name):
+                logger.debug(f"Invalid parameter format for {function_name}")
+                return None
+
+            return params
+
+        except Exception as e:
+            logger.error(f"Error extracting transaction parameters: {e}")
+            return None
+
+    def _validate_params_format(self, params: Dict[str, Any], function_name: str) -> bool:
+        """Validate parameter format based on function type."""
+        try:
+            if function_name in ['transfer', 'transferFrom']:
+                required = ['amount', 'to']
+                if function_name == 'transferFrom':
+                    required.append('from')
+            elif function_name in ['swap', 'swapExactTokensForTokens', 'swapTokensForExactTokens']:
+                required = ['amountIn', 'amountOutMin', 'path']
+            else:
+                return False
+
+            # Check required fields are present and non-empty
+            return all(
+                params.get(field) is not None and params.get(field) != ''
+                for field in required
+            )
+            
+        except Exception as e:
+            logger.error(f"Parameter validation error: {e}")
+            return False
+
+    async def initialize(self) -> None:
+        """Initialize with proper ABI loading."""
+        try:
+            # Load ERC20 ABI through ABI manager
+            self.erc20_abi = await self.abi_manager.load_abi('erc20')
+            if not self.erc20_abi:
+                raise ValueError("Failed to load ERC20 ABI")
+
+            # Validate required methods
+            required_methods = ['transfer', 'approve', 'transferFrom', 'balanceOf']
+            if not self.abi_manager.validate_abi(self.erc20_abi, required_methods):
+                raise ValueError("Invalid ERC20 ABI")
+
             self.running = False
             self.pending_transactions = asyncio.Queue()
             self.profitable_transactions = asyncio.Queue()

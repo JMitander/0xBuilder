@@ -49,6 +49,7 @@ class Safety_Net:
         address: Optional[str] = None,
         account: Optional[Account] = None,
         api_config: Optional[API_Config] = None,
+        market_monitor: Optional[Any] = None,  # Add this parameter
     ):
         self.web3 = web3
         self.address = address
@@ -57,6 +58,7 @@ class Safety_Net:
         self.api_config = api_config
         self.price_cache = TTLCache(maxsize=1000, ttl=self.CACHE_TTL)
         self.gas_price_cache = TTLCache(maxsize=1, ttl=self.GAS_PRICE_CACHE_TTL)
+        self.market_monitor = market_monitor  # Store market_monitor reference
 
         self.price_lock = asyncio.Lock()
         logger.info("SafetyNet is reporting for duty 🛡️")
@@ -288,4 +290,50 @@ class Safety_Net:
              logger.error(f"Error stopping safety net: {e}")
              raise
 
-#//////////////////////////////////////////////////////////////////////////////
+    async def assess_transaction_risk(
+        self,
+        tx: Dict[str, Any],
+        token_symbol: str,
+        market_conditions: Optional[Dict[str, bool]] = None,
+        price_change: float = 0,
+        volume: float = 0
+    ) -> Tuple[float, Dict[str, Any]]:
+        """Centralized risk assessment with proper error handling."""
+        try:
+            risk_score = 1.0
+            
+            # Get market conditions if not provided and market_monitor exists
+            if not market_conditions and self.market_monitor:
+                market_conditions = await self.market_monitor.check_market_conditions(tx.get("to", ""))
+            elif not market_conditions:
+                market_conditions = {}  # Default empty if no market_monitor
+                
+            # Gas price impact
+            gas_price = int(tx.get("gasPrice", 0))
+            gas_price_gwei = float(self.web3.from_wei(gas_price, "gwei"))
+            if gas_price_gwei > RISK_THRESHOLDS['gas_price']:
+                risk_score *= 0.7
+                
+            # Market conditions impact
+            if market_conditions.get("high_volatility", False):
+                risk_score *= 0.7
+            if market_conditions.get("low_liquidity", False):
+                risk_score *= 0.6
+            if market_conditions.get("bullish_trend", False):
+                risk_score *= 1.2
+                
+            # Price change impact    
+            if price_change > 0:
+                risk_score *= min(1.3, 1 + (price_change / 100))
+                
+            # Volume impact
+            if volume >= 1_000_000:
+                risk_score *= 1.2
+            elif volume <= 100_000:
+                risk_score *= 0.8
+                
+            return risk_score, market_conditions                    
+        
+        except Exception as e:
+            logger.error(f"Error in risk assessment: {e}")
+            return 0.0, {}

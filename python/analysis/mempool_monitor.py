@@ -32,8 +32,8 @@ class Mempool_Monitor:
         nonce_core: Nonce_Core,
         api_config: API_Config,
         monitored_tokens: Optional[List[str]] = None,
-        erc20_abi: List[Dict[str, Any]] = None,
         configuration: Optional[Configuration] = None,
+        erc20_abi: Optional[List[Dict[str, Any]]] = None,  # Changed to accept loaded ABI
     ):
         # Core components
         self.web3 = web3
@@ -49,10 +49,14 @@ class Mempool_Monitor:
         self.profitable_transactions = asyncio.Queue()
         self.processed_transactions = set()
 
-       
-        
         # Configuration
-        self.erc20_abi = erc20_abi or []
+        # Validate ERC20 ABI
+        if not erc20_abi or not isinstance(erc20_abi, list):
+            logger.error("Invalid or missing ERC20 ABI")
+            self.erc20_abi = []
+        else:
+            self.erc20_abi = erc20_abi
+            logger.debug(f"Loaded ERC20 ABI with {len(self.erc20_abi)} entries")
         self.minimum_profit_threshold = Decimal("0.001")
         self.max_parallel_tasks = self.MAX_PARALLEL_TASKS
         self.retry_attempts = self.MAX_RETRIES
@@ -328,66 +332,78 @@ class Mempool_Monitor:
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
-        """Analyze token transactions with improved function signature handling."""
+        """Analyze token transactions with improved function decoding."""
         try:
             if not self.erc20_abi or not tx.input or len(tx.input) < 10:
+                logger.debug("Missing ERC20 ABI or invalid transaction input")
                 return {"is_profitable": False}
 
-            # Get function selector from input (first 4 bytes / 8 chars after '0x')
+            # Extract function selector
             function_selector = tx.input[:10]  # includes '0x'
             selector_no_prefix = function_selector[2:]  # remove '0x'
 
-            # Try multiple methods to identify the function
+            # Initialize variables
             function_name = None
             function_params = {}
+            decoded = False
 
-            # Method 1: Try direct function signature lookup
+            # Method 1: Try local signature lookup first (fastest)
             if selector_no_prefix in self.function_signatures:
-                function_name = self.function_signatures[selector_no_prefix]
-                # Basic parameter extraction for known functions
-                if len(tx.input) >= 138:  # Minimum length for standard ERC20 calls
-                    try:
-                        # Extract parameters from input data
-                        params_data = tx.input[10:]  # Remove function selector
-                        if function_name == 'transfer':
-                            # Parse transfer parameters
-                            to_address = '0x' + params_data[:64][-40:]  # last 20 bytes
-                            amount = int(params_data[64:128], 16)  # next 32 bytes
-                            function_params = {'to': to_address, 'amount': amount}
-                    except Exception as e:
-                        logger.debug(f"Error parsing raw input parameters: {e}")
-
-            # Method 2: Try contract decode if Method 1 failed
-            if not function_name:
                 try:
-                    contract = self.web3.eth.contract(address=tx.to, abi=self.erc20_abi)
-                    func_obj, decoded_params = contract.decode_function_input(tx.input)
-                    encode_params = contract.encode_abi(func_obj.fn_name, decoded_params)
-                    if encode_params != tx.input:
-                        logger.debug(f"Decoded parameters do not match input for transaction {tx.hash.hex()}")
+                    function_name = self.function_signatures[selector_no_prefix]
+                    if len(tx.input) >= 138:  # Standard ERC20 call length
+                        params_data = tx.input[10:]
+                        if function_name == 'transfer':
+                            to_address = '0x' + params_data[:64][-40:]
+                            amount = int(params_data[64:128], 16)
+                            function_params = {'to': to_address, 'amount': amount}
+                            decoded = True
+                except Exception as e:
+                    logger.debug(f"Error in direct signature lookup: {e}")
+
+            # Method 2: Try contract decode only if direct lookup failed
+            if not decoded:
+                try:
+                    # Ensure we have a valid contract address and ABI
+                    if not tx.to or not self.erc20_abi:
+                        logger.debug("Missing contract address or ABI")
                         return {"is_profitable": False}
-                    
-                    if hasattr(func_obj, 'fn_name'):
-                        function_name = func_obj.fn_name
-                    elif hasattr(func_obj, 'function_identifier'):
-                        function_name = func_obj.function_identifier
-                    
-                    if decoded_params:
-                        function_params = decoded_params
-                except Web3ValueError:
-                    logger.debug(f"Could not find any function with matching selector for transaction {tx.hash.hex()}")
+
+                    contract = self.web3.eth.contract(
+                        address=self.web3.to_checksum_address(tx.to),
+                        abi=self.erc20_abi
+                    )
+
+                    try:
+                        func_obj, decoded_params = contract.decode_function_input(tx.input)
+                        function_name = (
+                            getattr(func_obj, 'fn_name', None) or
+                            getattr(func_obj, 'function_identifier', None)
+                        )
+                        if function_name:
+                            function_params = decoded_params
+                            decoded = True
+                    except Web3ValueError as e:
+                        logger.debug(f"Could not decode function input: {e}")
+                except Exception as e:
+                    logger.debug(f"Contract decode error: {e}")
+
+            # Method 3: Configuration fallback
+            if not decoded and hasattr(self.configuration, 'ERC20_SIGNATURES'):
+                try:
+                    function_name = self.configuration.ERC20_SIGNATURES.get(function_selector)
+                    if function_name:
+                        decoded = True
+                except Exception as e:
+                    logger.debug(f"Error in configuration lookup: {e}")
+
+            # Process decoded transaction if successful
+            if decoded and function_name in ('transfer', 'transferFrom', 'swap'):
+                # Validate parameters
+                if not function_params:
+                    logger.debug(f"No parameters decoded for {function_name}")
                     return {"is_profitable": False}
 
-            # Method 3: Check configuration signatures
-            if not function_name and hasattr(self.configuration, 'ERC20_SIGNATURES'):
-                function_name = self.configuration.ERC20_SIGNATURES.get(function_selector)
-
-            if not function_name:
-                logger.debug(f"Could not identify function for selector {function_selector}")
-                return {"is_profitable": False}
-
-            # Process identified transaction
-            if function_name in ('transfer', 'transferFrom', 'swap'):
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
                     return {
@@ -402,10 +418,13 @@ class Mempool_Monitor:
                         "gasPrice": tx.gasPrice,
                     }
 
+            if not decoded:
+                logger.debug(f"Could not decode transaction with selector: {function_selector}")
+
             return {"is_profitable": False}
 
         except Exception as e:
-            logger.debug(f"Error analyzing token transaction {tx.hash.hex()}: {e}")
+            logger.error(f"Error analyzing token transaction {tx.hash.hex()}: {e}")
             return {"is_profitable": False}
 
     async def _is_profitable_eth_transaction(self, tx) -> bool:

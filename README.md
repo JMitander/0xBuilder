@@ -116,44 +116,44 @@
 │   │   └── Configuration.py               # Configuration management
 │   │   └── DataApiClient.py               # API client for external data sources
 │   ├── Core/
-│   │   ├── MainCore.py                   # Main bot script
-│   │   ├── NonceCore.py                  # Manages Ethereum nonces
-│   │   ├── StrategyNet.py                # Handles trading strategies
-│   │   └── TransactionCore.py            # Builds and sends transaction bundles
+│   │   ├── main_core.py                   # Main bot script
+│   │   ├── nonce_core.py                  # Manages Ethereum nonces
+│   │   ├── strategy_net.py                # Handles trading strategies
+│   │   └── transaction_core.py            # Builds and sends transaction bundles
 │   ├── utils/
 │   │   ├── token_addresses.json           # List of monitored token addresses
 │   │   ├── token_symbols.json             # Mapping of token addresses to symbols
 │   │   └── erc20_signatures.json          # ERC20 function signatures
 │   ├── abi/
 │   │   ├── erc20_abi.json
-│   │   ├── AAVE_FLASHLOAN_abi.json
-│   │   ├── AAVE_LENDING_POOL_abi.json
+│   │   ├── aave_flashloan_abi.json
+│   │   ├── aave_lending_pool_abi.json
 │   │   ├── uniswap_router_abi.json
 │   │   ├── sushiswap_router_abi.json
 │   │   ├── pancakeswap_router_abi.json
 │   │   └── balancer_router_abi.json
 │   ├── Contracts/
-│   │   └── SimpleFlashLoan.sol             # Flashloan smart contract
+│   │   └── simpleflashLoan.sol             # Flashloan smart contract
 │   ├── Analysis/
-│   │   ├── MarketMonitor.py              # Analyzes market data
-│   │   ├── MempoolMonitor.py             # Monitors mempool for transactions
-│   │   └── SafetyNet.py                   # Safety checks and validations
+│   │   ├── market_monitor.py              # Analyzes market data
+│   │   ├── mempool_monitor.py             # Monitors mempool for transactions
+│   │   └── safety_net.py                   # Safety checks and validations
 │   ├── Logs/
-│   │   └── 0xBuilder_log.txt               # Logs bot activities
+│   │   └── 0xbuilder_log.txt               # Logs bot activities
 │   ├── .env                               # Environment variables
-│   ├── 0xBuilder.py                        # All-in-one
+│   ├── 0xbuilder.py                        # All-in-one
 │   ├── requirements.txt                    # Python dependencies
 │   ├── LICENSE                             # License information
 │   ├── CONTRIBUTING.md                     # Contribution guidelines
 │   └── README.md                           # Project documentation
 ├── JavaScript/
 │   ├── Configuration/
-│   │   └── Configuration.js                # Configuration management
-│   │   └─�� DataApiClient.js                # API client for external data sources
+│   │   └── configuration.js                # Configuration management
+│   │   └─�� api_client.js                # API client for external data sources
 │   ├── Core/
-│   │   ├── MainCore.js                    # Main bot script
-│   │   ├── NonceCore.js                   # Manages Ethereum nonces
-│   │   ├── StrategyNet.js                 # Handles trading strategies
+│   │   ├── main_core.js                    # Main bot script
+│   │   ├── nonce_core.js                   # Manages Ethereum nonces
+│   │   ├── strategy_net.js                 # Handles trading strategies
 │   │   └── TransactionCore.js             # Builds and sends transaction bundles
 │   ├── utils/
 │   │   ├── token_addresses.json            # List of monitored token addresses
@@ -161,20 +161,20 @@
 │   │   └── erc20_signatures.json           # ERC20 function signatures
 │   ├── abi/
 │   │   ├── erc20_abi.json
-│   │   ├── AAVE_FLASHLOAN_abi.json
-│   │   ├── AAVE_LENDING_POOL_abi.json
+│   │   ├── aave_flashloan_abi.json
+│   │   ├── aave_lending_pool_abi.json
 │   │   ├── uniswap_router_abi.json
 │   │   ├── sushiswap_router_abi.json
 │   │   ├── pancakeswap_router_abi.json
 │   │   └── balancer_router_abi.json
 │   ├── Contracts/
-│   │   └── SimpleFlashLoan.sol              # Flashloan smart contract
+│   │   └── simpleflashLoan.sol              # Flashloan smart contract
 │   ├── Analysis/
-│   │   ├── MarketMonitor.js               # Analyzes market data
-│   │   ├── MempoolMonitor.js              # Monitors mempool for transactions
-│   │   └── SafetyNet.js                    # Safety checks and validations
+│   │   ├── market_monitor.js               # Analyzes market data
+│   │   ├── mempool_monitor.js              # Monitors mempool for transactions
+│   │   └── safety_net.js                    # Safety checks and validations
 │   ├── Logs/
-│   │   └── 0xBuilder_log.txt                # Logs bot activities
+│   │   └── 0xbuilder_log.txt                # Logs bot activities
 │   ├── .env                                # Environment variables
 │   ├── index.js                              # Main entry point
 │   ├── package.json                         # JavaScript dependencies
@@ -182,12 +182,12 @@
 │   ├── CONTRIBUTING.md                      # Contribution guidelines
 │   └── README.md                            # Project documentation
 ├── Shared/
-│   ├── Errors.js                            # Custom error classes
-│   ├── Logger.js                            # Logging utility
-│   ├── Semaphore.js                         # Concurrency control utility
-│   ├── StrategyConfiguration.js             # Strategy configuration parameters
-│   └── StrategyPerformanceMetrics.js        # Tracks strategy performance metrics
-└── README.md                                # Updated Project documentation
+│   ├── errors.js                            # Custom error classes
+│   ├── logger.js                            # Logging utility
+│   ├── semaphore.js                         # Concurrency control utility
+│   ├── strategyconfiguration.js             # Strategy configuration parameters
+│   └── strategyperformanceMetrics.js        # Tracks strategy performance metrics
+└── README.md                                # Project documentation
 ```
 
 [![](https://mermaid.ink/img/pako:eNpVkEFrwkAQhf9KmLOC5xyExmBFWiikvbjrYciO2aXJThhniyL-d1ctLZnTvO-9w8y7QMuOoIROcPTFZ21jkefFLE5VCr0j2Rfz-bKozMdZPcf9r_-AK7PFH2xaCaNOjNo0HoXcBK7Nl4b-OGGvZsVRBVud8o154-6OYAYDyYDB5Rsv94gF9TSQhTKvDuXbgo3XnMOk3JxjC6VKohkIp85DecD-mFUaHSrVAfOjwx8dMe6Y_zW5oCzvz0oezVxvqcdazQ?type=png)](https://mermaid.live/edit#pako:eNpVkEFrwkAQhf9KmLOC5xyExmBFWiikvbjrYciO2aXJThhniyL-d1ctLZnTvO-9w8y7QMuOoIROcPTFZ21jkefFLE5VCr0j2Rfz-bKozMdZPcf9r_-AK7PFH2xaCaNOjNo0HoXcBK7Nl4b-OGGvZsVRBVud8o154-6OYAYDyYDB5Rsv94gF9TSQhTKvDuXbgo3XnMOk3JxjC6VKohkIp85DecD-mFUaHSrVAfOjwx8dMe6Y_zW5oCzvz0oezVxvqcdazQ)
@@ -213,7 +213,7 @@ Before running 0xBuilder, ensure you have the following:
 - **Solidity Compiler**: solc v0.8.19 or higher
 - **Development Tools**:
   - **Python**:
-    - Python 3.12 or higher
+    - Python 3.10 or higher
     - Virtual environment tool (venv)
     - Python packages listed in `Python/requirements.txt`
   - **Javascript**:

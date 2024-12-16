@@ -134,20 +134,66 @@ class Transaction_Core:
             ) from e
 
     async def _load_erc20_abi(self) -> List[Dict[str, Any]]:
-        """Load the ERC20 ABI.""" 
+        """Load the ERC20 ABI with better path handling."""
         try:
-            erc20_abi = await self.api_config._load_abi(self.configuration.ERC20_ABI)
-            logger.debug("ERC20 ABI loaded successfully.")
-            return erc20_abi
+            # Use pathlib for better path handling
+            from pathlib import Path
+            base_path = Path(__file__).parent.parent.parent
+            abi_path = base_path / "abi" / "erc20_abi.json"
+            
+            async with aiofiles.open(str(abi_path), 'r') as f:
+                content = await f.read()
+                abi = json.loads(content)
+                
+            # Validate ABI structure
+            required_methods = {'transfer', 'approve', 'transferFrom', 'balanceOf'}
+            found_methods = {func['name'] for func in abi if 'name' in func}
+            
+            if not required_methods.issubset(found_methods):
+                missing = required_methods - found_methods
+                raise ValueError(f"ERC20 ABI missing required methods: {missing}")
+                
+            logger.debug(f"Loaded ERC20 ABI with {len(abi)} functions")
+            return abi
+            
         except FileNotFoundError:
-            logger.error(f"ERC20 ABI file not found at {self.configuration.ERC20_ABI}.")
+            logger.error(f"ERC20 ABI file not found at {abi_path}")
             raise
         except json.JSONDecodeError:
-            logger.error("ERC20 ABI file is not valid JSON.")
+            logger.error("Invalid JSON in ERC20 ABI file")
             raise
         except Exception as e:
             logger.error(f"Failed to load ERC20 ABI: {e}")
-            raise ValueError("ERC20 ABI loading failed") from e
+            raise
+
+    async def _validate_signatures(self) -> None:
+        """Validate loaded ERC20 signatures."""
+        try:
+            from pathlib import Path
+            base_path = Path(__file__).parent.parent.parent
+            sig_path = base_path / "utils" / "erc20_signatures.json"
+            
+            async with aiofiles.open(str(sig_path), 'r') as f:
+                content = await f.read()
+                signatures = json.loads(content)
+                
+            # Check for duplicate signatures
+            sig_values = list(signatures.values())
+            duplicates = {sig for sig in sig_values if sig_values.count(sig) > 1}
+            if duplicates:
+                logger.warning(f"Found duplicate signatures: {duplicates}")
+                
+            # Validate signature format
+            invalid = [sig for sig in sig_values if not sig.startswith('0x') or len(sig) != 10]
+            if invalid:
+                raise ValueError(f"Invalid signature format: {invalid}")
+                
+            self.function_signatures = signatures
+            logger.debug(f"Loaded {len(signatures)} ERC20 signatures")
+            
+        except Exception as e:
+            logger.error(f"Error validating signatures: {e}")
+            raise
 
     async def build_transaction(self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Enhanced transaction building with EIP-1559 support and proper gas estimation.""" 
@@ -752,61 +798,43 @@ class Transaction_Core:
             return None
         
     async def decode_transaction_input(self, input_data: str, contract_address: str) -> Optional[Dict[str, Any]]:
-        """
-        Decodes the input data of a transaction.
-
-        :param input_data: Hexadecimal input data of the transaction.
-        :param contract_address: Address of the contract being interacted with.
-        :return: Dictionary containing function name and parameters if successful, else None.
-        """
+        """Centralized transaction decoding for all components."""
         try:
-            # Load the contract ABI
-            contract = self.web3.eth.contract(address=contract_address, abi=self.erc20_abi)
+            contract = self.web3.eth.contract(
+                address=self.web3.to_checksum_address(contract_address),
+                abi=self.erc20_abi
+            )
             
-            # Get function signature (first 4 bytes of input data)
             function_signature = input_data[:10]
             
-            # Decode the function call
             try:
-                function_obj, function_params = contract.decode_function_input(input_data)
-                # Get function name from the function object's FallbackFn or type name
-                function_name = getattr(function_obj, '_name', None) or getattr(function_obj, 'fn_name', None)
-                if not function_name and hasattr(function_obj, 'function_identifier'):
-                    function_name = function_obj.function_identifier
-                    
-                if not function_name:
-                    # Fallback to checking known signatures
-                    for name, sig in self.configuration.ERC20_SIGNATURES.items():
-                        if sig == function_signature:
-                            function_name = name
-                            break
+                func_obj, decoded_params = contract.decode_function_input(input_data)
+                function_name = (
+                    getattr(func_obj, '_name', None) or 
+                    getattr(func_obj, 'fn_name', None) or
+                    getattr(func_obj, 'function_identifier', None)
+                )
                 
-                decoded_data = {
+                return {
                     "function_name": function_name,
-                    "params": function_params,
+                    "params": decoded_params,
                     "signature": function_signature
                 }
                 
-                logger.debug(
-                    f"Decoded transaction input: function={function_name}, "
-                    f"signature={function_signature}"
-                )
-                return decoded_data
-                
-            except Exception as decode_error:
-                # Fallback to signature lookup if decoding fails
-                for name, sig in self.configuration.ERC20_SIGNATURES.items():
-                    if sig == function_signature:
-                        # For known signatures, return basic decoded data
-                        return {
-                            "function_name": name,
-                            "params": {},
-                            "signature": function_signature
-                        }
-                raise decode_error
+            except ContractLogicError:
+                # Fallback to signature lookup
+                if hasattr(self.configuration, 'ERC20_SIGNATURES'):
+                    for name, sig in self.configuration.ERC20_SIGNATURES.items():
+                        if sig == function_signature:
+                            return {
+                                "function_name": name,
+                                "params": {},
+                                "signature": function_signature
+                            }
+                raise
                 
         except Exception as e:
-            logger.debug(f"Error decoding transaction input: {e}")
+            logger.error(f"Error decoding transaction input: {e}")
             return None
 
     async def cancel_transaction(self, nonce: int) -> bool:
@@ -963,6 +991,23 @@ class Transaction_Core:
             logger.debug("Stopped 0xBuilder. ")
         except Exception as e:
             logger.error(f"Error stopping 0xBuilder: {e} !")
+            raise
+
+    async def calculate_gas_parameters(
+        self,
+        tx: Dict[str, Any],
+        gas_limit: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Centralized gas parameter calculation."""
+        try:
+            gas_price = await self.get_dynamic_gas_price()
+            estimated_gas = gas_limit or await self.estimate_gas_smart(tx)
+            return {
+                'gasPrice': gas_price['gasPrice'],
+                'gas': int(estimated_gas * 1.1)  # Add 10% buffer
+            }
+        except Exception as e:
+            logger.error(f"Error calculating gas parameters: {e}")
             raise
 
 #//////////////////////////////////////////////////////////////////////////////

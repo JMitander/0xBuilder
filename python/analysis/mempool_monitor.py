@@ -285,15 +285,36 @@ class Mempool_Monitor:
                 return None
 
     async def _handle_profitable_transaction(self, analysis: Dict[str, Any]) -> None:
-        """Process and queue profitable transactions.""" 
+        """Enhanced profitable transaction handling with validation."""
         try:
-            await self.profitable_transactions.put(analysis)
-            logger.info(
-                f"Profitable transaction identified: {analysis['tx_hash']}"
-                f"(Estimated profit: {analysis.get('profit', 'Unknown')} ETH)"
+            # Validate profit value
+            profit = analysis.get('profit', Decimal(0))
+            if isinstance(profit, (int, float)):
+                profit = Decimal(str(profit))
+            elif not isinstance(profit, Decimal):
+                logger.warning(f"Invalid profit type: {type(profit)}")
+                profit = Decimal(0)
+
+            # Format profit for logging
+            profit_str = f"{float(profit):.6f}" if profit > 0 else 'Unknown'
+            
+            # Add additional analysis data
+            analysis['profit'] = profit
+            analysis['timestamp'] = time.time()
+            analysis['gas_price'] = self.web3.from_wei(
+                analysis.get('gasPrice', 0), 
+                'gwei'
             )
+
+            await self.profitable_transactions.put(analysis)
+            
+            logger.info(
+                f"Profitable transaction identified: {analysis['tx_hash']} "
+                f"(Estimated profit: {profit_str} ETH)"
+            )
+
         except Exception as e:
-            logger.debug(f"Error handling profitable transaction: {e}")
+            logger.error(f"Error handling profitable transaction: {e}")
 
     async def analyze_transaction(self, tx) -> Dict[str, Any]:
         if not tx.hash or not tx.input:
@@ -450,43 +471,182 @@ class Mempool_Monitor:
             return Decimal(0)
 
     async def _estimate_profit(self, tx, function_params: Dict[str, Any]) -> Decimal:
+        """Enhanced profit estimation with improved precision and market analysis."""
         try:
-            gas_price_gwei = Decimal(self.web3.from_wei(tx.gasPrice, "gwei"))
-            gas_used = tx.gas if tx.gas else await self.web3.eth.estimate_gas(tx)
-            gas_cost_eth = gas_price_gwei * Decimal(gas_used) * Decimal("1e-9")
-            input_amount_wei = Decimal(function_params.get("amountIn", 0))
-            output_amount_min_wei = Decimal(function_params.get("amountOutMin", 0))
-            path = function_params.get("path", [])
-            if len(path) < 2:
-                logger.debug(
-                    f"Transaction {tx.hash.hex()} has an invalid path for swapping. Skipping."
-                )
+            # Validate and get gas costs with increased precision
+            gas_data = await self._calculate_gas_costs(tx)
+            if not gas_data['valid']:
+                logger.debug(f"Invalid gas data: {gas_data['reason']}")
                 return Decimal(0)
-            output_token_address = path[-1]
-            output_token_symbol = await self.api_config.get_token_symbol(self.web3, output_token_address)
-            if not output_token_symbol:
-                logger.debug(
-                    f"Output token symbol not found for address {output_token_address}. Skipping."
-                )
+
+            # Get token amounts with validation
+            amounts = await self._validate_token_amounts(function_params)
+            if not amounts['valid']:
+                logger.debug(f"Invalid token amounts: {amounts['reason']}")
                 return Decimal(0)
-            market_price = await self.api_config.get_real_time_price(
-                output_token_symbol.lower()
+
+            # Get market data with validation
+            market_data = await self._get_market_data(function_params['path'][-1])
+            if not market_data['valid']:
+                logger.debug(f"Invalid market data: {market_data['reason']}")
+                return Decimal(0)
+
+            # Calculate profit with all factors
+            profit = await self._calculate_final_profit(
+                amounts=amounts['data'],
+                gas_costs=gas_data['data'],
+                market_data=market_data['data']
             )
-            if market_price is None or market_price == 0:
-                logger.debug(
-                    f"Market price not available for token {output_token_symbol}. Skipping."
-                )
-                return Decimal(0)
-            input_amount_eth = Decimal(self.web3.from_wei(input_amount_wei, "ether"))
-            output_amount_eth = Decimal(self.web3.from_wei(output_amount_min_wei, "ether"))
-            expected_output_value = output_amount_eth * market_price
-            profit = expected_output_value - input_amount_eth - gas_cost_eth
-            return profit if profit > 0 else Decimal(0)
+
+            # Log comprehensive calculation details
+            self._log_profit_calculation(profit, amounts['data'], gas_data['data'], market_data['data'])
+
+            return Decimal(max(0, profit))
+
         except Exception as e:
-            logger.debug(
-                f"Error estimating profit for transaction {tx.hash.hex()}: {e}"
-            )
+            logger.error(f"Error in profit estimation: {e}")
             return Decimal(0)
+
+    async def _calculate_gas_costs(self, tx: Any) -> Dict[str, Any]:
+        """Calculate gas costs with improved precision."""
+        try:
+            gas_price_wei = Decimal(tx.gasPrice)
+            gas_price_gwei = Decimal(self.web3.from_wei(gas_price_wei, "gwei"))
+            
+            # Get dynamic gas estimate
+            gas_used = tx.gas if tx.gas else await self.web3.eth.estimate_gas(tx)
+            gas_used = Decimal(gas_used)
+
+            # Add safety margin for gas estimation (10%)
+            gas_with_margin = gas_used * Decimal("1.1")
+            
+            # Calculate total gas cost in ETH
+            gas_cost_eth = (gas_price_gwei * gas_with_margin * Decimal("1e-9")).quantize(Decimal("0.000000001"))
+
+            return {
+                'valid': True,
+                'data': {
+                    'gas_price_gwei': gas_price_gwei,
+                    'gas_used': gas_used,
+                    'gas_with_margin': gas_with_margin,
+                    'gas_cost_eth': gas_cost_eth
+                }
+            }
+        except Exception as e:
+            return {'valid': False, 'reason': str(e)}
+
+    async def _validate_token_amounts(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and convert token amounts with improved precision."""
+        try:
+            input_amount_wei = Decimal(params.get("amountIn", 0))
+            output_amount_wei = Decimal(params.get("amountOutMin", 0))
+
+            if input_amount_wei <= 0 or output_amount_wei <= 0:
+                return {'valid': False, 'reason': 'Invalid amounts'}
+
+            # Convert to ETH with higher precision
+            input_amount_eth = Decimal(self.web3.from_wei(input_amount_wei, "ether")).quantize(Decimal("0.000000001"))
+            output_amount_eth = Decimal(self.web3.from_wei(output_amount_wei, "ether")).quantize(Decimal("0.000000001"))
+
+            return {
+                'valid': True,
+                'data': {
+                    'input_eth': input_amount_eth,
+                    'output_eth': output_amount_eth,
+                    'input_wei': input_amount_wei,
+                    'output_wei': output_amount_wei
+                }
+            }
+        except Exception as e:
+            return {'valid': False, 'reason': str(e)}
+
+    async def _get_market_data(self, token_address: str) -> Dict[str, Any]:
+        """Get comprehensive market data for profit calculation."""
+        try:
+            token_symbol = await self.api_config.get_token_symbol(self.web3, token_address)
+            if not token_symbol:
+                return {'valid': False, 'reason': 'Token symbol not found'}
+
+            # Get market price and liquidity data
+            price = await self.api_config.get_real_time_price(token_symbol.lower())
+            if not price or price <= 0:
+                return {'valid': False, 'reason': 'Invalid market price'}
+
+            # Calculate dynamic slippage based on liquidity
+            slippage = await self._calculate_dynamic_slippage(token_symbol)
+
+            return {
+                'valid': True,
+                'data': {
+                    'price': Decimal(str(price)),
+                    'slippage': slippage,
+                    'symbol': token_symbol
+                }
+            }
+        except Exception as e:
+            return {'valid': False, 'reason': str(e)}
+
+    async def _calculate_dynamic_slippage(self, token_symbol: str) -> Decimal:
+        """Calculate dynamic slippage based on market conditions."""
+        try:
+            volume = await self.api_config.get_token_volume(token_symbol)
+            # Adjust slippage based on volume (higher volume = lower slippage)
+            if volume > 1_000_000:  # High volume
+                return Decimal("0.995")  # 0.5% slippage
+            elif volume > 500_000:  # Medium volume
+                return Decimal("0.99")   # 1% slippage
+            else:  # Low volume
+                return Decimal("0.98")   # 2% slippage
+        except Exception:
+            return Decimal("0.99")  # Default to 1% slippage
+
+    async def _calculate_final_profit(
+        self,
+        amounts: Dict[str, Decimal],
+        gas_costs: Dict[str, Decimal],
+        market_data: Dict[str, Any]
+    ) -> Decimal:
+        """Calculate final profit with all factors considered."""
+        try:
+            # Calculate expected output value with slippage
+            expected_output_value = (
+                amounts['output_eth'] * 
+                market_data['price'] * 
+                market_data['slippage']
+            ).quantize(Decimal("0.000000001"))
+
+            # Calculate net profit
+            profit = (
+                expected_output_value - 
+                amounts['input_eth'] - 
+                gas_costs['gas_cost_eth']
+            ).quantize(Decimal("0.000000001"))
+
+            return profit
+
+        except Exception as e:
+            logger.error(f"Error in final profit calculation: {e}")
+            return Decimal(0)
+
+    def _log_profit_calculation(
+        self,
+        profit: Decimal,
+        amounts: Dict[str, Decimal],
+        gas_costs: Dict[str, Decimal],
+        market_data: Dict[str, Any]
+    ) -> None:
+        """Log detailed profit calculation metrics."""
+        logger.debug(
+            f"Profit Calculation Details:\n"
+            f"Token: {market_data['symbol']}\n"
+            f"Input Amount: {amounts['input_eth']:.9f} ETH\n"
+            f"Expected Output: {amounts['output_eth']:.9f} tokens\n"
+            f"Market Price: {market_data['price']:.9f}\n"
+            f"Slippage: {(1 - float(market_data['slippage'])) * 100:.2f}%\n"
+            f"Gas Cost: {gas_costs['gas_cost_eth']:.9f} ETH\n"
+            f"Gas Price: {gas_costs['gas_price_gwei']:.2f} Gwei\n"
+            f"Final Profit: {profit:.9f} ETH"
+        )
 
     async def _log_transaction_details(self, tx, is_eth=False) -> None:
         try:

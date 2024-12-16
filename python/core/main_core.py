@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import signal
 import sys
 import time
@@ -12,6 +13,7 @@ from web3.middleware import ExtraDataToPOAMiddleware
 from web3.providers import AsyncHTTPProvider, AsyncIPCProvider, WebSocketProvider
 import async_timeout
 import logging
+import aiofiles
 
 from analysis.market_monitor import Market_Monitor
 from analysis.mempool_monitor import Mempool_Monitor
@@ -48,13 +50,17 @@ class Main_Core:
         }
         logger.info("Starting 0xBuilder...")
 
-    async def initialize(self) -> None:
-        """Initialize all components with error handling and proper sequencing."""
+    async def _initialize_components(self) -> None:
+        """Initialize all components in the correct dependency order."""
         try:
-            before_snapshot = tracemalloc.take_snapshot()
-            
-            # Sequential initialization of critical components
+            # 1. First initialize configuration and load ABIs
             await self._load_configuration()
+            
+            # Load and validate ERC20 ABI
+            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
+            if not erc20_abi:
+                raise ValueError("Failed to load ERC20 ABI")
+            
             self.web3 = await self._initialize_web3()
             if not self.web3:
                 raise RuntimeError("Failed to initialize Web3 connection")
@@ -62,32 +68,92 @@ class Main_Core:
             self.account = Account.from_key(self.configuration.WALLET_KEY)
             await self._check_account_balance()
 
-            # Initialize components in parallel where possible
-            init_tasks = [
-                self._initialize_component('api_config', API_Config(self.configuration)),
-                self._initialize_component('nonce_core', Nonce_Core(
-                    self.web3, self.account.address, self.configuration
-                )),
-                self._initialize_component('safety_net', Safety_Net(
-                    self.web3, self.configuration, self.account, self.components['api_config']
-                )),
-            ]
-            
-            await asyncio.gather(*init_tasks)
+            # 2. Initialize API config
+            self.components['api_config'] = API_Config(self.configuration)
+            await self.components['api_config'].initialize()
 
-            # Sequential initialization for dependent components
-            await self._initialize_monitoring_components()
-            await self._initialize_transaction_components()
-            await self._initialize_strategy_components()
+            # 3. Initialize nonce core
+            self.components['nonce_core'] = Nonce_Core(
+                self.web3, 
+                self.account.address, 
+                self.configuration
+            )
+            await self.components['nonce_core'].initialize()
 
+            # 4. Initialize safety net
+            self.components['safety_net'] = Safety_Net(
+                self.web3,
+                self.configuration,
+                self.account,
+                self.components['api_config']
+            )
+            await self.components['safety_net'].initialize()
+
+            # 5. Initialize transaction core
+            self.components['transaction_core'] = Transaction_Core(
+                self.web3,
+                self.account,
+                self.configuration.AAVE_FLASHLOAN_ADDRESS,
+                self.configuration.AAVE_FLASHLOAN_ABI,
+                self.configuration.AAVE_LENDING_POOL_ADDRESS,
+                self.configuration.AAVE_LENDING_POOL_ABI,
+                api_config=self.components['api_config'],
+                nonce_core=self.components['nonce_core'],
+                safety_net=self.components['safety_net'],
+                configuration=self.configuration
+            )
+            await self.components['transaction_core'].initialize()
+
+            # 6. Initialize market monitor
+            self.components['market_monitor'] = Market_Monitor(
+                web3=self.web3,
+                configuration=self.configuration,
+                api_config=self.components['api_config'],
+                transaction_core=self.components['transaction_core']
+            )
+            await self.components['market_monitor'].initialize()
+
+            # 7. Initialize mempool monitor with validated ABI
+            self.components['mempool_monitor'] = Mempool_Monitor(
+                web3=self.web3,
+                safety_net=self.components['safety_net'],
+                nonce_core=self.components['nonce_core'],
+                api_config=self.components['api_config'],
+                monitored_tokens=await self.configuration.get_token_addresses(),
+                configuration=self.configuration,
+                erc20_abi=erc20_abi  # Pass the loaded ABI
+            )
+            await self.components['mempool_monitor'].initialize()
+
+            # 8. Finally initialize strategy net
+            self.components['strategy_net'] = Strategy_Net(
+                self.components['transaction_core'],
+                self.components['market_monitor'],
+                self.components['safety_net'],
+                self.components['api_config']
+            )
+            await self.components['strategy_net'].initialize()
+
+            logger.info("All components initialized successfully ✅")
+
+        except Exception as e:
+            logger.critical(f"Component initialization failed: {e}")
+            raise
+
+    async def initialize(self) -> None:
+        """Initialize all components with proper error handling."""
+        try:
+            before_snapshot = tracemalloc.take_snapshot()
+            await self._initialize_components()
             after_snapshot = tracemalloc.take_snapshot()
-            top_stats = after_snapshot.compare_to(before_snapshot, 'lineno')
             
+            # Log memory usage
+            top_stats = after_snapshot.compare_to(before_snapshot, 'lineno')
             logger.debug("Memory allocation during initialization:")
             for stat in top_stats[:3]:
                 logger.debug(str(stat))
 
-            logger.debug("Main Core initialization successful.")
+            logger.debug("Main Core initialization complete ✅")
             
         except Exception as e:
             logger.critical(f"Main Core initialization failed: {e}")
@@ -161,20 +227,25 @@ class Main_Core:
             try:
                 ws_provider = WebSocketProvider(self.configuration.WEBSOCKET_ENDPOINT)
                 await ws_provider.connect()
-
-            except Exception as e:
-                    logger.warning(f"WebSocket Provider failed. {e} ❌ - Attempting IPC... ")
-            
-
-            try:
-                await ws_provider.make_request('eth_blockNumber', [])
                 providers.append(("WebSocket Provider", ws_provider))
                 logger.info("Linked to Ethereum network via WebSocket Provider. ✅")
                 return providers
             except Exception as e:
-                await ws_provider.disconnect()
-                raise
+                logger.warning(f"WebSocket Provider failed. {e} ❌ - Attempting IPC... ")
+            
+        if self.configuration.IPC_ENDPOINT:
+            try:
+                ipc_provider = AsyncIPCProvider(self.configuration.IPC_ENDPOINT)
+                await ipc_provider.make_request('eth_blockNumber', [])
+                providers.append(("IPC Provider", ipc_provider))
+                logger.info("Linked to Ethereum network via IPC Provider. ✅")
+                return providers
+            except Exception as e:
+                logger.warning(f"IPC Provider failed. {e} ❌ - All providers failed.")
 
+        logger.critical("No more providers are available! ❌")
+        return providers
+    
     async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
         """Test Web3 connection with retries."""
         for attempt in range(3):
@@ -185,16 +256,7 @@ class Main_Core:
                     return True
             except Exception as e:
                 logger.error(f"Connection attempt {attempt + 1} failed: {e}")
-                
-                await ipc_provider.make_request('eth_blockNumber', [])
-                providers.append(("IPC Provider", ipc_provider))
-                logger.info("Linked to Ethereum network via IPC Provider. ✅")
-                return providers
-            except Exception as e:
-                logger.warning(f"IPC Provider failed: {e} ❌ All providers failed.")
-        logger.critical("No more providers are available! ❌")
-        return providers
-    
+                await asyncio.sleep(1)
 
     async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
         """Test Web3 connection with retries."""
@@ -438,13 +500,25 @@ class Main_Core:
                 logger.error(f"Error processing transaction: {e}")
 
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
-        """Load contract abi from a file."""
+        """Load contract ABI from a file with better error handling."""
         try:
-            with open(abi_path, 'r') as file:
-                return json.load(file)
+            # Handle both absolute and relative paths
+            if not abi_path.startswith('/'):
+                abi_path = os.path.join(os.path.dirname(__file__), '..', '..', abi_path)
+            
+            async with aiofiles.open(abi_path, 'r') as file:
+                content = await file.read()
+                abi = json.loads(content)
+                logger.debug(f"Successfully loaded ABI from {abi_path}")
+                return abi
+        except FileNotFoundError:
+            logger.error(f"ABI file not found at {abi_path}")
+            return []
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in ABI file {abi_path}: {e}")
+            return []
         except Exception as e:
-            logger.error(f"Failed to load ABI from {abi_path}: {e}")
-        except Exception as e:
+            logger.error(f"Error loading ABI from {abi_path}: {e}")
             return []
 
     async def _validate_abis(self) -> None:

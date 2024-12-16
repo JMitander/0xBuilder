@@ -32,11 +32,13 @@ class Market_Monitor:
         web3: AsyncWeb3,
         configuration: Optional[Configuration],
         api_config: Optional[API_Config],
+        transaction_core: Optional[Any] = None,  # Add this parameter
     ) -> None:
         """Initialize Market Monitor with required components."""
         self.web3 = web3
         self.configuration = configuration
         self.api_config = api_config
+        self.transaction_core = transaction_core  # Store transaction_core reference
         self.price_model = LinearRegression()
         self.model_last_updated = 0
 
@@ -123,34 +125,9 @@ class Market_Monitor:
         return float(predicted_price)
 
     # Market Data Methods
-    async def get_price_data(
-        self, 
-        token_symbol: str,
-        data_type: str = 'current',
-        timeframe: int = 1
-    ) -> Union[float, List[float]]:
-        """Unified method for fetching price-related data."""
-        cache_key = f"{data_type}_{token_symbol}_{timeframe}"
-        cache = self.caches['price']
-
-        if cache_key in cache:
-            return cache[cache_key]
-
-        try:
-            if data_type == 'current':
-                data = await self.api_config.get_real_time_price(token_symbol)
-            elif data_type == 'historical':
-                data = await self.api_config.fetch_historical_prices(token_symbol, days=timeframe)
-            else:
-                raise ValueError(f"Invalid data type: {data_type}")
-
-            if data is not None:
-                cache[cache_key] = data
-                return data
-
-        except Exception as e:
-            logger.error(f"Error fetching {data_type} price data: {e}")
-            return [] if data_type == 'historical' else 0.0
+    async def get_price_data(self, *args, **kwargs):
+        """Use centralized price fetching from API_Config."""
+        return await self.api_config.get_token_price_data(*args, **kwargs)
 
     async def get_token_volume(self, token_symbol: str) -> float:
         """
@@ -223,37 +200,19 @@ class Market_Monitor:
             self.model_last_updated = time.time()
 
     async def is_arbitrage_opportunity(self, target_tx: Dict[str, Any]) -> bool:
-        """
-        Check if there's an arbitrage opportunity based on the target transaction.
-
-        :param target_tx: Target transaction dictionary
-        :return: True if arbitrage opportunity detected, else False
-        """
-
-        decoded_tx = await self.decode_transaction_input(target_tx["input"], target_tx["to"])
-        if not decoded_tx:
-            return False
-        path = decoded_tx["params"].get("path", [])
-        if len(path) < 2:
-            return False
-        token_address = path[-1]  # The token being bought
-        token_symbol = await self.api_config.get_token_symbol(self.web3, token_address)
-        if not token_symbol:
+        """Use transaction_core for decoding but avoid circular dependencies."""
+        if not self.transaction_core:
+            logger.warning("Transaction core not initialized, cannot check arbitrage")
             return False
 
-        prices = await self._get_prices_from_services(token_symbol)
-        if len(prices) < 2:
+        try:
+            decoded_tx = await self.transaction_core.decode_transaction_input(
+                target_tx["input"], target_tx["to"]
+            )
+            # ...existing code...
+        except Exception as e:
+            logger.error(f"Error checking arbitrage opportunity: {e}")
             return False
-
-        price_difference = abs(prices[0] - prices[1])
-        average_price = sum(prices) / len(prices)
-        if average_price == 0:
-            return False
-        price_difference_percentage = price_difference / average_price
-        if price_difference_percentage > 0.01:
-            logger.debug(f"Arbitrage opportunity detected for {token_symbol}")
-            return True
-        return False
 
     async def _get_prices_from_services(self, token_symbol: str) -> List[float]:
         """
@@ -272,24 +231,9 @@ class Market_Monitor:
                 logger.warning(f"failed to get price from {service}: {e}")
         return prices
 
-    async def decode_transaction_input(
-        self, input_data: str, contract_address: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Decode the input data of a transaction.
-
-        :param input_data: Hexadecimal input data of the transaction.
-        :param contract_address: Address of the contract being interacted with.
-        :return: Dictionary containing function name and parameters if successful, else None.
-        """
-        try:
-            erc20_abi = await self.api_config._load_abi(self.configuration.ERC20_ABI)
-            contract = self.web3.eth.contract(address=contract_address, abi=erc20_abi)
-            function_abi, params = contract.decode_function_input(input_data)
-            return {"function_name": function_abi["name"], "params": params}
-        except Exception as e:
-            logger.warning(f"failed in decoding transaction input: {e}")
-            return None
+    async def decode_transaction_input(self, *args, **kwargs):
+        """Use centralized transaction decoding from Transaction_Core."""
+        return await self.transaction_core.decode_transaction_input(*args, **kwargs)
 
     async def initialize(self) -> None:
         """Initialize market monitor components."""

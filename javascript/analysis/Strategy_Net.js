@@ -3,9 +3,9 @@
 import logger from './Logger.js'; //  Logger.js handles logging
 import { Decimal } from 'decimal.js';
 import { dataclass } from './Dataclass.js'; // Implement a simple dataclass equivalent or use plain objects
-import StrategyPerformanceMetrics from '../../Utils/StrategyPerformanceMetrics.js'; // Define this class as needed
-import StrategyConfiguration from '../../Utils/StrategyConfiguration.js'; // Define this class as needed
-import StrategyExecutionError from '../../Utils/StrategyExecutionError.js'; // Define this class as needed
+import StrategyPerformanceMetrics from /utils/Python/StrategyPerformanceMetrics.js
+import StrategyConfiguration from /utils/Python/StrategyConfiguration.js
+import StrategyExecutionError from /utils/Python/strategyconfiguration.py
 
 class StrategyNet {
     /**

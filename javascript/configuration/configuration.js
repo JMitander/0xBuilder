@@ -100,8 +100,8 @@ class Configuration {
         this.SUSHISWAP_ROUTER_ADDRESS = this._get_env_variable("SUSHISWAP_ROUTER_ADDRESS");
         this.UNISWAP_ROUTER_ABI = await this._construct_abi_path("abi", "uniswap_router_abi.json");
         this.UNISWAP_ROUTER_ADDRESS = this._get_env_variable("UNISWAP_ROUTER_ADDRESS");
-        this.AAVE_FLASHLOAN_ABI = await this._construct_abi_path("abi", "AAVE_FLASHLOAN_ABI.json");
-        this.AAVE_LENDING_POOL_ABI = await this._construct_abi_path("abi", "AAVE_LENDING_POOL_ABI.json");
+        this.AAVE_FLASHLOAN_ABI = await this._construct_abi_path("abi", "AAVE_FLASHLOAN_abi.json");
+        this.AAVE_LENDING_POOL_ABI = await this._construct_abi_path("abi", "AAVE_LENDING_POOL_abi.json");
         this.AAVE_FLASHLOAN_ADDRESS = this._get_env_variable("AAVE_FLASHLOAN_ADDRESS");
         this.PANCAKESWAP_ROUTER_ABI = await this._construct_abi_path("abi", "pancakeswap_router_abi.json");
         this.PANCAKESWAP_ROUTER_ADDRESS = this._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS");

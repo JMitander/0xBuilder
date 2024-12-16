@@ -120,14 +120,14 @@
 │   │   ├── NonceCore.py                  # Manages Ethereum nonces
 │   │   ├── StrategyNet.py                # Handles trading strategies
 │   │   └── TransactionCore.py            # Builds and sends transaction bundles
-│   ├── Utils/
+│   ├── utils/
 │   │   ├── token_addresses.json           # List of monitored token addresses
 │   │   ├── token_symbols.json             # Mapping of token addresses to symbols
 │   │   └── erc20_signatures.json          # ERC20 function signatures
 │   ├── abi/
 │   │   ├── erc20_abi.json
-│   │   ├── AAVE_FLASHLOAN_ABI.json
-│   │   ├── AAVE_LENDING_POOL_ABI.json
+│   │   ├── AAVE_FLASHLOAN_abi.json
+│   │   ├── AAVE_LENDING_POOL_abi.json
 │   │   ├── uniswap_router_abi.json
 │   │   ├── sushiswap_router_abi.json
 │   │   ├── pancakeswap_router_abi.json
@@ -155,14 +155,14 @@
 │   │   ├── NonceCore.js                   # Manages Ethereum nonces
 │   │   ├── StrategyNet.js                 # Handles trading strategies
 │   │   └── TransactionCore.js             # Builds and sends transaction bundles
-│   ├── Utils/
+│   ├── utils/
 │   │   ├── token_addresses.json            # List of monitored token addresses
 │   │   ├── token_symbols.json              # Mapping of token addresses to symbols
 │   │   └── erc20_signatures.json           # ERC20 function signatures
 │   ├── abi/
 │   │   ├── erc20_abi.json
-│   │   ├── AAVE_FLASHLOAN_ABI.json
-│   │   ├── AAVE_LENDING_POOL_ABI.json
+│   │   ├── AAVE_FLASHLOAN_abi.json
+│   │   ├── AAVE_LENDING_POOL_abi.json
 │   │   ├── uniswap_router_abi.json
 │   │   ├── sushiswap_router_abi.json
 │   │   ├── pancakeswap_router_abi.json
@@ -395,8 +395,8 @@ WALLET_ADDRESS=0xYourWalletAddress
 PROFIT_WALLET=0xYourProfitAddress
 
 # Token Configurationsuration
-TOKEN_LIST_PATH=Utils/token_addresses.json
-TOKEN_SYMBOLS_PATH=Utils/token_symbols.json
+TOKEN_LIST_PATH=utils/token_addresses.json
+TOKEN_SYMBOLS_PATH=utils/token_symbols.json
 
 # DEX Router Configurationsurations
 UNISWAP_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
@@ -430,7 +430,7 @@ chmod 600 .env
 
 [![](https://mermaid.ink/img/pako:eNqN0UtrwzAMAOC_EnRutzJ2ymGH0utO62n2CIqtJF4dy_ixB6X_fdrKNigE6ost6ZMx1hEMW4IWxoRxavY7HRpZ23u1-dhW5y2lW-zdy2-6Wa8fZENFydxtOindvGYOl_VeIb5RN3jMk2cMi9CcoadgXRi7yOwXrVU1uPyOsUtcC6VFSCrXPF1FBxUxGDzQNXhUPXrhQi4lrGCmNKOz8pfH7z4NZaKZNLRytJgOGnQ4icNa-OkzGGhLqrQCuWqcoB3QZ4lqtFho51AGMv9l5ZHPzP8xWVc4PZ5H9zPB0xcM7pb8?type=png)](https://mermaid.live/edit#pako:eNqN0UtrwzAMAOC_EnRutzJ2ymGH0utO62n2CIqtJF4dy_ixB6X_fdrKNigE6ost6ZMx1hEMW4IWxoRxavY7HRpZ23u1-dhW5y2lW-zdy2-6Wa8fZENFydxtOindvGYOl_VeIb5RN3jMk2cMi9CcoadgXRi7yOwXrVU1uPyOsUtcC6VFSCrXPF1FBxUxGDzQNXhUPXrhQi4lrGCmNKOz8pfH7z4NZaKZNLRytJgOGnQ4icNa-OkzGGhLqrQCuWqcoB3QZ4lqtFho51AGMv9l5ZHPzP8xWVc4PZ5H9zPB0xcM7pb8)
 
-Ensure that essential JSON configuration files are present in the `Utils` directory for both Python and JavaScript:
+Ensure that essential JSON configuration files are present in the `utils` directory for both Python and JavaScript:
 
 | File                  | Description                             | Format            |
 |-----------------------|-----------------------------------------|-------------------|

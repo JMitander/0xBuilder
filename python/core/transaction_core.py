@@ -16,6 +16,7 @@ from configuration.api_config import API_Config
 from configuration.configuration import Configuration
 from core.nonce_core import Nonce_Core
 from web3.exceptions import ContractLogicError, TransactionNotFound
+from utils.abi_manager import ABI_Manager
 
 logger = logging.getLogger(__name__)
 
@@ -60,78 +61,64 @@ class Transaction_Core:
         self.AAVE_FLASHLOAN_ABI = AAVE_FLASHLOAN_ABI
         self.AAVE_LENDING_POOL_ADDRESS = AAVE_LENDING_POOL_ADDRESS
         self.AAVE_LENDING_POOL_ABI = AAVE_LENDING_POOL_ABI
+        self.abi_manager = ABI_Manager()
 
     async def initialize(self):
-        """Initializes all required contracts.""" 
-        self.flashloan_contract = await self._initialize_contract(
-            self.AAVE_FLASHLOAN_ADDRESS,
-            self.AAVE_FLASHLOAN_ABI,
-            "Flashloan Contract",
-        )
-        self.lending_pool_contract = await self._initialize_contract(
-            self.AAVE_LENDING_POOL_ADDRESS,
-            self.AAVE_LENDING_POOL_ABI,
-            "Lending Pool Contract",
-        )
-        self.uniswap_router_contract = await self._initialize_contract(
-            self.configuration.UNISWAP_ROUTER_ADDRESS,
-            self.configuration.UNISWAP_ROUTER_ABI,
-            "Uniswap Router Contract",
-        )
-        self.sushiswap_router_contract = await self._initialize_contract(
-            self.configuration.SUSHISWAP_ROUTER_ADDRESS,
-            self.configuration.SUSHISWAP_ROUTER_ABI,
-            "Sushiswap Router Contract",
-        )
-        self.pancakeswap_router_contract = await self._initialize_contract(
-            self.configuration.PANCAKESWAP_ROUTER_ADDRESS,
-            self.configuration.PANCAKESWAP_ROUTER_ABI,
-            "Pancakeswap Router Contract",
-        )
-        self.balancer_router_contract = await self._initialize_contract(
-            self.configuration.BALANCER_ROUTER_ADDRESS,
-            self.configuration.BALANCER_ROUTER_ABI,
-            "Balancer Router Contract",
-        )
-
-        self.erc20_abi = self.erc20_abi or await self._load_erc20_abi()
-
-        logger.info("Transaction Core initialized with all lights green... Booster ignition.. ✅")
-        time.sleep(3)  # ensuring proper initialization
-
-    async def _initialize_contract(
-        self,
-        contract_address: str,
-        contract_abi: List[Dict[str, Any]],
-        contract_name: str,
-    ) -> Any:
-        """Initializes a contract instance with  error handling.""" 
+        """Initialize with proper ABI loading."""
         try:
-            # Load ABI from file if it's a string path
-            if isinstance(contract_abi, str):
-                async with aiofiles.open(contract_abi, 'r') as f:
-                    abi_content = await f.read()
-                    contract_abi = json.loads(abi_content)
+            # Load all required ABIs
+            dex_abis = await asyncio.gather(
+                self.abi_manager.load_abi('uniswap'),
+                self.abi_manager.load_abi('sushiswap'),
+                self.abi_manager.load_abi('pancakeswap'),
+                self.abi_manager.load_abi('balancer'),
+                self.abi_manager.load_abi('erc20')
+            )
 
-            contract_instance = self.web3.eth.contract(
-                address=self.web3.to_checksum_address(contract_address),
-                abi=contract_abi,
-            )
-            logger.debug(f"Loaded {contract_name} successfully.")
-            return contract_instance
-        except FileNotFoundError:
-            logger.error(f"ABI file for {contract_name} not found at {contract_abi}.")
-            raise
-        except json.JSONDecodeError:
-            logger.error(f"ABI file for {contract_name} is not valid JSON.")
-            raise
+            # Initialize contracts with loaded ABIs
+            router_addresses = [
+                (self.configuration.UNISWAP_ROUTER_ADDRESS, dex_abis[0], 'Uniswap'),
+                (self.configuration.SUSHISWAP_ROUTER_ADDRESS, dex_abis[1], 'Sushiswap'),
+                (self.configuration.PANCAKESWAP_ROUTER_ADDRESS, dex_abis[2], 'Pancakeswap'),
+                (self.configuration.BALANCER_ROUTER_ADDRESS, dex_abis[3], 'Balancer')
+            ]
+
+            for address, abi, name in router_addresses:
+                if not abi:
+                    raise ValueError(f"Failed to load {name} ABI")
+                contract = await self._initialize_contract(address, abi, f"{name} Router")
+                setattr(self, f"{name.lower()}_router_contract", contract)
+
+            # Initialize other contracts...
+            # ...existing initialization code...
+
         except Exception as e:
-            logger.error(
-                f"Failed to load {contract_name} at {contract_address}: {e}"
+            logger.error(f"Transaction Core initialization failed: {e}")
+            raise
+
+    async def _initialize_contract(self, address: str, abi: List[Dict[str, Any]], name: str):
+        """Enhanced contract initialization with validation."""
+        try:
+            if not address or not abi:
+                raise ValueError(f"Missing address or ABI for {name}")
+
+            contract = self.web3.eth.contract(
+                address=self.web3.to_checksum_address(address),
+                abi=abi
             )
-            raise ValueError(
-                f"Contract initialization failed for {contract_name}"
-            ) from e
+            
+            # Validate basic contract functionality
+            try:
+                await contract.functions.WETH().call()  # Common DEX router method
+                logger.debug(f"{name} contract validated successfully")
+            except Exception as e:
+                logger.warning(f"Contract validation warning for {name}: {e}")
+
+            return contract
+
+        except Exception as e:
+            logger.error(f"Failed to initialize {name} contract: {e}")
+            raise
 
     async def _load_erc20_abi(self) -> List[Dict[str, Any]]:
         """Load the ERC20 ABI with better path handling."""

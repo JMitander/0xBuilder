@@ -1,11 +1,10 @@
-
 import asyncio
 import json
 import aiofiles
 import aiohttp
 from decimal import Decimal
 from cachetools import TTLCache
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from web3 import AsyncWeb3
 import logging
 
@@ -279,4 +278,31 @@ class API_Config:
             logger.critical(f"API_Config initialization failed: {e}")
             raise
 
-#//////////////////////////////////////////////////////////////////////////////
+    async def get_token_price_data(
+        self,
+        token_symbol: str,
+        data_type: str = 'current',
+        timeframe: int = 1,
+        vs_currency: str = 'eth'
+    ) -> Union[float, List[float]]:
+        """Centralized price data fetching for all components."""
+        cache_key = f"{data_type}_{token_symbol}_{timeframe}_{vs_currency}"
+        
+        if cache_key in self.price_cache:
+            return self.price_cache[cache_key]
+            
+        try:
+            if data_type == 'current':
+                data = await self.get_real_time_price(token_symbol, vs_currency)
+            elif data_type == 'historical':
+                data = await self.fetch_historical_prices(token_symbol, days=timeframe)
+            else:
+                raise ValueError(f"Invalid data type: {data_type}")
+                
+            if data is not None:
+                self.price_cache[cache_key] = data
+            return data
+            
+        except Exception as e:
+            logger.error(f"Error fetching {data_type} price data: {e}")
+            return [] if data_type == 'historical' else 0.0

@@ -67,6 +67,31 @@ class Safety_Net:
         # Add safety checks cache
         self.safety_cache = TTLCache(maxsize=100, ttl=60)  # 1 minute cache
 
+    async def initialize(self) -> None:
+        """Initialize Safety Net components."""
+        try:
+            # Initialize price cache
+            self.price_cache = TTLCache(maxsize=1000, ttl=self.CACHE_TTL)
+            
+            # Initialize gas price cache
+            self.gas_price_cache = TTLCache(maxsize=1, ttl=self.GAS_PRICE_CACHE_TTL)
+            
+            # Initialize safety checks cache
+            self.safety_cache = TTLCache(maxsize=100, ttl=60)
+            
+            # Verify web3 connection
+            if not self.web3:
+                raise RuntimeError("Web3 not initialized in Safety_Net")
+                
+            # Test connection
+            if not await self.web3.is_connected():
+                raise RuntimeError("Web3 connection failed in Safety_Net")
+
+            logger.info("SafetyNet initialized successfully ✅")
+        except Exception as e:
+            logger.critical(f"Safety Net initialization failed: {e}")
+            raise
+
     async def get_balance(self, account: Any) -> Decimal:
         """Get account balance with retries and caching."""
         cache_key = f"balance_{account.address}"

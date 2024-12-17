@@ -6,6 +6,7 @@ import time
 import aiofiles
 import aiohttp
 import pandas as pd
+import dotenv
 
 from web3 import AsyncWeb3
 from cachetools import TTLCache
@@ -21,6 +22,8 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+dotenv.load_dotenv()
 
 
 class Configuration:

@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-import os
-import sys
 import asyncio
 import logging
+import os
 import signal
+import sys
 import tracemalloc
+from pathlib import Path
 
-# Add the python directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'python'))
-
-# Import core components
-from core.main_core import Main_Core
-from configuration import Configuration
+from python.configuration import Configuration
+from python.core import Main_Core
 
 # Configure logging
 logging.basicConfig(

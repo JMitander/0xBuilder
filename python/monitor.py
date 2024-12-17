@@ -16,7 +16,9 @@ from configuration import ABI_Manager, API_Config, Configuration
 from nonce import Nonce_Core  # Updated import from new nonce.py file
 from net import Safety_Net
 
-
+import pandas as pd
+from joblib import dump, load
+from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,84 @@ class Market_Monitor:
             'volatility': TTLCache(maxsize=CACHE_SETTINGS['volatility']['size'], 
                                  ttl=CACHE_SETTINGS['volatility']['ttl'])
         }
+
+        # Add paths for model and training data
+        self.model_path = Path(__file__).parent.parent / "linear_regression" / "price_model.joblib"
+        self.training_data_path = Path(__file__).parent.parent / "linear_regression" / "training_data.csv"
+        
+        # Initialize model variables
+        self.price_model = None
+        self.last_training_time = 0
+        self.model_accuracy = 0.0
+        self.RETRAINING_INTERVAL = 3600  # Retrain every hour
+        self.MIN_TRAINING_SAMPLES = 100
+        
+        # Initialize data storage
+        self.historical_data = pd.DataFrame()
+        self.prediction_cache = TTLCache(maxsize=1000, ttl=300)  # 5-minute cache
+
+        # Add data update scheduling
+        self.update_scheduler = {
+            'training_data': 0,  # Last update timestamp
+            'model': 0,          # Last model update timestamp
+            'UPDATE_INTERVAL': 3600,  # 1 hour
+            'MODEL_INTERVAL': 86400   # 24 hours
+        }
+
+    async def initialize(self) -> None:
+        """Initialize market monitor components and load model."""
+        try:
+            self.price_model = LinearRegression()
+            self.model_last_updated = 0
+            logger.debug("Market Monitor initialized ✅")
+
+            self.model_last_updated = 0
+            logger.debug("Market Monitor initialized ✅")
+
+            # Load existing model if available
+            if self.model_path.exists():
+                self.price_model = load(self.model_path)
+                logger.debug("Loaded existing price prediction model")
+            
+            # Load historical training data
+            if self.training_data_path.exists():
+                self.historical_data = pd.read_csv(self.training_data_path)
+                logger.debug(f"Loaded {len(self.historical_data)} historical data points")
+            
+            # Initial model training if needed
+            if self.price_model is None or len(self.historical_data) >= self.MIN_TRAINING_SAMPLES:
+                await self._train_model()
+            
+            logger.debug("Market Monitor initialized ✅")
+
+            # Start update scheduler
+            asyncio.create_task(self.schedule_updates())
+
+        except Exception as e:
+            logger.critical(f"Market Monitor initialization failed: {e}")
+            raise
+
+    async def schedule_updates(self) -> None:
+        """Schedule periodic data and model updates."""
+        while True:
+            try:
+                current_time = time.time()
+                
+                # Update training data
+                if current_time - self.update_scheduler['training_data'] >= self.update_scheduler['UPDATE_INTERVAL']:
+                    await self.api_config.update_training_data()
+                    self.update_scheduler['training_data'] = current_time
+                
+                # Retrain model
+                if current_time - self.update_scheduler['model'] >= self.update_scheduler['MODEL_INTERVAL']:
+                    await self._train_model()
+                    self.update_scheduler['model'] = current_time
+                
+                await asyncio.sleep(60)  # Check every minute
+                
+            except Exception as e:
+                logger.error(f"Error in update scheduler: {e}")
+                await asyncio.sleep(300)  # Wait 5 minutes on error
 
     async def check_market_conditions(
         self, 
@@ -121,17 +201,193 @@ class Market_Monitor:
         Returns:
             Predicted price value
         """
-        current_time = time.time()
-        if current_time - self.model_last_updated > self.MODEL_UPDATE_INTERVAL:
-            await self._update_price_model(token_symbol)
-        prices = await self.get_price_data(token_symbol, data_type='historical', timeframe=1)
-        if not prices:
-            logger.debug(f"No recent prices available for {token_symbol}.")
+        try:
+            cache_key = f"prediction_{token_symbol}"
+            if cache_key in self.prediction_cache:
+                return self.prediction_cache[cache_key]
+
+            # Check if model needs retraining
+            if time.time() - self.last_training_time > self.RETRAINING_INTERVAL:
+                await self._train_model()
+
+            # Get current market data
+            market_data = await self._get_market_features(token_symbol)
+            if not market_data:
+                return 0.0
+
+            # Make prediction
+            features = ['market_cap', 'volume_24h', 'percent_change_24h', 'total_supply', 'circulating_supply']
+            X = pd.DataFrame([market_data], columns=features)
+            prediction = self.price_model.predict(X)[0]
+
+            self.prediction_cache[cache_key] = prediction
+            return float(prediction)
+
+        except Exception as e:
+            logger.error(f"Error predicting price movement: {e}")
             return 0.0
-        next_time = np.array([[len(prices)]])
-        predicted_price = self.price_model.predict(next_time)[0]
-        logger.debug(f"Price prediction for {token_symbol}: {predicted_price}")
-        return float(predicted_price)
+
+    async def _get_market_features(self, token_symbol: str) -> Optional[Dict[str, float]]:
+        """Get current market features for prediction with enhanced metrics."""
+        try:
+            # Basic features from API
+            market_data = {
+                'market_cap': await self.api_config.get_token_market_cap(token_symbol),
+                'volume_24h': await self.api_config.get_token_volume(token_symbol),
+                'percent_change_24h': await self.api_config.get_price_change_24h(token_symbol)
+            }
+
+            # Get supply data
+            supply_data = await self.api_config.get_token_supply_data(token_symbol)
+            market_data.update({
+                'total_supply': supply_data.get('total_supply', 0),
+                'circulating_supply': supply_data.get('circulating_supply', 0)
+            })
+
+            # Calculate advanced metrics
+            prices = await self.get_price_data(token_symbol, data_type='historical', timeframe=1)
+            if prices:
+                market_data.update({
+                    'volatility': self._calculate_volatility(prices),
+                    'price_momentum': self._calculate_momentum(prices),
+                    'liquidity_ratio': await self._calculate_liquidity_ratio(token_symbol),
+                })
+
+            # Get trading metrics
+            trading_metrics = await self._get_trading_metrics(token_symbol)
+            market_data.update(trading_metrics)
+
+            return market_data
+
+        except Exception as e:
+            logger.error(f"Error fetching market features: {e}")
+            return None
+
+    def _calculate_momentum(self, prices: List[float]) -> float:
+        """Calculate price momentum using exponential moving average."""
+        try:
+            if len(prices) < 2:
+                return 0.0
+            ema_short = np.mean(prices[-12:])  # 1-hour EMA
+            ema_long = np.mean(prices)  # 24-hour EMA
+            return (ema_short / ema_long) - 1 if ema_long != 0 else 0.0
+        except Exception as e:
+            logger.error(f"Error calculating momentum: {e}")
+            return 0.0
+
+    async def _calculate_liquidity_ratio(self, token_symbol: str) -> float:
+        """Calculate liquidity ratio based on order book depth."""
+        try:
+            volume = await self.api_config.get_token_volume(token_symbol)
+            market_cap = await self.api_config.get_token_market_cap(token_symbol)
+            return volume / market_cap if market_cap > 0 else 0.0
+        except Exception as e:
+            logger.error(f"Error calculating liquidity ratio: {e}")
+            return 0.0
+
+    async def _get_trading_metrics(self, token_symbol: str) -> Dict[str, float]:
+        """Get additional trading metrics."""
+        try:
+            # These would normally come from your API provider
+            return {
+                'avg_transaction_value': await self._get_avg_transaction_value(token_symbol),
+                'trading_pairs': await self._get_trading_pairs_count(token_symbol),
+                'exchange_count': await self._get_exchange_count(token_symbol),
+                'buy_sell_ratio': await self._get_buy_sell_ratio(token_symbol),
+                'smart_money_flow': await self._get_smart_money_flow(token_symbol)
+            }
+        except Exception as e:
+            logger.error(f"Error getting trading metrics: {e}")
+            return {
+                'avg_transaction_value': 0.0,
+                'trading_pairs': 0.0,
+                'exchange_count': 0.0,
+                'buy_sell_ratio': 1.0,
+                'smart_money_flow': 0.0
+            }
+
+    # Add methods to calculate new metrics
+    async def _get_avg_transaction_value(self, token_symbol: str) -> float:
+        """Get average transaction value over last 24h."""
+        try:
+            volume = await self.api_config.get_token_volume(token_symbol)
+            tx_count = await self._get_transaction_count(token_symbol)
+            return volume / tx_count if tx_count > 0 else 0.0
+        except Exception as e:
+            logger.error(f"Error calculating avg transaction value: {e}")
+            return 0.0
+
+    # ... Add other helper methods for new metrics ...
+
+    async def update_training_data(self, new_data: Dict[str, Any]) -> None:
+        """Update training data with new market information."""
+        try:
+            # Convert new data to DataFrame row
+            df_row = pd.DataFrame([new_data])
+            
+            # Append to historical data
+            self.historical_data = pd.concat([self.historical_data, df_row], ignore_index=True)
+            
+            # Save updated data
+            self.historical_data.to_csv(self.training_data_path, index=False)
+            
+            # Retrain model if enough new data
+            if len(self.historical_data) >= self.MIN_TRAINING_SAMPLES:
+                await self._train_model()
+                
+        except Exception as e:
+            logger.error(f"Error updating training data: {e}")
+
+    async def _train_model(self) -> None:
+        """Enhanced model training with feature importance analysis."""
+        try:
+            if len(self.historical_data) < self.MIN_TRAINING_SAMPLES:
+                logger.warning("Insufficient data for model training")
+                return
+
+            # Define all features we want to use
+            features = [
+                'market_cap', 'volume_24h', 'percent_change_24h', 
+                'total_supply', 'circulating_supply', 'volatility',
+                'liquidity_ratio', 'avg_transaction_value', 'trading_pairs',
+                'exchange_count', 'price_momentum', 'buy_sell_ratio',
+                'smart_money_flow'
+            ]
+
+            X = self.historical_data[features]
+            y = self.historical_data['price_usd']
+
+            # Train/test split with shuffling
+            train_size = int(len(X) * 0.8)
+            indices = np.random.permutation(len(X))
+            X_train = X.iloc[indices[:train_size]]
+            X_test = X.iloc[indices[train_size:]]
+            y_train = y.iloc[indices[:train_size]]
+            y_test = y.iloc[indices[train_size:]]
+
+            # Train model
+            self.price_model = LinearRegression()
+            self.price_model.fit(X_train, y_train)
+
+            # Calculate and log feature importance
+            importance = pd.DataFrame({
+                'feature': features,
+                'importance': np.abs(self.price_model.coef_)
+            })
+            importance = importance.sort_values('importance', ascending=False)
+            logger.debug("Feature importance:\n" + str(importance))
+
+            # Calculate accuracy
+            self.model_accuracy = self.price_model.score(X_test, y_test)
+            
+            # Save model and accuracy metrics
+            dump(self.price_model, self.model_path)
+            
+            self.last_training_time = time.time()
+            logger.debug(f"Model trained successfully. Accuracy: {self.model_accuracy:.4f}")
+
+        except Exception as e:
+            logger.error(f"Error training model: {e}")
 
     # Market Data Methods
     async def get_price_data(self, *args, **kwargs):
@@ -244,16 +500,6 @@ class Market_Monitor:
         """Use centralized transaction decoding from Transaction_Core."""
         return await self.transaction_core.decode_transaction_input(*args, **kwargs)
 
-    async def initialize(self) -> None:
-        """Initialize market monitor components."""
-        try:
-            self.price_model = LinearRegression()
-            self.model_last_updated = 0
-            logger.debug("Market Monitor initialized ✅")
-        except Exception as e:
-            logger.critical(f"Market Monitor initialization failed: {e}")
-            raise
-
     async def stop(self) -> None:
         """Clean up resources and stop monitoring."""
         try:
@@ -263,6 +509,20 @@ class Market_Monitor:
             logger.debug("Market Monitor stopped.")
         except Exception as e:
             logger.error(f"Error stopping Market Monitor: {e}")
+
+    async def _get_contract(self, address: str, abi_type: str) -> Optional[Any]:
+        """Get contract instance using ABI registry."""
+        try:
+            abi = self.abi_registry.get_abi(abi_type)
+            if not abi:
+                return None
+            return self.web3.eth.contract(
+                address=self.web3.to_checksum_address(address),
+                abi=abi
+            )
+        except Exception as e:
+            logger.error(f"Error creating contract instance: {e}")
+            return None
 
 class Mempool_Monitor:
     """
@@ -982,55 +1242,64 @@ class Mempool_Monitor:
         function_name: str,
         decoded_params: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """Extract and validate transaction parameters with improved parsing."""
+        """
+        Extract and validate transaction parameters with improved parsing.
+        """
         try:
             params = {}
             
             # Enhanced transfer parameter handling
             if function_name in ['transfer', 'transferFrom']:
                 # Handle different parameter naming conventions
-                amount = decoded_params.get('amount', decoded_params.get('_value', 
-                    decoded_params.get('value', decoded_params.get('wad', 0))))
-                
-                to_addr = decoded_params.get('to', decoded_params.get('_to',
-                    decoded_params.get('dst', decoded_params.get('recipient'))))
+                amount = decoded_params.get('amount', 
+                            decoded_params.get('_value', 
+                                decoded_params.get('value', 
+                                    decoded_params.get('wad', 0))))
+                to_addr = decoded_params.get('to', 
+                            decoded_params.get('_to', 
+                                decoded_params.get('dst', 
+                                    decoded_params.get('recipient'))))
                 
                 if function_name == 'transferFrom':
-                    from_addr = decoded_params.get('from', decoded_params.get('_from',
-                        decoded_params.get('src', decoded_params.get('sender'))))
+                    from_addr = decoded_params.get('from', 
+                                decoded_params.get('_from', 
+                                    decoded_params.get('src', 
+                                        decoded_params.get('sender'))))
                     params['from'] = from_addr
-
+                
                 params.update({
                     'amount': amount,
                     'to': to_addr
                 })
-
+            
             # Enhanced swap parameter handling
             elif function_name in ['swap', 'swapExactTokensForTokens', 'swapTokensForExactTokens']:
                 # Handle different swap parameter formats
                 params = {
-                    'amountIn': decoded_params.get('amountIn', 
-                        decoded_params.get('amount0', 
-                        decoded_params.get('amountInMax', 0))),
+                    'amountIn': decoded_params.get('amountIn',
+                                decoded_params.get('amount0',
+                                    decoded_params.get('amountInMax', 0))),
                     'amountOutMin': decoded_params.get('amountOutMin',
-                        decoded_params.get('amount1',
-                        decoded_params.get('amountOut', 0))),
+                                decoded_params.get('amount1',
+                                    decoded_params.get('amountOut', 0))),
                     'path': decoded_params.get('path', [])
                 }
-
+            
             # Validate parameters presence and format
             if not self._validate_params_format(params, function_name):
                 logger.debug(f"Invalid parameter format for {function_name}")
                 return None
-
+            
             return params
-
+        
         except Exception as e:
             logger.error(f"Error extracting transaction parameters: {e}")
             return None
 
     def _validate_params_format(self, params: Dict[str, Any], function_name: str) -> bool:
-        """Validate parameter format based on function type."""
+        """
+        Validate parameter format based on function type.
+        """
         try:
             if function_name in ['transfer', 'transferFrom']:
                 required = ['amount', 'to']
@@ -1039,48 +1308,59 @@ class Mempool_Monitor:
             elif function_name in ['swap', 'swapExactTokensForTokens', 'swapTokensForExactTokens']:
                 required = ['amountIn', 'amountOutMin', 'path']
             else:
+                logger.debug(f"Unsupported function name: {function_name}")
                 return False
 
             # Check required fields are present and non-empty
-            return all(
-                params.get(field) is not None and params.get(field) != ''
-                for field in required
-            )
+            for field in required:
+                if params.get(field) is None or params.get(field) == '':
+                    logger.debug(f"Missing or empty field '{field}' for function '{function_name}'")
+                    return False
             
+            return True
+
         except Exception as e:
             logger.error(f"Parameter validation error: {e}")
             return False
 
     async def initialize(self) -> None:
-        """Initialize with proper ABI loading."""
+        """
+        Initialize with proper ABI loading.
+        """
         try:
             # Load ERC20 ABI through ABI manager
             self.erc20_abi = await self.abi_manager.load_abi('erc20')
             if not self.erc20_abi:
                 raise ValueError("Failed to load ERC20 ABI")
-
+            
             # Validate required methods
             required_methods = ['transfer', 'approve', 'transferFrom', 'balanceOf']
             if not self.abi_manager.validate_abi(self.erc20_abi, required_methods):
                 raise ValueError("Invalid ERC20 ABI")
-
+            
+            # Initialize other attributes
             self.running = False
             self.pending_transactions = asyncio.Queue()
             self.profitable_transactions = asyncio.Queue()
             self.processed_transactions = set()
             self.task_queue = asyncio.Queue()
+            
             logger.info("MempoolMonitor initialized ✅")
+        
         except Exception as e:
             logger.critical(f"Mempool Monitor initialization failed: {e}")
             raise
-        
+
     async def stop(self) -> None:
-        """Gracefully stop the Mempool Monitor.""" 
+        """
+        Gracefully stop the Mempool Monitor.
+        """ 
         try:
             self.running = False
             self.stopping = True
             await self.task_queue.join()
             logger.debug("Mempool Monitor stopped gracefully.")
+        
         except Exception as e:
             logger.error(f"Error stopping Mempool Monitor: {e}")
             raise

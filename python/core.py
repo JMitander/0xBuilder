@@ -66,6 +66,7 @@ class Transaction_Core:
         self.AAVE_LENDING_POOL_ADDRESS = AAVE_LENDING_POOL_ADDRESS
         self.AAVE_LENDING_POOL_ABI = AAVE_LENDING_POOL_ABI
         self.abi_manager = ABI_Manager()
+        self.abi_registry = configuration.abi_registry
 
     async def initialize(self):
         """Initialize with proper ABI loading."""
@@ -805,41 +806,36 @@ class Transaction_Core:
             return None
         
     async def decode_transaction_input(self, input_data: str, contract_address: str) -> Optional[Dict[str, Any]]:
-        """Centralized transaction decoding for all components."""
+        """Decode transaction input using ABI registry."""
         try:
-            contract = self.web3.eth.contract(
-                address=self.web3.to_checksum_address(contract_address),
-                abi=self.erc20_abi
-            )
+            # Get selector from input
+            selector = input_data[:10][2:]  # Remove '0x' prefix
             
-            function_signature = input_data[:10]
-            
-            try:
-                func_obj, decoded_params = contract.decode_function_input(input_data)
-                function_name = (
-                    getattr(func_obj, '_name', None) or 
-                    getattr(func_obj, 'fn_name', None) or
-                    getattr(func_obj, 'function_identifier', None)
-                )
-                
-                return {
-                    "function_name": function_name,
-                    "params": decoded_params,
-                    "signature": function_signature
-                }
-                
-            except ContractLogicError:
-                # Fallback to signature lookup
-                if hasattr(self.configuration, 'ERC20_SIGNATURES'):
-                    for name, sig in self.configuration.ERC20_SIGNATURES.items():
-                        if sig == function_signature:
-                            return {
-                                "function_name": name,
-                                "params": {},
-                                "signature": function_signature
-                            }
-                raise
-                
+            # Get method name from registry
+            method_name = self.abi_registry.get_method_selector(selector)
+            if not method_name:
+                logger.debug(f"Unknown method selector: {selector}")
+                return None
+
+            # Get appropriate ABI for decoding
+            for abi_type, abi in self.abi_registry.abis.items():
+                try:
+                    contract = self.web3.eth.contract(
+                        address=self.web3.to_checksum_address(contract_address),
+                        abi=abi
+                    )
+                    func_obj, decoded_params = contract.decode_function_input(input_data)
+                    return {
+                        "function_name": method_name,
+                        "params": decoded_params,
+                        "signature": selector,
+                        "abi_type": abi_type
+                    }
+                except Exception:
+                    continue
+
+            return None
+
         except Exception as e:
             logger.error(f"Error decoding transaction input: {e}")
             return None

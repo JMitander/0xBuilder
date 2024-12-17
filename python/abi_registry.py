@@ -115,3 +115,4 @@ class ABI_Registry:
     def get_function_signature(self, abi_type: str, method_name: str) -> Optional[str]:
         """Get function signature by ABI type and method name."""
         return self.signatures.get(abi_type, {}).get(method_name)
+    

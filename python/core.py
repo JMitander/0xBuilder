@@ -66,7 +66,18 @@ class Transaction_Core:
         self.AAVE_FLASHLOAN_ABI = AAVE_FLASHLOAN_ABI
         self.AAVE_LENDING_POOL_ADDRESS = AAVE_LENDING_POOL_ADDRESS
         self.AAVE_LENDING_POOL_ABI = AAVE_LENDING_POOL_ABI
-        self.abi_registry = ABI_Registry
+        self.abi_registry = ABI_Registry()
+
+    def normalize_address(self, address: str) -> str:
+        """Normalize Ethereum address to checksum format."""
+        try:
+            # First convert to lowercase
+            addr_lower = address.lower()
+            # Then convert to checksum
+            return self.web3.to_checksum_address(addr_lower)
+        except Exception as e:
+            logger.error(f"Error normalizing address {address}: {e}")
+            raise
 
     async def initialize(self):
         """Initialize with proper ABI loading."""
@@ -80,11 +91,17 @@ class Transaction_Core:
             ]
 
             for address, abi_type, name in router_configs:
-                abi = self.abi_registry.get_abi(abi_type)
-                if not abi:
-                    raise ValueError(f"Failed to load {name} ABI")
-                contract = await self._initialize_contract(address, abi, f"{name} Router")
-                setattr(self, f"{name.lower()}_router_contract", contract)
+                try:
+                    # Normalize address before creating contract
+                    normalized_address = self.normalize_address(address)
+                    abi = self.abi_registry.get_abi(abi_type)
+                    if not abi:
+                        raise ValueError(f"Failed to load {name} ABI")
+                    contract = await self._initialize_contract(normalized_address, abi, f"{name} Router")
+                    setattr(self, f"{name.lower()}_router_contract", contract)
+                except Exception as e:
+                    logger.error(f"Failed to initialize {name} router: {e}")
+                    raise
 
             # Initialize Aave contracts
             self.aave_flashloan_contract = await self._initialize_contract(
@@ -117,7 +134,7 @@ class Transaction_Core:
             
             # Validate basic contract functionality
             try:
-                await contract.functions.WETH().call()  # Common DEX router method
+                await contract.functions.getAmountsOut(1000000, [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]).call()
                 logger.debug(f"{name} contract validated successfully")
             except Exception as e:
                 logger.warning(f"Contract validation warning for {name}: {e}")
@@ -371,13 +388,11 @@ class Transaction_Core:
                 return True
             else:
                 logger.warning("Failed to execute ETH transaction. Retrying... ⚠️ ")
-                return False
-        except KeyError as e:
-            logger.error(f"Missing required transaction parameter: {e} ⚠️ ")
-            return False
+        
         except Exception as e:
-            logger.error(f"Error handling ETH transaction: {e} ⚠️ ")
-            return False
+            logger.error(f"Error handling ETH transaction: {e}")
+        return False
+    
 
     def calculate_flashloan_amount(self, target_tx: Dict[str, Any]) -> int:
         """
@@ -437,6 +452,7 @@ class Transaction_Core:
             return None
         try:
             flashloan_function = self.flashloan_contract.functions.RequestFlashLoan(
+        
                 self.web3.to_checksum_address(flashloan_asset), flashloan_amount
             )
             logger.debug(
@@ -902,7 +918,7 @@ class Transaction_Core:
             withdraw_function = self.flashloan_contract.functions.withdrawETH()
             tx = await self.build_transaction(withdraw_function)
             tx_hash = await self.execute_transaction(tx)
-            if tx_hash:
+            if (tx_hash):
                 logger.debug(
                     f"ETH withdrawal transaction sent with hash: {tx_hash}"
                 )
@@ -1578,6 +1594,7 @@ async def main():
     except Exception as e:
         logger.critical(f"An unexpected error occurred: {str(e)}")
     finally:
+        pass  # Handle KeyboardInterrupt silently as it's already handled by signal handlers
         # Remove signal handlers
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.remove_signal_handler(sig)
@@ -1588,6 +1605,13 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass  # Handle KeyboardInterrupt silently as it's already handled by signal handlers
+    except Exception as e:
+        # Get current memory snapshot on error
+        snapshot = tracemalloc.take_snapshot()
+        logger.critical(f"Program terminated with an error: {e}")
+        logger.debug("Top 10 memory allocations at error:")
+        top_stats = snapshot.statistics('lineno')
+        for stat in top_stats[:10]:            logger.debug(str(stat))
     except Exception as e:
         # Get current memory snapshot on error
         snapshot = tracemalloc.take_snapshot()

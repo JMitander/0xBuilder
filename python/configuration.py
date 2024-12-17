@@ -68,6 +68,22 @@ class Configuration:
         
         self.abi_registry = ABI_Registry()
 
+        # Add WETH and USDC addresses with checksum conversion
+        self.WETH_ADDRESS = AsyncWeb3.to_checksum_address("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")  # Mainnet WETH
+        self.USDC_ADDRESS = AsyncWeb3.to_checksum_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")  # Mainnet USDC
+        self.USDT_ADDRESS = AsyncWeb3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")  # Mainnet USDT
+        self.DAI_ADDRESS = AsyncWeb3.to_checksum_address("0x6B175474E89094C44Da98b954EedeAC495271d0F") # Mainnet DAI
+        self.WBTC_ADDRESS = AsyncWeb3.to_checksum_address("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599") # Mainnet WBTC
+        self.SUSHI_ADDRESS = AsyncWeb3.to_checksum_address("0x6B3595068778DD592e39A122f4f5a5cF09C90fE2") # Mainnet SUSHI
+        self.UNI_ADDRESS = AsyncWeb3.to_checksum_address("0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984") # Mainnet UNI
+        self.BAL_ADDRESS = AsyncWeb3.to_checksum_address("0xba100000625a3754423978a60c9317c58a424e3D") # Mainnet BAL
+        self.AAVE_ADDRESS = AsyncWeb3.to_checksum_address("0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9") # Mainnet AAVE
+        self.CRV_ADDRESS = AsyncWeb3.to_checksum_address("0xD533a949740bb3306d119CC777fa900bA034cd52") # Mainnet CRV
+        self.YFI_ADDRESS = AsyncWeb3.to_checksum_address("0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e") # Mainnet YFI
+        self.REN_ADDRESS = AsyncWeb3.to_checksum_address("0x408e41876cCCDC0F92210600ef50372656052a38") # Mainnet REN
+        self.LINK_ADDRESS = AsyncWeb3.to_checksum_address("0x514910771AF9Ca656af840dff83E8264EcF986CA") # Mainnet LINK
+        self.MKR_ADDRESS = AsyncWeb3.to_checksum_address("0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2") # Mainnet MKR
+
 
     async def load(self) -> None:
         """Loads the configuration in the correct order."""
@@ -103,6 +119,7 @@ class Configuration:
         self.COINGECKO_API_KEY = self._get_env_variable("COINGECKO_API_KEY")
         self.COINMARKETCAP_API_KEY = self._get_env_variable("COINMARKETCAP_API_KEY")
         self.CRYPTOCOMPARE_API_KEY = self._get_env_variable("CRYPTOCOMPARE_API_KEY")
+        self.BINANCE_API_KEY = self._get_env_variable("BINANCE_API_KEY")
 
     def _load_providers_and_account(self) -> None:
         """Load provider endpoints and account information."""
@@ -310,6 +327,7 @@ class API_Config:
             for provider, config in self.api_configs.items()
         }
 
+        
     async def get_token_symbol(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
         """Get the token symbol for a given token address."""
         if token_address in self.token_symbol_cache:
@@ -326,6 +344,50 @@ class API_Config:
             return symbol
         except Exception as e:
             logger.error(f"Error getting symbol for token {token_address}: {e}")
+            return None
+
+    async def token_symbol_cache(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
+        """Get the token symbol for a given token address."""
+        if token_address in self.token_symbol_cache:
+            return self.token_symbol_cache[token_address]
+        if token_address in self.configuration.TOKEN_SYMBOLS:
+            symbol = self.configuration.TOKEN_SYMBOLS[token_address]
+            self.token_symbol_cache[token_address] = symbol
+            return symbol
+        try:
+            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
+            contract = web3.eth.contract(address=token_address, abi=erc20_abi)
+            symbol = await contract.functions.symbol().call()
+            self.token_symbol_cache[token_address] = symbol
+            return symbol
+        except Exception as e:
+            logger.error(f"Error getting symbol for token {token_address}: {e}")
+            return None
+        
+    async def get_token_metadata(self, token: str) -> Optional[Dict[str, Any]]:
+        """Get metadata for a given token symbol."""
+        if token in self.token_metadata_cache:
+            return self.token_metadata_cache[token]
+        metadata = await self._fetch_from_services(
+            lambda service: self._fetch_token_metadata(service, token),
+            f"metadata for {token}",
+        )
+        if metadata:
+            self.token_metadata_cache[token] = metadata
+        return metadata
+    
+    async def _fetch_token_metadata(self, source: str, token: str) -> Optional[Dict[str, Any]]:
+        """Fetch token metadata from a specified source."""
+        config = self.api_configs.get(source)
+        if not config:
+            logger.debug(f"API configuration for {source} not found.")
+            return None
+        if source == "coingecko":
+            url = f"{config['base_url']}/coins/{token}"
+            response = await self.make_request(source, url)
+            return response
+        else:
+            logger.debug(f"Unsupported metadata source: {source}")
             return None
 
     async def get_real_time_price(self, token: str, vs_currency: str = "eth") -> Optional[Decimal]:

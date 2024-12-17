@@ -1,3 +1,11 @@
+from curses import COLORS
+import logging
+import sys
+from typing import Optional
+
+import dotenv
+
+
 class ColorFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         color = COLORS.get(record.levelname, COLORS["RESET"])

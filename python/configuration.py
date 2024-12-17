@@ -112,9 +112,9 @@ class Configuration:
             self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT", default=None)
             self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT", default=None)
             
-            # Ensure at least one endpoint is configured
-            if not any([self.IPC_ENDPOINT, self.HTTP_ENDPOINT, self.WEBSOCKET_ENDPOINT]):
-                raise ValueError("At least one endpoint (IPC, HTTP, or WebSocket) must be configured")
+            # Only one endpoint is required for connection
+            if sum(bool(endpoint) for endpoint in [self.IPC_ENDPOINT, self.HTTP_ENDPOINT, self.WEBSOCKET_ENDPOINT]) != 1:
+                raise ValueError("Exactly one endpoint (IPC, HTTP, or WebSocket) must be configured")
 
             self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
             self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")

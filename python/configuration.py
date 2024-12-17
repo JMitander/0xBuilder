@@ -12,6 +12,12 @@ import aiohttp
 from web3 import AsyncWeb3
 from cachetools import TTLCache
 
+# Set up logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
 logger = logging.getLogger(__name__)
 
 

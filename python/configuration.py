@@ -111,13 +111,27 @@ class Configuration:
     def _load_providers_and_account(self) -> None:
         """Load provider endpoints and account information."""
         try:
-            self.IPC_ENDPOINT = self._get_env_variable("IPC_ENDPOINT", default=None)
-            self.HTTP_ENDPOINT = self._get_env_variable("HTTP_ENDPOINT", default=None)
-            self.WEBSOCKET_ENDPOINT = self._get_env_variable("WEBSOCKET_ENDPOINT", default=None)
+            # Load all possible endpoints
+            self.IPC_ENDPOINT = os.getenv("IPC_ENDPOINT")
+            self.HTTP_ENDPOINT = os.getenv("HTTP_ENDPOINT")
+            self.WEBSOCKET_ENDPOINT = os.getenv("WEBSOCKET_ENDPOINT")
             
-            # Only one endpoint is required for connection
-            if sum(bool(endpoint) for endpoint in [self.IPC_ENDPOINT, self.HTTP_ENDPOINT, self.WEBSOCKET_ENDPOINT]) != 1:
-                raise ValueError("Exactly one endpoint (IPC, HTTP, or WebSocket) must be configured")
+            # Count active endpoints
+            active_endpoints = sum(1 for endpoint in [
+                self.IPC_ENDPOINT, 
+                self.HTTP_ENDPOINT, 
+                self.WEBSOCKET_ENDPOINT
+            ] if endpoint is not None and endpoint.strip() != '')
+
+            if active_endpoints != 1:
+                active = []
+                if self.IPC_ENDPOINT: active.append("IPC")
+                if self.HTTP_ENDPOINT: active.append("HTTP")
+                if self.WEBSOCKET_ENDPOINT: active.append("WebSocket")
+                raise ValueError(
+                    f"Exactly one endpoint (IPC, HTTP, or WebSocket) must be configured. "
+                    f"Found {active_endpoints} active endpoints: {', '.join(active)}"
+                )
 
             self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
             self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")

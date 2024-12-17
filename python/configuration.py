@@ -5,12 +5,15 @@ import os
 import time
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import aiofiles
 import aiohttp
+import pandas as pd
 from web3 import AsyncWeb3
 from cachetools import TTLCache
+
+from abi_registry import ABI_Registry
 
 # Set up logging
 logging.basicConfig(
@@ -55,6 +58,13 @@ class Configuration:
         self.BALANCER_ROUTER_ABI = None
         self.BALANCER_ROUTER_ADDRESS = None
         
+        # Add ML model configuration
+        self.MODEL_RETRAINING_INTERVAL = 3600  # 1 hour
+        self.MIN_TRAINING_SAMPLES = 100
+        self.MODEL_ACCURACY_THRESHOLD = 0.7
+        self.PREDICTION_CACHE_TTL = 300  # 5 minutes
+        
+        self.abi_registry = ABI_Registry()
 
 
     async def load(self) -> None:
@@ -72,7 +82,11 @@ class Configuration:
     async def _load_configuration(self) -> None:
         """Load configuration in the correct order."""
         try:
-            # First load providers and account
+            # First load the ABI registry
+            if not self.abi_registry.abis:
+                raise ValueError("Failed to load ABIs")
+            
+            # Then load providers and account
             self._load_providers_and_account()
             
             # Then load API keys
@@ -207,6 +221,11 @@ class Configuration:
         except AttributeError:
             logger.warning(f"Configuration key '{key}' not found, using default: {default}")
             return default
+
+    async def get_abi(self, abi_type: str) -> Optional[List[Dict]]:
+        """Get ABI from registry."""
+        return self.abi_registry.get_abi(abi_type)
+
     logger.debug("All Configurations and Environment Variables Loaded Successfully ✅") 
 
 class ABI_Manager:
@@ -268,8 +287,25 @@ class API_Config:
     def __init__(self, configuration: Optional[Configuration] = None):
         self.configuration = configuration
         self.session = None 
-        self.price_cache = TTLCache(maxsize=1000, ttl=300)  # Cache for 5 minutes
-        self.token_symbol_cache = TTLCache(maxsize=1000, ttl=86400)  # Cache for 1 day
+        self.price_cache = TTLCache(maxsize=2000, ttl=300)  # 5 min cache for prices
+        self.market_data_cache = TTLCache(maxsize=1000, ttl=1800)  # 30 min cache for market data
+        self.token_metadata_cache = TTLCache(maxsize=500, ttl=86400)  # 24h cache for metadata
+        
+        # Add rate limit tracking
+        self.rate_limit_counters = {
+            "coingecko": {"count": 0, "reset_time": time.time(), "limit": 50},
+            "coinmarketcap": {"count": 0, "reset_time": time.time(), "limit": 330},
+            "cryptocompare": {"count": 0, "reset_time": time.time(), "limit": 80}
+        }
+        
+        # Add priority queues for data fetching
+        self.high_priority_tokens = set()  # Tokens currently being traded
+        self.update_intervals = {
+            'price': 30,  # Seconds
+            'volume': 300,  # 5 minutes
+            'market_data': 1800,  # 30 minutes
+            'metadata': 86400  # 24 hours
+        }
 
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -557,3 +593,138 @@ class API_Config:
         except Exception as e:
             logger.error(f"Error fetching {data_type} price data: {e}")
             return [] if data_type == 'historical' else 0.0
+
+    async def _fetch_with_priority(self, token: str, data_type: str) -> Any:
+        """Fetch data with priority-based rate limiting."""
+        try:
+            is_priority = token in self.high_priority_tokens
+            providers = self._get_sorted_providers(is_priority)
+            
+            for provider, config in providers:
+                if await self._can_make_request(provider):
+                    try:
+                        data = await self._fetch_from_provider(provider, token, data_type)
+                        if data:
+                            return data
+                    except Exception as e:
+                        logger.debug(f"Error fetching from {provider}: {e}")
+                        continue
+                        
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error in priority fetch: {e}")
+            return None
+
+    def _get_sorted_providers(self, is_priority: bool) -> List[Tuple[str, dict]]:
+        """Get providers sorted by reliability and rate limits."""
+        providers = list(self.api_configs.items())
+        
+        def provider_score(provider_data):
+            name, config = provider_data
+            counter = self.rate_limit_counters[name]
+            rate_left = 1 - (counter['count'] / counter['limit'])
+            reliability = config['success_rate']
+            
+            # Priority tokens get faster, more reliable providers
+            if is_priority:
+                return (reliability * 2 + rate_left) * config['weight']
+            return (reliability + rate_left) * config['weight']
+            
+        return sorted(providers, key=provider_score, reverse=True)
+
+    async def _can_make_request(self, provider: str) -> bool:
+        """Check if we can make a request within rate limits."""
+        counter = self.rate_limit_counters[provider]
+        current_time = time.time()
+        
+        # Reset counter if time window passed
+        if current_time - counter['reset_time'] >= 60:
+            counter['count'] = 0
+            counter['reset_time'] = current_time
+            
+        return counter['count'] < counter['limit']
+
+    async def update_training_data(self) -> None:
+        """Smart update of training data."""
+        try:
+            # Get all required tokens
+            tokens = await self.configuration.get_token_addresses()
+            current_time = int(time.time())
+            
+            # Prepare batch updates
+            updates = []
+            for token in tokens:
+                # Get latest data point timestamp for this token
+                last_update = await self._get_last_update_time(token)
+                
+                # Only update if enough time has passed
+                if current_time - last_update >= self.update_intervals['market_data']:
+                    data = await self._gather_training_data(token)
+                    if data:
+                        updates.append(data)
+                        
+                # Avoid hitting rate limits
+                await asyncio.sleep(0.1)
+                
+            # Batch write updates to CSV
+            if updates:
+                await self._write_training_data(updates)
+                
+        except Exception as e:
+            logger.error(f"Error updating training data: {e}")
+
+    async def _gather_training_data(self, token: str) -> Optional[Dict[str, Any]]:
+        """Gather all required data for model training."""
+        try:
+            # Gather data concurrently
+            price, volume, market_data = await asyncio.gather(
+                self.get_real_time_price(token),
+                self.get_token_volume(token),
+                self._fetch_market_data(token),
+                return_exceptions=True
+            )
+
+            # Handle any exceptions
+            results = [price, volume, market_data]
+            if any(isinstance(r, Exception) for r in results):
+                logger.warning(f"Error gathering data for {token}")
+                return None
+
+            # Combine all data
+            return {
+                'timestamp': int(time.time()),
+                'symbol': token,
+                'price_usd': float(price),
+                'volume_24h': float(volume),
+                **market_data
+            }
+
+        except Exception as e:
+            logger.error(f"Error gathering training data: {e}")
+            return None
+
+    async def _write_training_data(self, updates: List[Dict[str, Any]]) -> None:
+        """Write updates to training data file."""
+        try:
+            df = pd.DataFrame(updates)
+            training_data_path = Path(__file__).parent.parent / "linear_regression" / "training_data.csv"
+            
+            # Append new data
+            df.to_csv(training_data_path, mode='a', header=False, index=False)
+            
+            # Keep file size manageable (keep last 30 days)
+            self._cleanup_old_data(training_data_path, days=30)
+            
+        except Exception as e:
+            logger.error(f"Error writing training data: {e}")
+
+    def _cleanup_old_data(self, filepath: Path, days: int) -> None:
+        """Remove data older than specified days."""
+        try:
+            df = pd.read_csv(filepath)
+            cutoff_time = int(time.time()) - (days * 86400)
+            df = df[df['timestamp'] >= cutoff_time]
+            df.to_csv(filepath, index=False)
+        except Exception as e:
+            logger.error(f"Error cleaning up old data: {e}")

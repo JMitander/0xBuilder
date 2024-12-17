@@ -3,10 +3,11 @@ import asyncio
 import logging
 import signal
 import tracemalloc
+import logging
 
 from configuration import Configuration
 from core import Main_Core
-import logging
+
 
 
 # Configure logging

@@ -3,17 +3,16 @@ import json
 import logging
 import os
 import time
-from decimal import Decimal
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
-
 import aiofiles
 import aiohttp
 import pandas as pd
+
 from web3 import AsyncWeb3
 from cachetools import TTLCache
-
 from abi_registry import ABI_Registry
+from decimal import Decimal
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Set up logging
 logging.basicConfig(

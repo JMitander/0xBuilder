@@ -1,3 +1,7 @@
+import aiofiles
+import async_timeout
+import aiohttp
+import hexbytes
 import asyncio
 import json
 import logging
@@ -5,22 +9,18 @@ import os
 import signal
 import time
 import tracemalloc
+
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple, Union
 from web3.eth import AsyncEth
-import aiofiles
-import async_timeout
-import aiohttp
 from eth_account import Account
-import hexbytes
 from web3 import AsyncHTTPProvider, AsyncIPCProvider, AsyncWeb3, WebSocketProvider
 from cachetools import TTLCache
 from web3.exceptions import ContractLogicError, TransactionNotFound
 from web3.middleware import ExtraDataToPOAMiddleware
-
 from configuration import ABI_Manager, API_Config, Configuration
 from monitor import Market_Monitor, Mempool_Monitor
-from nonce import Nonce_Core  # Updated import from new nonce.py file
+from nonce import Nonce_Core
 from net import Safety_Net, Strategy_Net
 
 logger = logging.getLogger(__name__)
@@ -1516,7 +1516,9 @@ class Main_Core:
             ('AAVE_FLASHLOAN', self.configuration.AAVE_FLASHLOAN_ABI),
             ('AAVE_LENDING_POOL', self.configuration.AAVE_LENDING_POOL_ABI),
             ('UNISWAP_ROUTER', self.configuration.UNISWAP_ROUTER_ABI),
-            # ... other required ABIs
+            ('SUSHISWAP_ROUTER', self.configuration.SUSHISWAP_ROUTER_ABI),
+            ('PANCAKESWAP_ROUTER', self.configuration.PANCAKESWAP_ROUTER_ABI),
+            ('BALANCER_ROUTER', self.configuration.BALANCER_ROUTER_ABI),
         ]
         
         for name, path in required_abis:

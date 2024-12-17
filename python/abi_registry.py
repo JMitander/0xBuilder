@@ -26,27 +26,35 @@ class ABI_Registry:
 
     def _load_all_abis(self) -> None:
         """Load and validate all ABIs at initialization."""
-        abi_dir = Path(__file__).parent.parent / 'abi'
-        
-        abi_files = {
-            'erc20': 'erc20_abi.json',
-            'uniswap': 'uniswap_router_abi.json',
-            'sushiswap': 'sushiswap_router_abi.json',
-            'pancakeswap': 'pancakeswap_router_abi.json',
-            'balancer': 'balancer_router_abi.json',
-            'aave': 'aave_flashloan_abi.json'
-        }
+        try:
+            abi_dir = Path(__file__).parent.parent / 'abi'
+            
+            # Centralize all ABI loading here
+            abi_files = {
+                'erc20': 'erc20_abi.json',
+                'uniswap': 'uniswap_router_abi.json',
+                'sushiswap': 'sushiswap_router_abi.json',
+                'pancakeswap': 'pancakeswap_router_abi.json',
+                'balancer': 'balancer_router_abi.json',
+                'aave_flashloan': 'aave_flashloan_abi.json',
+                'aave_lending': 'aave_lending_pool_abi.json'
+            }
 
-        for abi_type, filename in abi_files.items():
-            try:
-                with open(abi_dir / filename, 'r') as f:
-                    abi = json.load(f)
-                if self._validate_abi(abi, abi_type):
-                    self.abis[abi_type] = abi
-                    self._extract_signatures(abi, abi_type)
-                    logger.debug(f"Loaded and validated {abi_type} ABI")
-            except Exception as e:
-                logger.error(f"Failed to load {abi_type} ABI: {e}")
+            for abi_type, filename in abi_files.items():
+                try:
+                    with open(abi_dir / filename, 'r') as f:
+                        abi = json.load(f)
+                    if self._validate_abi(abi, abi_type):
+                        self.abis[abi_type] = abi
+                        self._extract_signatures(abi, abi_type)
+                        logger.debug(f"Loaded and validated {abi_type} ABI")
+                except Exception as e:
+                    logger.error(f"Failed to load {abi_type} ABI: {e}")
+                    raise
+
+        except Exception as e:
+            logger.error(f"Error in ABI loading: {e}")
+            raise
 
     def _validate_abi(self, abi: List[Dict], abi_type: str) -> bool:
         """Validate ABI structure and required methods."""

@@ -1,3 +1,4 @@
+from pathlib import Path
 import aiofiles
 import async_timeout
 import aiohttp
@@ -15,10 +16,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from web3.eth import AsyncEth
 from eth_account import Account
 from web3 import AsyncHTTPProvider, AsyncIPCProvider, AsyncWeb3, WebSocketProvider
-from cachetools import TTLCache
 from web3.exceptions import ContractLogicError, TransactionNotFound
 from web3.middleware import ExtraDataToPOAMiddleware
-from configuration import ABI_Manager, API_Config, Configuration
+from abi_registry import ABI_Registry
+from configuration import API_Config, Configuration
 from monitor import Market_Monitor, Mempool_Monitor
 from nonce import Nonce_Core
 from net import Safety_Net, Strategy_Net
@@ -65,49 +66,35 @@ class Transaction_Core:
         self.AAVE_FLASHLOAN_ABI = AAVE_FLASHLOAN_ABI
         self.AAVE_LENDING_POOL_ADDRESS = AAVE_LENDING_POOL_ADDRESS
         self.AAVE_LENDING_POOL_ABI = AAVE_LENDING_POOL_ABI
-        self.abi_manager = ABI_Manager()
-        self.abi_registry = configuration.abi_registry
+        self.abi_registry = ABI_Registry
 
     async def initialize(self):
         """Initialize with proper ABI loading."""
         try:
-            # Load all required ABIs
-            dex_abis = await asyncio.gather(
-                self.abi_manager.load_abi('uniswap'),
-                self.abi_manager.load_abi('sushiswap'),
-                self.abi_manager.load_abi('pancakeswap'),
-                self.abi_manager.load_abi('balancer'),
-                self.abi_manager.load_abi('erc20')
-            )
-
-            # Initialize contracts with loaded ABIs
-            router_addresses = [
-                (self.configuration.UNISWAP_ROUTER_ADDRESS, dex_abis[0], 'Uniswap'),
-                (self.configuration.SUSHISWAP_ROUTER_ADDRESS, dex_abis[1], 'Sushiswap'),
-                (self.configuration.PANCAKESWAP_ROUTER_ADDRESS, dex_abis[2], 'Pancakeswap'),
-                (self.configuration.BALANCER_ROUTER_ADDRESS, dex_abis[3], 'Balancer')
+            # Initialize contracts using ABIs from registry
+            router_configs = [
+                (self.configuration.UNISWAP_ROUTER_ADDRESS, 'uniswap', 'Uniswap'),
+                (self.configuration.SUSHISWAP_ROUTER_ADDRESS, 'sushiswap', 'Sushiswap'),
+                (self.configuration.PANCAKESWAP_ROUTER_ADDRESS, 'pancakeswap', 'Pancakeswap'),
+                (self.configuration.BALANCER_ROUTER_ADDRESS, 'balancer', 'Balancer')
             ]
 
-            for address, abi, name in router_addresses:
+            for address, abi_type, name in router_configs:
+                abi = self.abi_registry.get_abi(abi_type)
                 if not abi:
                     raise ValueError(f"Failed to load {name} ABI")
                 contract = await self._initialize_contract(address, abi, f"{name} Router")
                 setattr(self, f"{name.lower()}_router_contract", contract)
 
-            
-            # Initialize ERC20 ABI
-            self.erc20_abi = await self._load_erc20_abi()
-            await self._validate_signatures()
-
             # Initialize Aave contracts
             self.aave_flashloan_contract = await self._initialize_contract(
                 self.AAVE_FLASHLOAN_ADDRESS,
-                self.AAVE_FLASHLOAN_ABI,
+                self.abi_registry.get_abi('aave_flashloan'),
                 "Aave Flashloan"
             )
             self.aave_lending_pool_contract = await self._initialize_contract(
                 self.AAVE_LENDING_POOL_ADDRESS,
-                self.AAVE_LENDING_POOL_ABI,
+                self.abi_registry.get_abi('aave_lending'),
                 "Aave Lending Pool"
             )
 
@@ -1263,7 +1250,7 @@ class Main_Core:
         """Add appropriate middleware based on network."""
         try:
             chain_id = await web3.eth.chain_id
-            if chain_id in {99, 100, 77, 7766, 56}:  # POA networks
+            if (chain_id in {99, 100, 77, 7766, 56}):  # POA networks
                 web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
                 logger.debug(f"Injected POA middleware.")
             elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
@@ -1488,26 +1475,32 @@ class Main_Core:
                 logger.error(f"Error processing transaction: {e}")
 
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
-        """Load contract ABI from a file with better error handling."""
+        """Load contract ABI from a file with better path handling."""
         try:
-            # Handle both absolute and relative paths
-            if not abi_path.startswith('/'):
-                abi_path = os.path.join(os.path.dirname(__file__), '..', '..', abi_path)
+            # Get project root directory (two levels up from current file)
+            project_root = Path(__file__).parent.parent
             
-            async with aiofiles.open(abi_path, 'r') as file:
+            # Handle both absolute and relative paths
+            if not Path(abi_path).is_absolute():
+                abi_path = project_root / abi_path
+            
+            if not abi_path.exists():
+                raise FileNotFoundError(f"ABI file not found at {abi_path}")
+            
+            async with aiofiles.open(str(abi_path), 'r') as file:
                 content = await file.read()
                 abi = json.loads(content)
                 logger.debug(f"Successfully loaded ABI from {abi_path}")
                 return abi
         except FileNotFoundError:
             logger.error(f"ABI file not found at {abi_path}")
-            return []
+            raise
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in ABI file {abi_path}: {e}")
-            return []
+            raise
         except Exception as e:
             logger.error(f"Error loading ABI from {abi_path}: {e}")
-            return []
+            raise
 
     async def _validate_abis(self) -> None:
         """Validate all required ABIs are present and properly formatted."""

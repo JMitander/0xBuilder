@@ -9,7 +9,8 @@ from web3 import AsyncWeb3
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
 from web3.exceptions import TransactionNotFound, Web3ValueError
-from configuration import ABI_Manager, API_Config, Configuration
+from configuration import API_Config, Configuration
+from abi_registry import ABI_Registry
 from nonce import Nonce_Core
 from net import Safety_Net
 from joblib import dump, load
@@ -582,7 +583,7 @@ class Mempool_Monitor:
         if configuration and hasattr(configuration, 'ERC20_SIGNATURES'):
             self.function_signatures.update(configuration.ERC20_SIGNATURES)
 
-        self.abi_manager = ABI_Manager()
+        self.abi_registry = ABI_Registry()
 
         logger.info("Go for main engine start! ✅...")
         time.sleep(3) # ensuring proper initialization
@@ -1325,13 +1326,13 @@ class Mempool_Monitor:
         """
         try:
             # Load ERC20 ABI through ABI manager
-            self.erc20_abi = await self.abi_manager.load_abi('erc20')
+            self.erc20_abi = await self.abi_registry.load_abi('erc20')
             if not self.erc20_abi:
                 raise ValueError("Failed to load ERC20 ABI")
             
             # Validate required methods
             required_methods = ['transfer', 'approve', 'transferFrom', 'balanceOf']
-            if not self.abi_manager.validate_abi(self.erc20_abi, required_methods):
+            if not self.abi_registry.validate_abi(self.erc20_abi, required_methods):
                 raise ValueError("Invalid ERC20 ABI")
             
             # Initialize other attributes

@@ -71,10 +71,8 @@ class Transaction_Core:
     def normalize_address(self, address: str) -> str:
         """Normalize Ethereum address to checksum format."""
         try:
-            # First convert to lowercase
-            addr_lower = address.lower()
-            # Then convert to checksum
-            return self.web3.to_checksum_address(addr_lower)
+            # Directly convert to checksum without changing case
+            return self.web3.to_checksum_address(address)
         except Exception as e:
             logger.error(f"Error normalizing address {address}: {e}")
             raise
@@ -86,8 +84,9 @@ class Transaction_Core:
             router_configs = [
                 (self.configuration.UNISWAP_ROUTER_ADDRESS, 'uniswap', 'Uniswap'),
                 (self.configuration.SUSHISWAP_ROUTER_ADDRESS, 'sushiswap', 'Sushiswap'),
-                (self.configuration.PANCAKESWAP_ROUTER_ADDRESS, 'pancakeswap', 'Pancakeswap'),
-                (self.configuration.BALANCER_ROUTER_ADDRESS, 'balancer', 'Balancer')
+                # Remove unsupported routers
+                # (self.configuration.PANCAKESWAP_ROUTER_ADDRESS, 'pancakeswap', 'Pancakeswap'),
+                # (self.configuration.BALANCER_ROUTER_ADDRESS, 'balancer', 'Balancer')
             ]
 
             for address, abi_type, name in router_configs:
@@ -103,15 +102,15 @@ class Transaction_Core:
                     logger.error(f"Failed to initialize {name} router: {e}")
                     raise
 
-            # Initialize Aave contracts
-            self.aave_flashloan_contract = await self._initialize_contract(
-                self.AAVE_FLASHLOAN_ADDRESS,
-                self.abi_registry.get_abi('aave_flashloan'),
+            # Initialize Aave contracts with correct functions
+            self.aave_flashloan = await self._initialize_contract(
+                self.configuration.AAVE_FLASHLOAN_ADDRESS,
+                self.configuration.AAVE_FLASHLOAN_ABI,
                 "Aave Flashloan"
             )
-            self.aave_lending_pool_contract = await self._initialize_contract(
+            self.aave_lending_pool = await self._initialize_contract(
                 self.AAVE_LENDING_POOL_ADDRESS,
-                self.abi_registry.get_abi('aave_lending'),
+                self.AAVE_LENDING_POOL_ABI,
                 "Aave Lending Pool"
             )
 
@@ -451,15 +450,12 @@ class Transaction_Core:
             )
             return None
         try:
-            flashloan_function = self.flashloan_contract.functions.RequestFlashLoan(
-        
-                self.web3.to_checksum_address(flashloan_asset), flashloan_amount
+            function_call = self.aave_flashloan.functions.fn_RequestFlashLoan(
+                flashloan_asset,
+                flashloan_amount
             )
-            logger.debug(
-                f"Preparing flashloan transaction for {flashloan_amount} Wei of {flashloan_asset}."
-            )
-            flashloan_tx = await self.build_transaction(flashloan_function)
-            return flashloan_tx
+            tx = await self.build_transaction(function_call)
+            return tx
         except ContractLogicError as e:
             logger.error(
                 f"Contract logic error preparing flashloan transaction: {e} ⚠️ "
@@ -715,8 +711,9 @@ class Transaction_Core:
             routers = {
                 self.configuration.UNISWAP_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
                 self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
-                self.configuration.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
-                self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
+                # Remove unsupported routers
+                # self.configuration.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
+                # self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
 
             if to_address not in routers:
@@ -779,8 +776,9 @@ class Transaction_Core:
             routers = {
                 self.configuration.UNISWAP_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
                 self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
-                self.configuration.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
-                self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
+                # Remove unsupported routers
+                # self.configuration.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
+                # self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
 
             if to_address not in routers:
@@ -1526,8 +1524,9 @@ class Main_Core:
             ('AAVE_LENDING_POOL', self.configuration.AAVE_LENDING_POOL_ABI),
             ('UNISWAP_ROUTER', self.configuration.UNISWAP_ROUTER_ABI),
             ('SUSHISWAP_ROUTER', self.configuration.SUSHISWAP_ROUTER_ABI),
-            ('PANCAKESWAP_ROUTER', self.configuration.PANCAKESWAP_ROUTER_ABI),
-            ('BALANCER_ROUTER', self.configuration.BALANCER_ROUTER_ABI),
+            # Remove unsupported routers
+            # ('PANCAKESWAP_ROUTER', self.configuration.PANCAKESWAP_ROUTER_ABI),
+            # ('BALANCER_ROUTER', self.configuration.BALANCER_ROUTER_ABI),
         ]
         
         for name, path in required_abis:

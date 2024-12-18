@@ -55,10 +55,6 @@ class Configuration:
         self.AAVE_FLASHLOAN_ABI = None
         self.AAVE_LENDING_POOL_ABI = None
         self.AAVE_FLASHLOAN_ADDRESS = None
-        self.PANCAKESWAP_ROUTER_ABI = None
-        self.PANCAKESWAP_ROUTER_ADDRESS = None
-        self.BALANCER_ROUTER_ABI = None
-        self.BALANCER_ROUTER_ADDRESS = None
         
         # Add ML model configuration
         self.MODEL_RETRAINING_INTERVAL = 3600  # 1 hour
@@ -68,21 +64,21 @@ class Configuration:
         
         self.abi_registry = ABI_Registry()
 
-        # Add WETH and USDC addresses with checksum conversion
-        self.WETH_ADDRESS = AsyncWeb3.to_checksum_address("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")  # Mainnet WETH
-        self.USDC_ADDRESS = AsyncWeb3.to_checksum_address("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")  # Mainnet USDC
-        self.USDT_ADDRESS = AsyncWeb3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")  # Mainnet USDT
-        self.DAI_ADDRESS = AsyncWeb3.to_checksum_address("0x6B175474E89094C44Da98b954EedeAC495271d0F") # Mainnet DAI
-        self.WBTC_ADDRESS = AsyncWeb3.to_checksum_address("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599") # Mainnet WBTC
-        self.SUSHI_ADDRESS = AsyncWeb3.to_checksum_address("0x6B3595068778DD592e39A122f4f5a5cF09C90fE2") # Mainnet SUSHI
-        self.UNI_ADDRESS = AsyncWeb3.to_checksum_address("0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984") # Mainnet UNI
-        self.BAL_ADDRESS = AsyncWeb3.to_checksum_address("0xba100000625a3754423978a60c9317c58a424e3D") # Mainnet BAL
-        self.AAVE_ADDRESS = AsyncWeb3.to_checksum_address("0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9") # Mainnet AAVE
-        self.CRV_ADDRESS = AsyncWeb3.to_checksum_address("0xD533a949740bb3306d119CC777fa900bA034cd52") # Mainnet CRV
-        self.YFI_ADDRESS = AsyncWeb3.to_checksum_address("0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e") # Mainnet YFI
-        self.REN_ADDRESS = AsyncWeb3.to_checksum_address("0x408e41876cCCDC0F92210600ef50372656052a38") # Mainnet REN
-        self.LINK_ADDRESS = AsyncWeb3.to_checksum_address("0x514910771AF9Ca656af840dff83E8264EcF986CA") # Mainnet LINK
-        self.MKR_ADDRESS = AsyncWeb3.to_checksum_address("0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2") # Mainnet MKR
+        # Add WETH and USDC addresses
+        self.WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" # Mainnet WETH
+        self.USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" # Mainnet USDC
+        self.USDT_ADDRESS = "0xdAC17F958D2ee523a2206206994597C13D831ec7" # Mainnet USDT
+        self.DAI_ADDRESS = "0x6B175474E89094C44Da98b954EedeAC495271d0F" # Mainnet DAI
+        self.WBTC_ADDRESS = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" # Mainnet WBTC
+        self.SUSHI_ADDRESS = "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2" # Mainnet SUSHI
+        self.UNI_ADDRESS = "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984" # Mainnet UNI
+        self.BAL_ADDRESS = "0xba100000625a3754423978a60c9317c58a424e3D" # Mainnet BAL
+        self.AAVE_ADDRESS = "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9" # Mainnet AAVE
+        self.CRV_ADDRESS = "0xD533a949740bb3306d119CC777fa900bA034cd52" # Mainnet CRV
+        self.YFI_ADDRESS = "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e" # Mainnet YFI
+        self.REN_ADDRESS = "0x408e41876cCCDC0F92210600ef50372656052a38" # Mainnet REN
+        self.LINK_ADDRESS = "0x514910771AF9Ca656af840dff83E8264EcF986CA" # Mainnet LINK
+        self.MKR_ADDRESS = "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2" # Mainnet MKR
 
 
     async def load(self) -> None:
@@ -107,7 +103,7 @@ class Configuration:
             # Then load the rest of the configuration
             self._load_providers_and_account()
             self._load_api_keys()
-            await self._load_json_elements()
+            self._load_json_elements()
             
         except Exception as e:
             logger.error(f"Error loading configuration: {e}")
@@ -157,30 +153,32 @@ class Configuration:
             logger.error(f"Error loading providers and account: {e}")
             raise
 
-    async def _load_json_elements(self) -> None: 
+    def _load_json_elements(self) -> None: 
         try:
             self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
-            self.TOKEN_ADDRESSES = await self._load_json_file(
+            self.TOKEN_ADDRESSES = self._load_json_file(
                 self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
             )
-            self.TOKEN_SYMBOLS = await self._load_json_file(
+            self.TOKEN_SYMBOLS = self._load_json_file(
                 self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
             )
-            self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
-            self.ERC20_SIGNATURES = await self._load_json_file(
+            self.ERC20_ABI = self._construct_abi_path("abi", "erc20_abi.json")
+            self.ERC20_SIGNATURES = self._load_json_file(
                 self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
             )
-            self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "sushiswap_router_abi.json")
+            self.SUSHISWAP_ROUTER_ABI = self._construct_abi_path("abi", "sushiswap_router_abi.json")
             self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
-            self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
+            self.UNISWAP_ROUTER_ABI = self._construct_abi_path("abi", "uniswap_router_abi.json")
             self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
-            self.AAVE_FLASHLOAN_ABI = await self._construct_abi_path("abi", "aave_flashloan_abi.json")
-            self.AAVE_LENDING_POOL_ABI = await self._construct_abi_path("abi", "aave_lending_pool_abi.json")
+            self.AAVE_FLASHLOAN_ABI = self._load_json_file(
+                self._construct_abi_path("abi", "aave_flashloan_abi.json"),
+                "Aave Flashloan ABI"
+            )
+            self.AAVE_LENDING_POOL_ABI = self._load_json_file(
+                self._construct_abi_path("abi", "aave_lending_pool_abi.json"),
+                "Aave Lending Pool ABI"
+            )
             self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
-            self.PANCAKESWAP_ROUTER_ABI = await self._construct_abi_path("abi", "pancakeswap_router_abi.json")
-            self.PANCAKESWAP_ROUTER_ADDRESS = self._get_env_variable("PANCAKESWAP_ROUTER_ADDRESS")
-            self.BALANCER_ROUTER_ABI = await self._construct_abi_path("abi", "balancer_router_abi.json")
-            self.BALANCER_ROUTER_ADDRESS = self._get_env_variable("BALANCER_ROUTER_ADDRESS")
             logger.debug("JSON elements loaded successfully.")
         except Exception as e:
             logger.error(f"Error loading JSON elements: {e}")
@@ -192,7 +190,7 @@ class Configuration:
             raise EnvironmentError(f"Missing environment variable: {var_name}")
         return value
 
-    async def _load_json_file(self, file_path: str, description: str) -> Any:
+    def _load_json_file(self, file_path: str, description: str) -> Any:
         try:
             with open(file_path, 'r') as file:
                 data = json.load(file)
@@ -208,7 +206,7 @@ class Configuration:
             logger.error(f"Unexpected error loading {description} from {file_path}: {e}")
             raise
 
-    async def _construct_abi_path(self, base_path: str, abi_filename: str) -> str:
+    def _construct_abi_path(self, base_path: str, abi_filename: str) -> str:
         abi_path = os.path.join(base_path, abi_filename)
         if not os.path.exists(abi_path):
             logger.error(f"ABI file does not exist: {abi_path}")
@@ -229,8 +227,6 @@ class Configuration:
             "uniswap_router_abi": self.UNISWAP_ROUTER_ABI,
             "AAVE_FLASHLOAN_ABI": self.AAVE_FLASHLOAN_ABI,
             "AAVE_LENDING_POOL_ABI": self.AAVE_LENDING_POOL_ABI,
-            "pancakeswap_router_abi": self.PANCAKESWAP_ROUTER_ABI,
-            "balancer_router_abi": self.BALANCER_ROUTER_ABI,
         }
         return abi_paths.get(abi_name.lower(), "")
 

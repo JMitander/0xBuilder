@@ -16,7 +16,8 @@ class ABI_Registry:
         'pancakeswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity'},
         'balancer': {'swap', 'addLiquidity'},
         'aave_flashloan': {'fn_RequestFlashLoan', 'executeOperation', 'ADDRESSES_PROVIDER', 'POOL'},
-        'aave_lending': {'upgradeTo', 'implementation', 'initialize', 'admin'}
+        # Update Aave V3 Lending Pool required methods
+        'aave_lending': {'ADDRESSES_PROVIDER', 'getReservesList', 'getReserveData'}
     }
 
     def __init__(self):

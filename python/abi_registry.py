@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Any
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ABI_Registry")
 
 class ABI_Registry:
     """Centralized ABI registry with validation and signature mapping."""

@@ -131,12 +131,23 @@ class Transaction_Core:
                 abi=abi
             )
             
-            # Validate basic contract functionality
+            # Validate based on contract type
             try:
-                await contract.functions.getAmountsOut(1000000, [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]).call()
-                logger.debug(f"{name} contract validated successfully")
+                if 'Flashloan' in name:
+                    # Validate flashloan contract using ADDRESSES_PROVIDER
+                    await contract.functions.ADDRESSES_PROVIDER().call()
+                    logger.debug(f"{name} contract validated successfully")
+                elif 'Lending Pool' in name:
+                    # Change validation method to use implementation()
+                    await contract.functions.implementation().call()
+                    logger.debug(f"{name} contract validated successfully")
+                else:
+                    # For DEX routers, use getAmountsOut
+                    await contract.functions.getAmountsOut(1000000, [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]).call()
+                    logger.debug(f"{name} contract validated successfully")
+
             except Exception as e:
-                logger.warning(f"Contract validation warning for {name}: {e}")
+                logger.warning(f"Contract validation warning for {name}: {str(e)}")
 
             return contract
 

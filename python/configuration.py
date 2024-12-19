@@ -54,6 +54,7 @@ class Configuration:
         self.UNISWAP_ROUTER_ADDRESS = None
         self.AAVE_FLASHLOAN_ABI = None
         self.AAVE_LENDING_POOL_ABI = None
+        self.AAVE_LENDING_POOL_ADDRESS = None
         self.AAVE_FLASHLOAN_ADDRESS = None
         
         # Add ML model configuration

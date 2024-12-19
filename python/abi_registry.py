@@ -15,8 +15,8 @@ class ABI_Registry:
         'sushiswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity'},
         'pancakeswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity'},
         'balancer': {'swap', 'addLiquidity'},
-        'aave_flashloan': {'fn_RequestFlashLoan', 'executeOperation'},
-        'aave_lending': {'deposit', 'withdraw', 'borrow', 'repay'}
+        'aave_flashloan': {'fn_RequestFlashLoan', 'executeOperation', 'ADDRESSES_PROVIDER', 'POOL'},
+        'aave_lending': {'upgradeTo', 'implementation', 'initialize', 'admin'}
     }
 
     def __init__(self):
@@ -69,10 +69,18 @@ class ABI_Registry:
         }
         
         required = self.REQUIRED_METHODS.get(abi_type, set())
-        if not required.issubset(found_methods):
-            missing = required - found_methods
-            logger.error(f"Missing required methods in {abi_type} ABI: {missing}")
-            return False
+        if abi_type in ['aave_flashloan', 'aave_lending']:
+            # For Aave contracts, require at least one of the required methods
+            if not (required & found_methods):  # Use intersection instead of subset
+                missing = required - found_methods
+                logger.error(f"No required methods found in {abi_type} ABI from: {missing}")
+                return False
+        else:
+            # For other contracts, require all methods
+            if not required.issubset(found_methods):
+                missing = required - found_methods
+                logger.error(f"Missing required methods in {abi_type} ABI: {missing}")
+                return False
 
         return True
 

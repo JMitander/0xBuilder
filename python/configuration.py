@@ -336,35 +336,18 @@ class API_Config:
 
     async def get_token_symbol(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
         """Get the token symbol for a given token address."""
-        if token_address in self.token_symbol_cache:
-            return self.token_symbol_cache[token_address]
+        if token_address in self.token_metadata_cache:
+            metadata = self.token_metadata_cache[token_address]
+            return metadata.get('symbol')
         if token_address in self.configuration.TOKEN_SYMBOLS:
             symbol = self.configuration.TOKEN_SYMBOLS[token_address]
-            self.token_symbol_cache[token_address] = symbol
+            self.token_metadata_cache[token_address] = {'symbol':symbol}
             return symbol
         try:
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             contract = web3.eth.contract(address=token_address, abi=erc20_abi)
             symbol = await contract.functions.symbol().call()
-            self.token_symbol_cache[token_address] = symbol
-            return symbol
-        except Exception as e:
-            logger.error(f"Error getting symbol for token {token_address}: {e}")
-            return None
-
-    async def token_symbol_cache(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
-        """Get the token symbol for a given token address."""
-        if token_address in self.token_symbol_cache:
-            return self.token_symbol_cache[token_address]
-        if token_address in self.configuration.TOKEN_SYMBOLS:
-            symbol = self.configuration.TOKEN_SYMBOLS[token_address]
-            self.token_symbol_cache[token_address] = symbol
-            return symbol
-        try:
-            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            contract = web3.eth.contract(address=token_address, abi=erc20_abi)
-            symbol = await contract.functions.symbol().call()
-            self.token_symbol_cache[token_address] = symbol
+            self.token_metadata_cache[token_address] = {'symbol': symbol}
             return symbol
         except Exception as e:
             logger.error(f"Error getting symbol for token {token_address}: {e}")
@@ -681,7 +664,7 @@ class API_Config:
             # Priority tokens get faster, more reliable providers
             if is_priority:
                 return (reliability * 2 + rate_left) * config['weight']
-            return (reliability + rate_left) * config['weight']
+            return (reliability +  rate_left) * config['weight']
             
         return sorted(providers, key=provider_score, reverse=True)
 
@@ -903,5 +886,3 @@ class API_Config:
         except Exception as e:
             logger.error(f"Error calculating momentum: {e}")
             return 0.0
-
-    # ...rest of existing code...

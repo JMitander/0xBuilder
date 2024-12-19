@@ -131,16 +131,17 @@ class Transaction_Core:
             # Different validation based on contract type
             try:
                 if 'Lending Pool' in name:
-                    # Try to call a common read function instead of 'protocol'
+                    # Use getReservesList() for Aave V3 Lending Pool validation
                     await contract.functions.getReservesList().call()
+                    logger.debug(f"{name} contract validated successfully via getReservesList()")
                 elif 'Flashloan' in name:
                     await contract.functions.ADDRESSES_PROVIDER().call()
+                    logger.debug(f"{name} contract validated successfully via ADDRESSES_PROVIDER()")
                 else:
                     # For DEX routers
                     path = [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]
                     await contract.functions.getAmountsOut(1000000, path).call()
-                
-                logger.debug(f"{name} contract validated successfully")
+                    logger.debug(f"{name} contract validated successfully")
 
             except Exception as e:
                 logger.warning(f"Contract validation warning for {name}: {e}")

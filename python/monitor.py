@@ -4,7 +4,6 @@ import time
 import pandas as pd
 import numpy as np
 
-
 from web3 import AsyncWeb3
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
@@ -17,6 +16,9 @@ from joblib import dump, load
 from pathlib import Path
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union
+
+# Replace relative imports with absolute imports
+from constants import ERROR_MARKET_MONITOR_INIT, ERROR_MESSAGES
 
 logger = logging.getLogger(__name__)
 
@@ -862,7 +864,7 @@ class Mempool_Monitor:
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
-        """Enhanced token transaction analysis with better validation."""
+        """Enhanced token transaction analysis with better error handling."""
         try:
             if not self.erc20_abi or not tx.input or len(tx.input) < 10:
                 logger.debug("Missing ERC20 ABI or invalid transaction input")
@@ -872,76 +874,43 @@ class Mempool_Monitor:
             function_selector = tx.input[:10]  # includes '0x'
             selector_no_prefix = function_selector[2:]  # remove '0x'
 
-            # Initialize variables
+            # Try multiple methods to decode the transaction
+            decoded = False
             function_name = None
             function_params = {}
-            decoded = False
 
-            # Method 1: Try local signature lookup first (fastest)
+            # Method 1: Check local signature cache
             if selector_no_prefix in self.function_signatures:
-                try:
-                    function_name = self.function_signatures[selector_no_prefix]
-                    if len(tx.input) >= 138:  # Standard ERC20 call length
-                        params_data = tx.input[10:]
-                        if function_name == 'transfer':
-                            to_address = '0x' + params_data[:64][-40:]
-                            amount = int(params_data[64:128], 16)
-                            function_params = {'to': to_address, 'amount': amount}
-                            decoded = True
-                except Exception as e:
-                    logger.debug(f"Error in direct signature lookup: {e}")
+                function_name = self.function_signatures[selector_no_prefix]
+                # Basic parameter extraction for known functions
+                if len(tx.input) >= 138:
+                    decoded = await self._try_decode_params(tx.input[10:], function_name)
+                    if decoded:
+                        function_params = decoded
 
-            # Method 2: Try contract decode only if direct lookup failed
+            # Method 2: Try ABI decoding
             if not decoded:
                 try:
-                    # Ensure we have a valid contract address and ABI
-                    if not tx.to or not self.erc20_abi:
-                        logger.debug("Missing contract address or ABI")
-                        return {"is_profitable": False}
-
                     contract = self.web3.eth.contract(
                         address=self.web3.to_checksum_address(tx.to),
                         abi=self.erc20_abi
                     )
-
                     try:
                         func_obj, decoded_params = contract.decode_function_input(tx.input)
-                        function_name = (
-                            getattr(func_obj, 'fn_name', None) or
-                            getattr(func_obj, 'function_identifier', None)
-                        )
-                        if function_name:
-                            function_params = decoded_params
-                            decoded = True
-                    except Web3ValueError as e:
-                        logger.debug(f"Could not decode function input: {e}")
-                except Exception as e:
-                    logger.debug(f"Contract decode error: {e}")
-
-            # Method 3: Configuration fallback
-            if not decoded and hasattr(self.configuration, 'ERC20_SIGNATURES'):
-                try:
-                    function_name = self.configuration.ERC20_SIGNATURES.get(function_selector)
-                    if function_name:
+                        function_name = func_obj.fn_name
+                        function_params = decoded_params
                         decoded = True
+                    except Exception as e:
+                        logger.debug(f"ABI decoding failed: {e}")
                 except Exception as e:
-                    logger.debug(f"Error in configuration lookup: {e}")
+                    logger.debug(f"Contract creation failed: {e}")
 
-            # Process decoded transaction if successful
             if decoded and function_name in ('transfer', 'transferFrom', 'swap'):
-                # Enhanced parameter validation
-                params = await self._extract_transaction_params(tx, function_name, function_params)
-                if not params:
-                    logger.debug(f"Could not extract valid parameters for {function_name}")
-                    return {"is_profitable": False}
+                # Add minimum required parameters if missing
+                if 'path' not in function_params:
+                    function_params['path'] = [tx.to]
 
-                amounts = await self._validate_token_amounts(params)
-                if not amounts['valid']:
-                    logger.debug(f"Invalid token amounts: {amounts['reason']}")
-                    if 'details' in amounts:
-                        logger.debug(f"Validation details: {amounts['details']}")
-                    return {"is_profitable": False}
-
+                # Continue with profit estimation
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
                     return {
@@ -955,9 +924,6 @@ class Mempool_Monitor:
                         "value": tx.value,
                         "gasPrice": tx.gasPrice,
                     }
-
-            if not decoded:
-                logger.debug(f"Could not decode transaction with selector: {function_selector}")
 
             return {"is_profitable": False}
 
@@ -996,6 +962,19 @@ class Mempool_Monitor:
                 logger.debug(f"Invalid gas data: {gas_data['reason']}")
                 return Decimal(0)
 
+            # Get token address from function params or transaction
+            token_address = None
+            if 'path' in function_params:
+                token_address = function_params['path'][-1]
+            elif 'token' in function_params:
+                token_address = function_params['token']
+            elif hasattr(tx, 'to'):
+                token_address = tx.to
+
+            if not token_address:
+                logger.debug("Could not determine token address")
+                return Decimal(0)
+
             # Get token amounts with validation
             amounts = await self._validate_token_amounts(function_params)
             if not amounts['valid']:
@@ -1003,7 +982,7 @@ class Mempool_Monitor:
                 return Decimal(0)
 
             # Get market data with validation
-            market_data = await self._get_market_data(function_params['path'][-1])
+            market_data = await self._get_market_data(token_address)
             if not market_data['valid']:
                 logger.debug(f"Invalid market data: {market_data['reason']}")
                 return Decimal(0)
@@ -1361,3 +1340,18 @@ class Mempool_Monitor:
         except Exception as e:
             logger.error(f"Error stopping Mempool Monitor: {e}")
             raise
+
+    async def _try_decode_params(self, input_data: str, function_name: str) -> Optional[Dict]:
+        """Attempt to decode transaction parameters based on function name."""
+        try:
+            if function_name == 'transfer':
+                return {
+                    'to': '0x' + input_data[:64][-40:],
+                    'amount': int(input_data[64:128], 16),
+                    'path': ['0x' + input_data[:64][-40:]]
+                }
+            # Add more function decodings as needed
+            return None
+        except Exception as e:
+            logger.debug(f"Parameter decoding failed: {e}")
+            return None

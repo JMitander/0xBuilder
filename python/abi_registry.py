@@ -57,6 +57,44 @@ class ABI_Registry:
             logger.error(f"Error in ABI loading: {e}")
             raise
 
+    async def load_abi(self, abi_type: str) -> Optional[List[Dict]]:
+        """Load specific ABI type with validation."""
+        try:
+            abi_dir = Path(__file__).parent.parent / 'abi'
+            abi_files = {
+                'erc20': 'erc20_abi.json',
+                'uniswap': 'uniswap_router_abi.json',
+                'sushiswap': 'sushiswap_router_abi.json',
+                'pancakeswap': 'pancakeswap_router_abi.json',
+                'balancer': 'balancer_router_abi.json',
+                'aave_flashloan': 'aave_flashloan_abi.json',
+                'aave_lending': 'aave_lending_pool_abi.json'
+            }
+            
+            if abi_type not in abi_files:
+                logger.error(f"Unknown ABI type: {abi_type}")
+                return None
+                
+            abi_path = abi_dir / abi_files[abi_type]
+            if not abi_path.exists():
+                logger.error(f"ABI file not found: {abi_path}")
+                return None
+                
+            with open(abi_path, 'r') as f:
+                abi = json.load(f)
+                
+            if self._validate_abi(abi, abi_type):
+                self.abis[abi_type] = abi
+                self._extract_signatures(abi, abi_type)
+                logger.debug(f"Loaded and validated {abi_type} ABI")
+                return abi
+                
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error loading ABI {abi_type}: {e}")
+            return None
+
     def _validate_abi(self, abi: List[Dict], abi_type: str) -> bool:
         """Validate ABI structure and required methods."""
         if not isinstance(abi, list):
@@ -83,6 +121,29 @@ class ABI_Registry:
                 return False
 
         return True
+
+    def validate_abi(self, abi: List[Dict], required_methods: List[str]) -> bool:
+        """Validate that an ABI contains all required methods."""
+        try:
+            if not isinstance(abi, list):
+                logger.error("Invalid ABI format: not a list")
+                return False
+
+            found_methods = {
+                item['name'] for item in abi 
+                if item.get('type') == 'function' and 'name' in item
+            }
+
+            missing_methods = set(required_methods) - found_methods
+            if missing_methods:
+                logger.error(f"Missing required methods in ABI: {missing_methods}")
+                return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error validating ABI: {e}")
+            return False
 
     def _extract_signatures(self, abi: List[Dict], abi_type: str) -> None:
         """Extract function signatures and method selectors."""

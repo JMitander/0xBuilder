@@ -1477,6 +1477,100 @@ class Strategy_Net:
         except Exception as e:
             logger.error(f"Error stopping Strategy Net: {e}")
 
+    async def _estimate_profit(self, tx, decoded_params) -> Decimal:
+        """Estimate potential profit from transaction."""
+        try:
+            # Extract key parameters
+            path = decoded_params.get('path', [])
+            value = getattr(tx, 'value', 0)
+            gas_price = getattr(tx, 'gasPrice', 0)
+
+            # Calculate estimated profit based on path and value
+            estimated_profit = await self.transaction_core.estimate_transaction_profit(
+                path, value, gas_price
+            )
+            logger.debug(f"Estimated profit: {estimated_profit:.4f} ETH")
+            return estimated_profit
+        except Exception as e:
+            logger.error(f"Error estimating profit: {e}")
+            return Decimal("0")
+
+async def analyze_token_transaction(self, tx: Any) -> Dict[str, Any]:
+    """Enhanced token transaction analysis with better validation."""
+    try:
+        # Validate input parameters
+        if not hasattr(tx, 'input') or not tx.input or len(tx.input) < 10:
+            logger.debug("Invalid transaction input data")
+            return {"is_profitable": False}
+
+        if not hasattr(tx, 'to') or not tx.to:
+            logger.debug("Missing 'to' address in transaction")
+            return {"is_profitable": False}
+
+        # Extract function selector with validation
+        function_selector = tx.input[:10]
+        selector_no_prefix = function_selector[2:]
+
+        # Initialize result dictionary with defaults
+        result = {
+            "is_profitable": False,
+            "tx_hash": getattr(tx, 'hash', '').hex() if hasattr(tx, 'hash') else '',
+            "to": tx.to,
+            "input": tx.input,
+            "value": getattr(tx, 'value', 0),
+            "gasPrice": getattr(tx, 'gasPrice', 0)
+        }
+
+        # Decode function parameters
+        try:
+            decoded_params = await self._decode_function_params(tx)
+            if not decoded_params:
+                return result
+        except Exception as e:
+            logger.error(f"Error decoding function parameters: {e}")
+            return result
+
+        # Validate path parameter exists and is valid
+        path = decoded_params.get('path', [])
+        if not isinstance(path, list) or len(path) < 2:
+            logger.debug("Invalid or missing path parameter")
+            return result
+
+        # Calculate estimated profit with validation
+        try:
+            estimated_profit = await self._estimate_profit(tx, decoded_params)
+            if not isinstance(estimated_profit, Decimal):
+                logger.error("Invalid profit calculation result")
+                return result
+        except Exception as e:
+            logger.error(f"Error calculating profit: {e}")
+            return result
+
+        if estimated_profit > self.minimum_profit_threshold:
+            result.update({
+                "is_profitable": True,
+                "profit": estimated_profit,
+                "params": decoded_params
+            })
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error in token transaction analysis: {e}")
+        return {"is_profitable": False}
+
+async def decode_function_params(self, tx: Any) -> Optional[Dict[str, Any]]:
+    """Decode transaction input parameters."""
+    try:
+        decoded = await self.transaction_core.decode_transaction_input(
+            tx.input, tx.to
+        )
+        logger.debug(f"Decoded transaction: {decoded}")
+        return decoded
+    except Exception as e:
+        logger.error(f"Error decoding transaction: {e}")
+        return None
+
 #//////////////////////////////////////////////////////////////////////////////
 class StrategyConfiguration:
     """Configuration parameters for strategy execution."""
@@ -1493,3 +1587,6 @@ class StrategyPerformanceMetrics:
     avg_execution_time: float = 0.0
     success_rate: float = 0.0
     total_executions: int = 0
+
+
+    

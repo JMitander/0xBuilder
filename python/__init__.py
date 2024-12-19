@@ -1,1 +1,3 @@
-# Empty file to make directory a Python package
+"""
+0xBuilder package initialization.
+"""

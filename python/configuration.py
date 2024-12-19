@@ -5,13 +5,14 @@ import os
 import time
 import aiofiles
 import aiohttp
+import numpy as np
 import pandas as pd
 import dotenv
 
 from web3 import AsyncWeb3
 from cachetools import TTLCache
 from abi_registry import ABI_Registry
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -278,16 +279,11 @@ class API_Config:
             'metadata': 86400  # 24 hours
         }
 
-    async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
-        return self
+        # Initialize API lock and session
+        self.api_lock = asyncio.Lock()
+        self.session = None
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
-            logger.debug("APIconfig session closed.")
-
-        # API configuration
+        # Initialize API configurations
         self.api_configs = {
             "binance": {
                 "base_url": "https://api.binance.com/api/v3",
@@ -297,34 +293,42 @@ class API_Config:
             },
             "coingecko": {
                 "base_url": "https://api.coingecko.com/api/v3",
-                "api_key": self.configuration.COINGECKO_API_KEY,
+                "api_key": configuration.COINGECKO_API_KEY if configuration else None,
                 "success_rate": 1.0,
                 "weight": 0.8,
                 "rate_limit": 50,  # Max requests per minute
             },
             "coinmarketcap": {
                 "base_url": "https://pro-api.coinmarketcap.com/v1",
-                "api_key": self.configuration.COINMARKETCAP_API_KEY,
+                "api_key": configuration.COINMARKETCAP_API_KEY if configuration else None,
                 "success_rate": 1.0,
                 "weight": 0.7,
                 "rate_limit": 333,  # Max requests per minute
             },
             "cryptocompare": {
                 "base_url": "https://min-api.cryptocompare.com/data",
-                "api_key": self.configuration.CRYPTOCOMPARE_API_KEY,
+                "api_key": configuration.CRYPTOCOMPARE_API_KEY if configuration else None,
                 "success_rate": 1.0,
                 "weight": 0.6,
                 "rate_limit": 80,  # Max requests per minute
             },
         }
 
-        self.api_lock = asyncio.Lock()
+        # Initialize rate limiters after API configs
         self.rate_limiters = {
             provider: asyncio.Semaphore(config.get("rate_limit", 10))
             for provider, config in self.api_configs.items()
         }
 
-        
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+            logger.debug("APIconfig session closed.")
+
     async def get_token_symbol(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
         """Get the token symbol for a given token address."""
         if token_address in self.token_symbol_cache:
@@ -388,48 +392,94 @@ class API_Config:
             return None
 
     async def get_real_time_price(self, token: str, vs_currency: str = "eth") -> Optional[Decimal]:
-        """Get real-time price using weighted average from multiple sources."""
-        cache_key = f"price_{token}_{vs_currency}"
-        if cache_key in self.price_cache:
-            return self.price_cache[cache_key]
-        prices = []
-        weights = []
-        async with self.api_lock:
-            for source, config in self.api_configs.items():
-                try:
-                    price = await self._fetch_price(source, token, vs_currency)
-                    if price:
-                        prices.append(price)
-                        weights.append(config["weight"] * config["success_rate"])
-                except Exception as e:
-                    logger.error(f"Error fetching price from {source}: {e}")
-                    config["success_rate"] *= 0.9
-        if not prices:
-            logger.warning(f"No valid prices found for {token}!")
-            return None
-        weighted_price = sum(p * w for p, w in zip(prices, weights)) / sum(weights)
-        self.price_cache[cache_key] = Decimal(str(weighted_price))
-        return self.price_cache[cache_key]
-
-    async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
-        """Fetch the price of a token from a specified source."""
-        config = self.api_configs.get(source)
-        if not config:
-            logger.error(f"API source {source} not configured.")
-            return None
-
+        """Enhanced real-time price fetching with validation."""
         try:
-            async with self.session.get(config["base_url"] + f"/simple/price?ids={token}&vs_currencies={vs_currency}") as response:
-                if response.status == 200:
-                    data = await response.json()
-                    price = Decimal(str(data[token][vs_currency]))
-                    logger.debug(f"Fetched price from {source}: {price}")
-                    return price
-                else:
-                    logger.error(f"Failed to fetch price from {source}: Status {response.status}")
-                    return None
+            # Validate inputs
+            if not token or not isinstance(token, str):
+                logger.error("Invalid token parameter")
+                return None
+
+            cache_key = f"price_{token}_{vs_currency}"
+            if cache_key in self.price_cache:
+                return self.price_cache[cache_key]
+
+            prices = []
+            weights = []
+
+            async with self.api_lock:
+                for source, config in self.api_configs.items():
+                    try:
+                        # Validate API configuration
+                        if not self._validate_api_config(source, config):
+                            continue
+
+                        price = await self._fetch_price_with_retry(source, token, vs_currency)
+                        if price and price > 0:
+                            prices.append(price)
+                            weights.append(config["weight"] * config["success_rate"])
+                    except Exception as e:
+                        logger.error(f"Error fetching price from {source}: {e}")
+                        config["success_rate"] *= 0.9
+
+            if not prices:
+                logger.warning(f"No valid prices found for {token}")
+                return None
+
+            weighted_price = self._calculate_weighted_price(prices, weights)
+            if weighted_price > 0:
+                self.price_cache[cache_key] = weighted_price
+                return weighted_price
+
+            return None
+
         except Exception as e:
-            logger.error(f"Exception fetching price from {source}: {e}")
+            logger.error(f"Error in get_real_time_price: {e}")
+            return None
+
+    def _validate_api_config(self, source: str, config: Dict) -> bool:
+        """Validate API configuration."""
+        required_fields = ['base_url', 'weight', 'rate_limit']
+        return all(field in config for field in required_fields)
+
+    async def _fetch_price_with_retry(
+        self,
+        source: str,
+        token: str,
+        vs_currency: str,
+        max_retries: int = 3
+    ) -> Optional[Decimal]:
+        """Fetch price with retry mechanism."""
+        for attempt in range(max_retries):
+            try:
+                price = await self._fetch_price(source, token, vs_currency)
+                if price is not None:
+                    return price
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"Max retries reached for {source}: {e}")
+                    return None
+                await asyncio.sleep(2 ** attempt)
+        return None
+
+    def _calculate_weighted_price(
+        self,
+        prices: List[float],
+        weights: List[float]
+    ) -> Optional[Decimal]:
+        """Calculate weighted average price with validation."""
+        try:
+            if not prices or not weights or len(prices) != len(weights):
+                return None
+
+            total_weight = sum(weights)
+            if total_weight <= 0:
+                return None
+
+            weighted_sum = sum(p * w for p, w in zip(prices, weights))
+            return Decimal(str(weighted_sum / total_weight))
+
+        except (ValueError, InvalidOperation) as e:
+            logger.error(f"Error calculating weighted price: {e}")
             return None
 
     async def make_request(
@@ -744,3 +794,280 @@ class API_Config:
             df.to_csv(filepath, index=False)
         except Exception as e:
             logger.error(f"Error cleaning up old data: {e}")
+
+    async def _get_last_update_time(self, token: str) -> int:
+        """Get the timestamp of last data update for a token."""
+        try:
+            training_data_path = Path(__file__).parent.parent / "linear_regression" / "training_data.csv"
+            if not training_data_path.exists():
+                return 0
+                
+            df = pd.read_csv(training_data_path)
+            if df.empty or 'timestamp' not in df.columns or 'symbol' not in df.columns:
+                return 0
+                
+            token_data = df[df['symbol'] == token]
+            if token_data.empty:
+                return 0
+                
+            return int(token_data['timestamp'].max())
+            
+        except Exception as e:
+            logger.error(f"Error getting last update time for {token}: {e}")
+            return 0
+
+    async def _fetch_market_data(self, token: str) -> Optional[Dict[str, Any]]:
+        """Fetch comprehensive market data for a token."""
+        try:
+            # Cache check
+            cache_key = f"market_data_{token}"
+            if cache_key in self.market_data_cache:
+                return self.market_data_cache[cache_key]
+
+            # Gather data concurrently using asyncio.gather
+            data_tasks = [
+                self.get_token_metadata(token),
+                self.get_token_volume(token),
+                self.get_token_price_data(token, 'historical', timeframe=7)  # 7 day price history
+            ]
+            
+            metadata, volume, price_history = await asyncio.gather(*data_tasks, return_exceptions=True)
+
+            # Check for exceptions in results
+            results = [metadata, volume, price_history]
+            if any(isinstance(r, Exception) for r in results):
+                logger.warning(f"Some market data fetching failed for {token}")
+                return None
+
+            # Calculate additional metrics
+            price_volatility = self._calculate_volatility(price_history) if price_history else 0
+            market_data = {
+                'market_cap': metadata.get('market_cap', 0) if metadata else 0,
+                'volume_24h': float(volume) if volume else 0,
+                'percent_change_24h': metadata.get('price_change_24h', 0) if metadata else 0,
+                'total_supply': metadata.get('total_supply', 0) if metadata else 0,
+                'circulating_supply': metadata.get('circulating_supply', 0) if metadata else 0,
+                'volatility': price_volatility,
+                'price_momentum': self._calculate_momentum(price_history) if price_history else 0,
+                'liquidity_ratio': await self._calculate_liquidity_ratio(token),
+                'trading_pairs': len(metadata.get('trading_pairs', [])) if metadata else 0,
+                'exchange_count': len(metadata.get('exchanges', [])) if metadata else 0
+            }
+
+            # Cache the results
+            self.market_data_cache[cache_key] = market_data
+            return market_data
+
+        except Exception as e:
+            logger.error(f"Error fetching market data for {token}: {e}")
+            return None
+
+    async def _fetch_from_provider(self, provider: str, token: str, data_type: str) -> Optional[Any]:
+        """Fetch data from specific provider with better error handling."""
+        try:
+            config = self.api_configs.get(provider)
+            if not config:
+                return None
+
+            if data_type == 'price':
+                return await self._fetch_price(provider, token, 'eth')
+            elif data_type == 'volume':
+                return await self._fetch_token_volume(provider, token)
+            elif data_type == 'metadata':
+                return await self._fetch_token_metadata(provider, token)
+            else:
+                logger.warning(f"Unsupported data type: {data_type}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error fetching from {provider}: {e}")
+            return None
+
+    def _calculate_volatility(self, price_history: List[float]) -> float:
+        """Calculate price volatility using standard deviation of returns."""
+        if not price_history or len(price_history) < 2:
+            return 0.0
+        
+        try:
+            returns = [
+                (price_history[i] - price_history[i-1]) / price_history[i-1]
+                for i in range(1, len(price_history))
+            ]
+            return float(np.std(returns))
+        except Exception as e:
+            logger.error(f"Error calculating volatility: {e}")
+            return 0.0
+
+    def _calculate_momentum(self, price_history: List[float]) -> float:
+        """Calculate price momentum using exponential moving average."""
+        if not price_history or len(price_history) < 2:
+            return 0.0
+        
+        try:
+            # Calculate short and long term EMAs
+            short_period = min(12, len(price_history))
+            long_period = min(26, len(price_history))
+            
+            ema_short = sum(price_history[-short_period:]) / short_period
+            ema_long = sum(price_history[-long_period:]) / long_period
+            
+            momentum = (ema_short / ema_long - 1) if ema_long > 0 else 0
+            return float(momentum)
+            
+        except Exception as e:
+            logger.error(f"Error calculating momentum: {e}")
+            return 0.0
+
+    async def _calculate_liquidity_ratio(self, token: str) -> float:
+        """Calculate liquidity ratio based on volume and market cap."""
+        try:
+            volume = await self.get_token_volume(token)
+            if volume is None:
+                logger.warning(f"No volume data available for {token}")
+                return 0.0
+
+            market_cap = await self.get_token_market_cap(token)
+            if market_cap is None or market_cap == 0:
+                logger.warning(f"No market cap data available for {token}")
+                return 0.0
+
+            ratio = float(volume) / float(market_cap)
+            return min(1.0, ratio)  # Cap at 1.0 for normalization
+
+        except Exception as e:
+            logger.error(f"Error calculating liquidity ratio for {token}: {e}")
+            return 0.0
+        
+    async def get_token_market_cap(self, token: str) -> Optional[float]:
+        """Get the market capitalization for a given token symbol."""
+        cache_key = f"market_cap_{token}"
+        if cache_key in self.price_cache:
+            return self.price_cache[cache_key]
+        market_cap = await self._fetch_from_services(
+            lambda service: self._fetch_token_market_cap(service, token),
+            f"market cap for {token}",
+        )
+        if market_cap is not None:
+            self.price_cache[cache_key] = market_cap
+        return market_cap or 0.0
+    
+    async def _fetch_token_market_cap(self, source: str, token: str) -> Optional[float]:
+        """Fetch token market cap from a specified source."""
+        config = self.api_configs.get(source)
+        if not config:
+            logger.debug(f"API configuration for {source} not found.")
+            return None
+        if source == "coingecko":
+            url = f"{config['base_url']}/coins/markets"
+            params = {"vs_currency": "usd", "ids": token}
+            response = await self.make_request(source, url, params=params)
+            return response[0]["market_cap"] if response else None
+        else:
+            logger.debug(f"Unsupported market cap source: {source}")
+            return None
+        
+    async def get_token_metadata(self, token: str) -> Optional[Dict[str, Any]]:
+
+        if token in self.token_metadata_cache:
+            return self.token_metadata_cache[token]
+        metadata = await self._fetch_from_services(
+            lambda service: self._fetch_token_metadata(service, token),
+            f"metadata for {token}",
+        )
+        if metadata:
+            self.token_metadata_cache[token] = metadata
+        return metadata
+    
+    async def _fetch_token_metadata(self, source: str, token: str) -> Optional[Dict[str, Any]]:
+        """Fetch token metadata from a specified source."""
+        config = self.api_configs.get(source)
+        if not config:
+            logger.debug(f"API configuration for {source} not found.")
+            return None
+        if source == "coingecko":
+            url = f"{config['base_url']}/coins/{token}"
+            response = await self.make_request(source, url)
+            return response
+        else:
+            logger.debug(f"Unsupported metadata source: {source}")
+            return None
+        
+    async def get_real_time_price(self, token: str, vs_currency: str = "eth") -> Optional[Decimal]:
+        """Enhanced real-time price fetching with validation."""
+        try:
+            # Validate inputs
+            if not token or not isinstance(token, str):
+                logger.error("Invalid token parameter")
+                return None
+
+            cache_key = f"price_{token}_{vs_currency}"
+            if cache_key in self.price_cache:
+                return self.price_cache[cache_key]
+
+            prices = []
+            weights = []
+
+            async with self.api_lock:
+                for source, config in self.api_configs.items():
+                    try:
+                        # Validate API configuration
+                        if not self._validate_api_config(source, config):
+                            continue
+
+                        price = await self._fetch_price_with_retry(source, token, vs_currency)
+                        if price and price > 0:
+                            prices.append(price)
+                            weights.append(config["weight"] * config["success_rate"])
+                    except Exception as e:
+                        logger.error(f"Error fetching price from {source}: {e}")
+                        config["success_rate"] *= 0.9
+
+            if not prices:
+                logger.warning(f"No valid prices found for {token}")
+                return None
+
+            weighted_price = self._calculate_weighted_price(prices, weights)
+            if weighted_price > 0:
+                self.price_cache[cache_key] = weighted_price
+                return weighted_price
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error in get_real_time_price: {e}")
+            return None
+        
+    async def _fetch_price_with_retry(
+        self,
+        source: str,
+        token: str,
+        vs_currency: str,
+        max_retries: int = 3
+    ) -> Optional[Decimal]:
+        """Fetch price with retry mechanism."""
+        for attempt in range(max_retries):
+            try:
+                price = await self._fetch_price(source, token, vs_currency)
+                if price is not None:
+                    return price
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"Max retries reached for {source}: {e}")
+                    return None
+                await asyncio.sleep(2 ** attempt)
+        return None
+    
+    async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
+        """Fetch price data from a specified source."""
+        config = self.api_configs.get(source)
+        if not config:
+            logger.debug(f"API configuration for {source} not found.")
+            return None
+        if source == "coingecko":
+            url = f"{config['base_url']}/simple/price"
+            params = {"ids": token, "vs_currencies": vs_currency}
+            response = await self.make_request(source, url, params=params)
+            return Decimal(str(response[token][vs_currency])) if response else None
+        else:
+            logger.debug(f"Unsupported price source: {source}")
+            return None

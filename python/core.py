@@ -84,9 +84,6 @@ class Transaction_Core:
             router_configs = [
                 (self.configuration.UNISWAP_ROUTER_ADDRESS, 'uniswap', 'Uniswap'),
                 (self.configuration.SUSHISWAP_ROUTER_ADDRESS, 'sushiswap', 'Sushiswap'),
-                # Remove unsupported routers
-                # (self.configuration.PANCAKESWAP_ROUTER_ADDRESS, 'pancakeswap', 'Pancakeswap'),
-                # (self.configuration.BALANCER_ROUTER_ADDRESS, 'balancer', 'Balancer')
             ]
 
             for address, abi_type, name in router_configs:
@@ -131,23 +128,24 @@ class Transaction_Core:
                 abi=abi
             )
             
-            # Validate based on contract type
+            # Different validation based on contract type
             try:
-                if 'Flashloan' in name:
-                    # Validate flashloan contract using ADDRESSES_PROVIDER
+                if 'Lending Pool' in name:
+                    # Try to call a common read function instead of 'protocol'
+                    await contract.functions.getReservesList().call()
+                elif 'Flashloan' in name:
                     await contract.functions.ADDRESSES_PROVIDER().call()
-                    logger.debug(f"{name} contract validated successfully")
-                elif 'Lending Pool' in name:
-                    # Change validation method to use implementation()
-                    await contract.functions.implementation().call()
-                    logger.debug(f"{name} contract validated successfully")
                 else:
-                    # For DEX routers, use getAmountsOut
-                    await contract.functions.getAmountsOut(1000000, [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]).call()
-                    logger.debug(f"{name} contract validated successfully")
+                    # For DEX routers
+                    path = [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]
+                    await contract.functions.getAmountsOut(1000000, path).call()
+                
+                logger.debug(f"{name} contract validated successfully")
 
             except Exception as e:
-                logger.warning(f"Contract validation warning for {name}: {str(e)}")
+                logger.warning(f"Contract validation warning for {name}: {e}")
+                # Still return contract even if validation fails
+                return contract
 
             return contract
 
@@ -722,9 +720,6 @@ class Transaction_Core:
             routers = {
                 self.configuration.UNISWAP_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
                 self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
-                # Remove unsupported routers
-                # self.configuration.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
-                # self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
 
             if to_address not in routers:
@@ -787,9 +782,6 @@ class Transaction_Core:
             routers = {
                 self.configuration.UNISWAP_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
                 self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
-                # Remove unsupported routers
-                # self.configuration.PANCAKESWAP_ROUTER_ADDRESS: (self.pancakeswap_router_contract, "Pancakeswap"),
-                # self.configuration.BALANCER_ROUTER_ADDRESS: (self.balancer_router_contract, "Balancer")
             }
 
             if to_address not in routers:
@@ -941,6 +933,59 @@ class Transaction_Core:
         except Exception as e:
             logger.error(f"Error withdrawing ETH: {e}")
             return False
+    
+    async def estimate_transaction_profit(self, tx: Dict[str, Any]) -> Decimal:
+        """
+        Estimates the profit of a transaction based on the current gas price.
+
+        :param tx: Transaction dictionary.
+        :return: Estimated profit as Decimal.
+        """
+        try:
+            gas_price = await self.get_dynamic_gas_price()
+            gas_limit = await self.estimate_gas_limit(tx)
+            gas_cost = gas_price["gasPrice"] * gas_limit
+            profit = self.current_profit - gas_cost
+            logger.debug(f"Estimated profit: {profit} ETH")
+            return profit
+        except Exception as e:
+            logger.error(f"Error estimating transaction profit: {e}")
+            return Decimal("0")
+        
+    async def decode_transaction_input(self, input_data: str, contract_address: str) -> Optional[Dict[str, Any]]:
+        """Decode transaction input using ABI registry."""
+        try:
+            # Get selector from input
+            selector = input_data[:10][2:]  # Remove '0x' prefix
+            
+            # Get method name from registry
+            method_name = self.abi_registry.get_method_selector(selector)
+            if not method_name:
+                logger.debug(f"Unknown method selector: {selector}")
+                return None
+
+            # Get appropriate ABI for decoding
+            for abi_type, abi in self.abi_registry.abis.items():
+                try:
+                    contract = self.web3.eth.contract(
+                        address=self.web3.to_checksum_address(contract_address),
+                        abi=abi
+                    )
+                    func_obj, decoded_params = contract.decode_function_input(input_data)
+                    return {
+                        "function_name": method_name,
+                        "params": decoded_params,
+                        "signature": selector,
+                        "abi_type": abi_type
+                    }
+                except Exception:
+                    continue
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error decoding transaction input: {e}")
+            return None
 
     async def withdraw_token(self, token_address: str) -> bool:
         """

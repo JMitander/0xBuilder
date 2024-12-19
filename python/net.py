@@ -6,7 +6,6 @@ from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
-
 import numpy as np
 from web3 import AsyncWeb3
 from cachetools import TTLCache
@@ -14,21 +13,10 @@ from eth_account import Account
 
 from utils.Python.strategyexecutionerror import StrategyExecutionError
 from utils.Python.strategyconfiguration import StrategyConfiguration
-
-
-
-
-
-logger = logging.getLogger(__name__)
-
-from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
-
-from web3 import AsyncWeb3
-from cachetools import TTLCache
-from eth_account import Account
-
 from configuration import API_Config, Configuration
+from colorformatter import get_logger
+
+logger = get_logger(__name__)
 
 # Add risk thresholds
 RISK_THRESHOLDS = {
@@ -1495,89 +1483,16 @@ class Strategy_Net:
             logger.error(f"Error estimating profit: {e}")
             return Decimal("0")
 
-async def analyze_token_transaction(self, tx: Any) -> Dict[str, Any]:
-    """Enhanced token transaction analysis with better validation."""
-    try:
-        # Validate input parameters
-        if not hasattr(tx, 'input') or not tx.input or len(tx.input) < 10:
-            logger.debug("Invalid transaction input data")
-            return {"is_profitable": False}
-
-        if not hasattr(tx, 'to') or not tx.to:
-            logger.debug("Missing 'to' address in transaction")
-            return {"is_profitable": False}
-
-        # Extract function selector with validation
-        function_selector = tx.input[:10]
-        selector_no_prefix = function_selector[2:]
-
-        # Initialize result dictionary with defaults
-        result = {
-            "is_profitable": False,
-            "tx_hash": getattr(tx, 'hash', '').hex() if hasattr(tx, 'hash') else '',
-            "to": tx.to,
-            "input": tx.input,
-            "value": getattr(tx, 'value', 0),
-            "gasPrice": getattr(tx, 'gasPrice', 0)
-        }
-
-        # Decode function parameters
-        try:
-            decoded_params = await self._decode_function_params(tx)
-            if not decoded_params:
-                return result
-        except Exception as e:
-            logger.error(f"Error decoding function parameters: {e}")
-            return result
-
-        # Validate path parameter exists and is valid
-        path = decoded_params.get('path', [])
-        if not isinstance(path, list) or len(path) < 2:
-            logger.debug("Invalid or missing path parameter")
-            return result
-
-        # Calculate estimated profit with validation
-        try:
-            estimated_profit = await self._estimate_profit(tx, decoded_params)
-            if not isinstance(estimated_profit, Decimal):
-                logger.error("Invalid profit calculation result")
-                return result
-        except Exception as e:
-            logger.error(f"Error calculating profit: {e}")
-            return result
-
-        if estimated_profit > self.minimum_profit_threshold:
-            result.update({
-                "is_profitable": True,
-                "profit": estimated_profit,
-                "params": decoded_params
-            })
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Error in token transaction analysis: {e}")
-        return {"is_profitable": False}
-
-async def decode_function_params(self, tx: Any) -> Optional[Dict[str, Any]]:
-    """Decode transaction input parameters."""
-    try:
-        decoded = await self.transaction_core.decode_transaction_input(
-            tx.input, tx.to
-        )
-        logger.debug(f"Decoded transaction: {decoded}")
-        return decoded
-    except Exception as e:
-        logger.error(f"Error decoding transaction: {e}")
-        return None
 
 #//////////////////////////////////////////////////////////////////////////////
 class StrategyConfiguration:
     """Configuration parameters for strategy execution."""
-    decay_factor: float = 0.95
-    min_profit_threshold: Decimal = Decimal("0.01")
-    learning_rate: float = 0.01
-    exploration_rate: float = 0.1
+    
+    def __init__(self):
+        self.decay_factor = 0.95
+        self.min_profit_threshold = Decimal("0.01")
+        self.learning_rate = 0.01
+        self.exploration_rate = 0.1
 
 class StrategyPerformanceMetrics:
     """Metrics for tracking strategy performance."""
@@ -1587,6 +1502,4 @@ class StrategyPerformanceMetrics:
     avg_execution_time: float = 0.0
     success_rate: float = 0.0
     total_executions: int = 0
-
-
     

@@ -85,6 +85,7 @@ class Market_Monitor:
             'UPDATE_INTERVAL': 3600,  # 1 hour
             'MODEL_INTERVAL': 86400   # 24 hours
         }
+        self.abi_registry = ABI_Registry()
 
     async def initialize(self) -> None:
         """Initialize market monitor components and load model."""
@@ -216,7 +217,7 @@ class Market_Monitor:
                 return 0.0
 
             # Make prediction
-            features = ['market_cap', 'volume_24h', 'percent_change_24h', 'total_supply', 'circulating_supply']
+            features = ['market_cap', 'volume_24h', 'percent_change_24h', 'total_supply', 'circulating_supply', 'volatility', 'liquidity_ratio', 'avg_transaction_value', 'trading_pairs', 'exchange_count', 'price_momentum', 'buy_sell_ratio', 'smart_money_flow']
             X = pd.DataFrame([market_data], columns=features)
             prediction = self.price_model.predict(X)[0]
 
@@ -230,35 +231,35 @@ class Market_Monitor:
     async def _get_market_features(self, token_symbol: str) -> Optional[Dict[str, float]]:
         """Get current market features for prediction with enhanced metrics."""
         try:
-            # Basic features from API
-            market_data = {
+             # Gather data concurrently
+            price, volume, supply_data, market_data, prices = await asyncio.gather(
+                self.api_config.get_real_time_price(token_symbol),
+                self.api_config.get_token_volume(token_symbol),
+                self.api_config.get_token_supply_data(token_symbol),
+                self._get_trading_metrics(token_symbol),
+                self.get_price_data(token_symbol, data_type='historical', timeframe=1),
+                return_exceptions=True
+            )
+
+            if any(isinstance(r, Exception) for r in [price, volume, supply_data, market_data, prices]):
+                logger.warning(f"Error fetching market data for {token_symbol}")
+                return None
+
+            # Basic features
+            features = {
                 'market_cap': await self.api_config.get_token_market_cap(token_symbol),
-                'volume_24h': await self.api_config.get_token_volume(token_symbol),
-                'percent_change_24h': await self.api_config.get_price_change_24h(token_symbol)
-            }
-
-            # Get supply data
-            supply_data = await self.api_config.get_token_supply_data(token_symbol)
-            market_data.update({
+                'volume_24h': float(volume),
+                'percent_change_24h': await self.api_config.get_price_change_24h(token_symbol),
                 'total_supply': supply_data.get('total_supply', 0),
-                'circulating_supply': supply_data.get('circulating_supply', 0)
-            })
-
-            # Calculate advanced metrics
-            prices = await self.get_price_data(token_symbol, data_type='historical', timeframe=1)
-            if prices:
-                market_data.update({
-                    'volatility': self._calculate_volatility(prices),
-                    'price_momentum': self._calculate_momentum(prices),
-                    'liquidity_ratio': await self._calculate_liquidity_ratio(token_symbol),
-                })
-
-            # Get trading metrics
-            trading_metrics = await self._get_trading_metrics(token_symbol)
-            market_data.update(trading_metrics)
-
-            return market_data
-
+                'circulating_supply': supply_data.get('circulating_supply', 0),
+                 'volatility': self._calculate_volatility(prices) if prices else 0,
+                'price_momentum': self._calculate_momentum(prices) if prices else 0,
+                'liquidity_ratio': await self._calculate_liquidity_ratio(token_symbol),
+                **market_data
+            }
+            
+            return features
+        
         except Exception as e:
             logger.error(f"Error fetching market features: {e}")
             return None
@@ -276,7 +277,7 @@ class Market_Monitor:
             return 0.0
 
     async def _calculate_liquidity_ratio(self, token_symbol: str) -> float:
-        """Calculate liquidity ratio based on order book depth."""
+        """Calculate liquidity ratio using market cap and volume from API config."""
         try:
             volume = await self.api_config.get_token_volume(token_symbol)
             market_cap = await self.api_config.get_token_market_cap(token_symbol)
@@ -288,7 +289,6 @@ class Market_Monitor:
     async def _get_trading_metrics(self, token_symbol: str) -> Dict[str, float]:
         """Get additional trading metrics."""
         try:
-            # These would normally come from your API provider
             return {
                 'avg_transaction_value': await self._get_avg_transaction_value(token_symbol),
                 'trading_pairs': await self._get_trading_pairs_count(token_symbol),
@@ -317,8 +317,46 @@ class Market_Monitor:
             logger.error(f"Error calculating avg transaction value: {e}")
             return 0.0
 
-    # ... Add other helper methods for new metrics ...
+    # Add helper methods to calculate new metrics
+    async def _get_transaction_count(self, token_symbol: str) -> int:
+        """Get number of transactions in 24 hrs using api config."""
+        try:
+            # This data is not available from the api config therefore, this will return 0.
+            return 0
+        except Exception as e:
+             logger.error(f"Error getting transaction count {e}")
+             return 0
 
+    async def _get_trading_pairs_count(self, token_symbol: str) -> int:
+        """Get number of trading pairs for a token using api config."""
+        try:
+            metadata = await self.api_config.get_token_metadata(token_symbol)
+            return len(metadata.get('trading_pairs', [])) if metadata else 0
+        except Exception as e:
+            logger.error(f"Error getting trading pairs for {token_symbol}: {e}")
+            return 0
+
+    async def _get_exchange_count(self, token_symbol: str) -> int:
+        """Get number of exchanges the token is listed on using api config."""
+        try:
+           metadata = await self.api_config.get_token_metadata(token_symbol)
+           return len(metadata.get('exchanges', [])) if metadata else 0
+        except Exception as e:
+           logger.error(f"Error getting exchange count for {token_symbol}: {e}")
+           return 0
+        
+    async def _get_buy_sell_ratio(self, token_symbol: str) -> float:
+        """Get buy/sell ratio from an exchange API (mock)."""
+        # Mock implementation returning default value.
+        # Real implementation would query an exchange API
+        return 1.0
+
+    async def _get_smart_money_flow(self, token_symbol: str) -> float:
+        """Calculate smart money flow (mock implementation)."""
+        # Mock implementation returnig default value.
+        # Real implementation would require on-chain data analysis
+        return 0.0
+    
     async def update_training_data(self, new_data: Dict[str, Any]) -> None:
         """Update training data with new market information."""
         try:
@@ -474,7 +512,18 @@ class Market_Monitor:
             decoded_tx = await self.transaction_core.decode_transaction_input(
                 target_tx["input"], target_tx["to"]
             )
-            # ...existing code...
+             # Add logic here to check for arbitrage
+            if not decoded_tx:
+                logger.debug("Transaction input could not be decoded")
+                return False
+            
+            if 'swap' in decoded_tx.get('function_name', '').lower():
+                logger.debug("Transaction is a swap, might have arbitrage oppurtunity.")
+                # Further check for price differences etc. can be implemented here
+                return True
+
+            return False
+            
         except Exception as e:
             logger.error(f"Error checking arbitrage opportunity: {e}")
             return False
@@ -495,10 +544,6 @@ class Market_Monitor:
             except Exception as e:
                 logger.warning(f"failed to get price from {service}: {e}")
         return prices
-
-    async def decode_transaction_input(self, *args, **kwargs):
-        """Use centralized transaction decoding from Transaction_Core."""
-        return await self.transaction_core.decode_transaction_input(*args, **kwargs)
 
     async def stop(self) -> None:
         """Clean up resources and stop monitoring."""
@@ -544,6 +589,7 @@ class Mempool_Monitor:
         monitored_tokens: Optional[List[str]] = None,
         configuration: Optional[Configuration] = None,
         erc20_abi: Optional[List[Dict[str, Any]]] = None,  # Changed to accept loaded ABI
+        market_monitor: Optional[Market_Monitor] = None # Market monitor for arbitrage check
     ):
         # Core components
         self.web3 = web3
@@ -551,6 +597,7 @@ class Mempool_Monitor:
         self.safety_net = safety_net
         self.nonce_core = nonce_core
         self.api_config = api_config
+        self.market_monitor = market_monitor
 
         # Monitoring state
         self.running = False

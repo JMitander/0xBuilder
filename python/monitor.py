@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 # Replace relative imports with absolute imports
 from constants import ERROR_MARKET_MONITOR_INIT, ERROR_MESSAGES
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Monitor")
 
 # Add new cache settings
 CACHE_SETTINGS = {

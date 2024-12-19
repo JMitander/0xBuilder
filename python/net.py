@@ -14,9 +14,9 @@ from eth_account import Account
 from utils.Python.strategyexecutionerror import StrategyExecutionError
 from utils.Python.strategyconfiguration import StrategyConfiguration
 from configuration import API_Config, Configuration
-from colorformatter import get_logger
 
-logger = get_logger(__name__)
+
+logger = logging.getLogger("Net")
 
 # Add risk thresholds
 RISK_THRESHOLDS = {

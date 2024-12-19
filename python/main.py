@@ -7,10 +7,10 @@ import logging
 
 from configuration import Configuration
 from core import Main_Core
-from colorformatter import get_logger
+
 
 # Get the logger
-logger = get_logger(__name__)
+logger = logging.getLogger("Main")
 
 async def main():
     """Main entry point with graceful shutdown handling."""

@@ -37,7 +37,7 @@ def configure_logging(level: int = logging.DEBUG) -> None:
     )
 
 # Factory function to get a logger instance
-def get_logger(name: Optional[str] = None, level: int = logging.DEBUG) -> logging.Logger:
+def getLogger(name: Optional[str] = None, level: int = logging.DEBUG) -> logging.Logger:
     """Returns a logger instance, configuring logging if it hasn't been yet."""
     if not logging.getLogger().hasHandlers():
         configure_logging(level)
@@ -46,4 +46,4 @@ def get_logger(name: Optional[str] = None, level: int = logging.DEBUG) -> loggin
     return logger
 
 # Initialize the logger globally so it can be used throughout the script
-logger = get_logger("0xBuilder")
+logger = getLogger("0xBuilder")

@@ -6,9 +6,10 @@ from web3 import AsyncWeb3
 from cachetools import TTLCache
 
 from configuration import Configuration
-from colorformatter import get_logger
 
-logger = get_logger(__name__)
+ 
+
+logger = logging.getLogger("Nonce")
 
 class Nonce_Core:
     """

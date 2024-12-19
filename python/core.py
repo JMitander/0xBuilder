@@ -1,30 +1,24 @@
 from pathlib import Path
 import aiofiles
-import async_timeout
 import aiohttp
 import hexbytes
 import asyncio
 import json
 import logging
-import os
-import signal
-import time
-import tracemalloc
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple, Union
-from web3.eth import AsyncEth
+from typing import Any, Dict, List, Optional
 from eth_account import Account
-from web3 import AsyncHTTPProvider, AsyncIPCProvider, AsyncWeb3, WebSocketProvider
+from web3 import AsyncWeb3
 from web3.exceptions import ContractLogicError, TransactionNotFound
 from web3.middleware import ExtraDataToPOAMiddleware
 from abi_registry import ABI_Registry
 from configuration import API_Config, Configuration
-from monitor import Market_Monitor, Mempool_Monitor
+from monitor import Mempool_Monitor
 from nonce import Nonce_Core
-from net import Safety_Net, Strategy_Net
+from net import Safety_Net
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Core")
 
 class Transaction_Core:
     """

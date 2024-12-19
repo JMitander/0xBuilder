@@ -2,7 +2,7 @@ import json
 import logging
 
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,6 @@ class ABI_Registry:
         'pancakeswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity'},
         'balancer': {'swap', 'addLiquidity'},
         'aave_flashloan': {'fn_RequestFlashLoan', 'executeOperation', 'ADDRESSES_PROVIDER', 'POOL'},
-        # Update Aave V3 Lending Pool required methods
         'aave_lending': {'ADDRESSES_PROVIDER', 'getReservesList', 'getReserveData'}
     }
 
@@ -28,36 +27,51 @@ class ABI_Registry:
 
     def _load_all_abis(self) -> None:
         """Load and validate all ABIs at initialization."""
+        abi_dir = Path(__file__).parent.parent / 'abi'
+        
+        abi_files = {
+            'erc20': 'erc20_abi.json',
+            'uniswap': 'uniswap_router_abi.json',
+            'sushiswap': 'sushiswap_router_abi.json',
+            'pancakeswap': 'pancakeswap_router_abi.json',
+            'balancer': 'balancer_router_abi.json',
+            'aave_flashloan': 'aave_flashloan_abi.json',
+            'aave_lending': 'aave_lending_pool_abi.json'
+        }
+
+        for abi_type, filename in abi_files.items():
+            try:
+                abi_path = abi_dir / filename
+                abi = self._load_abi_from_path(abi_path, abi_type)
+                if abi:
+                    self.abis[abi_type] = abi
+                    self._extract_signatures(abi, abi_type)
+                    logger.debug(f"Loaded and validated {abi_type} ABI")
+            except Exception as e:
+                 logger.error(f"Failed to load {abi_type} ABI: {e}")
+                 raise
+
+    def _load_abi_from_path(self, abi_path: Path, abi_type: str) -> Optional[List[Dict]]:
+        """Loads and validates the abi from a given path"""
         try:
-            abi_dir = Path(__file__).parent.parent / 'abi'
+            if not abi_path.exists():
+                logger.error(f"ABI file not found: {abi_path}")
+                return None
+                
+            with open(abi_path, 'r') as f:
+                abi = json.load(f)
+                
+            if not self._validate_abi(abi, abi_type):
+                return None
             
-            # Centralize all ABI loading here
-            abi_files = {
-                'erc20': 'erc20_abi.json',
-                'uniswap': 'uniswap_router_abi.json',
-                'sushiswap': 'sushiswap_router_abi.json',
-                'pancakeswap': 'pancakeswap_router_abi.json',
-                'balancer': 'balancer_router_abi.json',
-                'aave_flashloan': 'aave_flashloan_abi.json',
-                'aave_lending': 'aave_lending_pool_abi.json'
-            }
-
-            for abi_type, filename in abi_files.items():
-                try:
-                    with open(abi_dir / filename, 'r') as f:
-                        abi = json.load(f)
-                    if self._validate_abi(abi, abi_type):
-                        self.abis[abi_type] = abi
-                        self._extract_signatures(abi, abi_type)
-                        logger.debug(f"Loaded and validated {abi_type} ABI")
-                except Exception as e:
-                    logger.error(f"Failed to load {abi_type} ABI: {e}")
-                    raise
-
+            return abi
+        except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error for {abi_type} in file {abi_path}: {e}")
+                return None
         except Exception as e:
-            logger.error(f"Error in ABI loading: {e}")
-            raise
-
+            logger.error(f"Error loading ABI {abi_type}: {e}")
+            return None
+    
     async def load_abi(self, abi_type: str) -> Optional[List[Dict]]:
         """Load specific ABI type with validation."""
         try:
@@ -75,23 +89,15 @@ class ABI_Registry:
             if abi_type not in abi_files:
                 logger.error(f"Unknown ABI type: {abi_type}")
                 return None
-                
+
             abi_path = abi_dir / abi_files[abi_type]
-            if not abi_path.exists():
-                logger.error(f"ABI file not found: {abi_path}")
-                return None
-                
-            with open(abi_path, 'r') as f:
-                abi = json.load(f)
-                
-            if self._validate_abi(abi, abi_type):
+            abi = self._load_abi_from_path(abi_path, abi_type)
+            if abi:
                 self.abis[abi_type] = abi
                 self._extract_signatures(abi, abi_type)
                 logger.debug(f"Loaded and validated {abi_type} ABI")
                 return abi
-                
             return None
-            
         except Exception as e:
             logger.error(f"Error loading ABI {abi_type}: {e}")
             return None
@@ -103,19 +109,17 @@ class ABI_Registry:
             return False
 
         found_methods = {
-            item['name'] for item in abi 
+            item.get('name') for item in abi 
             if item.get('type') == 'function' and 'name' in item
         }
         
         required = self.REQUIRED_METHODS.get(abi_type, set())
         if abi_type in ['aave_flashloan', 'aave_lending']:
-            # For Aave contracts, require at least one of the required methods
             if not (required & found_methods):  # Use intersection instead of subset
                 missing = required - found_methods
                 logger.error(f"No required methods found in {abi_type} ABI from: {missing}")
                 return False
         else:
-            # For other contracts, require all methods
             if not required.issubset(found_methods):
                 missing = required - found_methods
                 logger.error(f"Missing required methods in {abi_type} ABI: {missing}")
@@ -131,7 +135,7 @@ class ABI_Registry:
                 return False
 
             found_methods = {
-                item['name'] for item in abi 
+                item.get('name') for item in abi 
                 if item.get('type') == 'function' and 'name' in item
             }
 
@@ -159,7 +163,7 @@ class ABI_Registry:
                 name = item.get('name')
                 if name:
                     # Create function signature
-                    inputs = ','.join(inp['type'] for inp in item.get('inputs', []))
+                    inputs = ','.join(inp.get('type', '') for inp in item.get('inputs', []))
                     signature = f"{name}({inputs})"
                     
                     # Generate selector
@@ -186,4 +190,5 @@ class ABI_Registry:
     def get_function_signature(self, abi_type: str, method_name: str) -> Optional[str]:
         """Get function signature by ABI type and method name."""
         return self.signatures.get(abi_type, {}).get(method_name)
-
+    
+    

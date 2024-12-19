@@ -6,8 +6,9 @@ from web3 import AsyncWeb3
 from cachetools import TTLCache
 
 from configuration import Configuration
+from colorformatter import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class Nonce_Core:
     """
@@ -45,12 +46,14 @@ class Nonce_Core:
             raise
 
     async def _init_nonce(self) -> None:
-        """Initialize nonce with fallback mechanisms."""
-        current_nonce = await self._fetch_current_nonce_with_retries()
-        pending_nonce = await self._get_pending_nonce()
-        # Use the higher of current or pending nonce
-        self.nonce_cache[self.address] = max(current_nonce, pending_nonce)
-        self.last_sync = time.monotonic()
+         """Initialize nonce with fallback mechanisms."""
+         current_nonce = await self._fetch_current_nonce_with_retries()
+         pending_nonce = await self._get_pending_nonce()
+          # Use the higher of current or pending nonce
+         self.nonce_cache[self.address] = max(current_nonce, pending_nonce)
+         self.last_sync = time.monotonic()
+         logger.info(f"Initial nonce set to {self.nonce_cache[self.address]}")
+
 
     async def get_nonce(self, force_refresh: bool = False) -> int:
         """Get next available nonce with optional force refresh."""
@@ -136,3 +139,6 @@ class Nonce_Core:
         except Exception as e:
             logger.error(f"Error stopping Nonce Core: {e}")
 
+    def _should_refresh_cache(self) -> bool:
+        """Check if the nonce cache should be refreshed based on time."""
+        return time.monotonic() - self.last_sync > self.CACHE_TTL

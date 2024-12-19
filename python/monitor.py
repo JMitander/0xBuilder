@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import async_timeout
 import pandas as pd
 import numpy as np
 
@@ -664,72 +665,56 @@ class Mempool_Monitor:
                 await asyncio.sleep(self.RETRY_DELAY * retry_count)
 
     async def _poll_pending_transactions(self) -> None:
-        """Fallback method to poll for pending transactions when filters aren't available."""
+        """Enhanced polling method with better error handling."""
         last_block = await self.web3.eth.block_number
         
         while self.running:
             try:
-                # Get current block
                 current_block = await self.web3.eth.block_number
-                
+                if current_block <= last_block:
+                    await asyncio.sleep(1)
+                    continue
+
                 # Process new blocks
                 for block_num in range(last_block + 1, current_block + 1):
-                    block = await self.web3.eth.get_block(block_num, full_transactions=True)
-                    if block and block.transactions:
-                        # Convert transactions to hash list format
-                        tx_hashes = [tx.hash.hex() if hasattr(tx, 'hash') else tx['hash'].hex() 
-                                   for tx in block.transactions]
-                        await self._handle_new_transactions(tx_hashes)
-                
-                # Try to get pending transactions from txpool
-                try:
-                    # Use txpool.content() if available
-                    if hasattr(self.web3, 'txpool'):
-                        txpool_content = await self.web3.txpool.content()
-                        pending_txs = []
-                        
-                        # Extract pending transactions from txpool
-                        if 'pending' in txpool_content:
-                            for account in txpool_content['pending'].values():
-                                for nonce in account.values():
-                                    pending_txs.append(nonce)
-                        
-                        if pending_txs:
-                            tx_hashes = [tx['hash'] for tx in pending_txs if 'hash' in tx]
-                            await self._handle_new_transactions(tx_hashes)
-                    else:
-                        # Fallback to getting pending transaction hashes
-                        block = await self.web3.eth.get_block('pending', full_transactions=False)
+                    try:
+                        block = await self.web3.eth.get_block(block_num, full_transactions=True)
                         if block and block.transactions:
-                            await self._handle_new_transactions(block.transactions)
-                            
-                except Exception as e:
-                    logger.debug(f"Could not get pending transactions: {e}")
-                
+                            tx_hashes = [tx.hash.hex() if hasattr(tx, 'hash') else tx['hash'].hex() 
+                                       for tx in block.transactions]
+                            await self._handle_new_transactions(tx_hashes)
+                    except Exception as e:
+                        logger.error(f"Error processing block {block_num}: {e}")
+                        continue
+
                 last_block = current_block
-                await asyncio.sleep(1)  # Poll interval
+                await asyncio.sleep(1)
 
             except Exception as e:
                 logger.error(f"Error in polling loop: {e}")
-                await asyncio.sleep(2)  # Error cooldown
+                await asyncio.sleep(2)
 
     async def _setup_pending_filter(self) -> Optional[Any]:
-        """Set up pending transaction filter with validation.""" 
+        """Set up pending transaction filter with validation and fallback."""
         try:
             # Try to create a filter
             pending_filter = await self.web3.eth.filter("pending")
             
-            # Validate the filter works
+            # Test filter with timeout
             try:
-                await pending_filter.get_new_entries()
-                logger.debug("Successfully set up pending transaction filter")
-                return pending_filter
-            except Exception as e:
-                logger.warning(f"Filter validation failed: {e}")
+                async with async_timeout.timeout(5):
+                    await pending_filter.get_new_entries()
+                    logger.debug("Successfully set up pending transaction filter")
+                    return pending_filter
+            except asyncio.TimeoutError:
+                logger.warning("Filter setup timed out, falling back to polling")
                 return None
-                
+            except Exception as e:
+                logger.warning(f"Filter validation failed: {e}, falling back to polling")
+                return None
+
         except Exception as e:
-            logger.warning(f"Failed to setup pending filter: {e}")
+            logger.warning(f"Failed to setup pending filter: {e}, falling back to polling")
             return None
 
     async def _handle_new_transactions(self, tx_hashes: List[str]) -> None:
@@ -864,7 +849,7 @@ class Mempool_Monitor:
             return {"is_profitable": False}
 
     async def _analyze_token_transaction(self, tx) -> Dict[str, Any]:
-        """Enhanced token transaction analysis with better error handling."""
+        """Enhanced token transaction analysis with better validation."""
         try:
             if not self.erc20_abi or not tx.input or len(tx.input) < 10:
                 logger.debug("Missing ERC20 ABI or invalid transaction input")
@@ -874,43 +859,76 @@ class Mempool_Monitor:
             function_selector = tx.input[:10]  # includes '0x'
             selector_no_prefix = function_selector[2:]  # remove '0x'
 
-            # Try multiple methods to decode the transaction
-            decoded = False
+            # Initialize variables
             function_name = None
             function_params = {}
+            decoded = False
 
-            # Method 1: Check local signature cache
+            # Method 1: Try local signature lookup first (fastest)
             if selector_no_prefix in self.function_signatures:
-                function_name = self.function_signatures[selector_no_prefix]
-                # Basic parameter extraction for known functions
-                if len(tx.input) >= 138:
-                    decoded = await self._try_decode_params(tx.input[10:], function_name)
-                    if decoded:
-                        function_params = decoded
+                try:
+                    function_name = self.function_signatures[selector_no_prefix]
+                    if len(tx.input) >= 138:  # Standard ERC20 call length
+                        params_data = tx.input[10:]
+                        if function_name == 'transfer':
+                            to_address = '0x' + params_data[:64][-40:]
+                            amount = int(params_data[64:128], 16)
+                            function_params = {'to': to_address, 'amount': amount}
+                            decoded = True
+                except Exception as e:
+                    logger.debug(f"Error in direct signature lookup: {e}")
 
-            # Method 2: Try ABI decoding
+            # Method 2: Try contract decode only if direct lookup failed
             if not decoded:
                 try:
+                    # Ensure we have a valid contract address and ABI
+                    if not tx.to or not self.erc20_abi:
+                        logger.debug("Missing contract address or ABI")
+                        return {"is_profitable": False}
+
                     contract = self.web3.eth.contract(
                         address=self.web3.to_checksum_address(tx.to),
                         abi=self.erc20_abi
                     )
+
                     try:
                         func_obj, decoded_params = contract.decode_function_input(tx.input)
-                        function_name = func_obj.fn_name
-                        function_params = decoded_params
-                        decoded = True
-                    except Exception as e:
-                        logger.debug(f"ABI decoding failed: {e}")
+                        function_name = (
+                            getattr(func_obj, 'fn_name', None) or
+                            getattr(func_obj, 'function_identifier', None)
+                        )
+                        if function_name:
+                            function_params = decoded_params
+                            decoded = True
+                    except Web3ValueError as e:
+                        logger.debug(f"Could not decode function input: {e}")
                 except Exception as e:
-                    logger.debug(f"Contract creation failed: {e}")
+                    logger.debug(f"Contract decode error: {e}")
 
+            # Method 3: Configuration fallback
+            if not decoded and hasattr(self.configuration, 'ERC20_SIGNATURES'):
+                try:
+                    function_name = self.configuration.ERC20_SIGNATURES.get(function_selector)
+                    if function_name:
+                        decoded = True
+                except Exception as e:
+                    logger.debug(f"Error in configuration lookup: {e}")
+
+            # Process decoded transaction if successful
             if decoded and function_name in ('transfer', 'transferFrom', 'swap'):
-                # Add minimum required parameters if missing
-                if 'path' not in function_params:
-                    function_params['path'] = [tx.to]
+                # Enhanced parameter validation
+                params = await self._extract_transaction_params(tx, function_name, function_params)
+                if not params:
+                    logger.debug(f"Could not extract valid parameters for {function_name}")
+                    return {"is_profitable": False}
 
-                # Continue with profit estimation
+                amounts = await self._validate_token_amounts(params)
+                if not amounts['valid']:
+                    logger.debug(f"Invalid token amounts: {amounts['reason']}")
+                    if 'details' in amounts:
+                        logger.debug(f"Validation details: {amounts['details']}")
+                    return {"is_profitable": False}
+
                 estimated_profit = await self._estimate_profit(tx, function_params)
                 if estimated_profit > self.minimum_profit_threshold:
                     return {
@@ -924,6 +942,9 @@ class Mempool_Monitor:
                         "value": tx.value,
                         "gasPrice": tx.gasPrice,
                     }
+
+            if not decoded:
+                logger.debug(f"Could not decode transaction with selector: {function_selector}")
 
             return {"is_profitable": False}
 
@@ -962,19 +983,6 @@ class Mempool_Monitor:
                 logger.debug(f"Invalid gas data: {gas_data['reason']}")
                 return Decimal(0)
 
-            # Get token address from function params or transaction
-            token_address = None
-            if 'path' in function_params:
-                token_address = function_params['path'][-1]
-            elif 'token' in function_params:
-                token_address = function_params['token']
-            elif hasattr(tx, 'to'):
-                token_address = tx.to
-
-            if not token_address:
-                logger.debug("Could not determine token address")
-                return Decimal(0)
-
             # Get token amounts with validation
             amounts = await self._validate_token_amounts(function_params)
             if not amounts['valid']:
@@ -982,7 +990,7 @@ class Mempool_Monitor:
                 return Decimal(0)
 
             # Get market data with validation
-            market_data = await self._get_market_data(token_address)
+            market_data = await self._get_market_data(function_params['path'][-1])
             if not market_data['valid']:
                 logger.debug(f"Invalid market data: {market_data['reason']}")
                 return Decimal(0)
@@ -1340,18 +1348,3 @@ class Mempool_Monitor:
         except Exception as e:
             logger.error(f"Error stopping Mempool Monitor: {e}")
             raise
-
-    async def _try_decode_params(self, input_data: str, function_name: str) -> Optional[Dict]:
-        """Attempt to decode transaction parameters based on function name."""
-        try:
-            if function_name == 'transfer':
-                return {
-                    'to': '0x' + input_data[:64][-40:],
-                    'amount': int(input_data[64:128], 16),
-                    'path': ['0x' + input_data[:64][-40:]]
-                }
-            # Add more function decodings as needed
-            return None
-        except Exception as e:
-            logger.debug(f"Parameter decoding failed: {e}")
-            return None

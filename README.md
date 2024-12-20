@@ -21,178 +21,227 @@
 [![CoinMarketCap](https://img.shields.io/badge/CoinMarketCap-API-red.svg)](https://coinmarketcap.com/api/)
 [![CryptoCompare](https://img.shields.io/badge/CryptoCompare-API-red.svg)](https://min-api.cryptocompare.com/)
 [![Etherscan](https://img.shields.io/badge/Etherscan-API-red.svg)](https://etherscan.io/apis)
-   
 
-## Table of Contents
+## Overview
 
-- [Introduction](#introduction)
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-  - [System Requirements](#system-requirements)
-  - [Software Dependencies](#software-dependencies)
-  - [Ethereum Node Setup](#ethereum-node-setup)
-- [Installation](#installation)
-  - [Cloning the Repository](#cloning-the-repository)
-  - [Setting up Python Environment](#setting-up-python-environment)
-  - [Setting up JavaScript Environment](#setting-up-javascript-environment)
-- [Configuration](#configuration)
-  - [Environment Variables](#environment-variables)
-  - [Configuration Files](#configuration-files)
-- [Deploying the Flashloan Contract](#deploying-the-flashloan-contract)
-- [Obtaining API Keys](#obtaining-api-keys)
-- [Running the Bot](#running-the-bot)
-  - [Python](#Python)
-  - [Javascript](#Javascript)
-- [Strategies](#strategies)
-- [Logging](#logging)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-- [Disclaimer](#disclaimer)
-Okay, I've thoroughly analyzed the provided project structure and code. Here's my understanding of the 0xBuilder project:
+0xBuilder is a sophisticated MEV (Miner Extractable Value) bot designed to automatically identify and exploit profitable opportunities on the Ethereum blockchain. It's engineered for high performance, utilizing asynchronous programming and robust error handling. The bot implements advanced trading strategies such as front-running, back-running, and sandwich attacks, while incorporating a sophisticated risk management system to protect against potential losses. Additionally, it uses linear regression for price predictions and integrates with various decentralized exchanges.
 
-# Introduction
+## Key Features
 
-0xBuilder is a sophisticated MEV (Miner Extractable Value) bot designed to automatically identify and exploit profitable opportunities on the Ethereum blockchain. It's not just a simple transaction sender; it's a comprehensive system encompassing:
+*   **Mempool Monitoring:** Real-time scanning of the Ethereum mempool for pending transactions.
+*   **DeFi Protocol Integration:** Seamless interaction with Aave V3 for flash loans, and Uniswap/Sushiswap for DEX trading.
+*   **Advanced Strategies:** Implementation of front-running, back-running, and sandwich attack strategies.
+*   **Dynamic Gas Optimization:** Automatically adjusts gas prices for timely inclusion and maximal profit.
+*   **Risk Management:** Utilizes a "safety net" to prevent excessive losses, including transaction simulation and dynamic slippage adjustments.
+*  **Machine Learning:** Uses a linear regression model for price prediction.
+*   **Asynchronous Programming:** Leverages `asyncio` for high performance and concurrent operation.
+*   **Modular Design:** Well-organized code into core components for maintainability and scalability.
+*   **Comprehensive Logging:** Detailed logging for all operations and transactions.
 
-### Features
-
-1.  **Mempool Monitoring:** Continuously scans the mempool for pending transactions.
-2.  **Smart Contract Interaction:** Interacts with various DeFi protocols (Uniswap, Sushiswap, Aave) via their smart contracts.
-3.  **Strategy Execution:** Implements advanced strategies such as front-running, back-running, and sandwich attacks.
-4.  **Risk Management:** Includes a "safety net" to prevent excessive losses.
-5.  **Profit Estimation:** Accurately estimates profit from potential opportunities.
-6.  **Transaction Management:** Builds, signs, and executes transactions with efficiency and reliability.
-7.  **Machine Learning:** Uses linear regression for price prediction to inform strategic decisions.
-8.  **Dynamic Fee Optimization:** Adjusts gas prices to ensure timely inclusion while maximizing profit.
-9.  **Modular Design:** Utilizes a component-based architecture for maintainability and scalability.
-
-# Project Structure
-
-The project is organized into several key directories and files:
+## Project Structure
 
 ```
-📂 /
-├─── 📂 abi/
-│    ├─── 📄 aave_flashloan_abi.json
-│    ├─── 📄 aave_lending_pool_abi.json
-│    ├─── 📄 balancer_router_abi.json
-│    ├─── 📄 erc20_abi.json
-│    ├─── 📄 pancakeswap_router_abi.json
-│    ├─── 📄 sushiswap_router_abi.json
-│    └─── 📄 uniswap_router_abi.json
-│
-├─── 📂 python/
-│    ├─── 📄 abi_registry.py
-│    ├─── 📄 configuration.py
-│    ├─── 📄 constants.py
-│    ├─── 📄 core.py
-│    ├─── 📄 main.py
-│    ├─── 📄 monitor.py
-│    ├─── 📄 net.py
-│    ├─── 📄 nonce.py
-│    └─── 📄 __init__.py
-│
-├─── 📂 utils/Python/
-│    ├─── 📄 strategyexecutionerror.py
-│    ├─── 📄 strategyconfiguration.py
-│    ├─── 📄 colorformatter.py
-│    └─── 📄 __init__.py
-│
-└─── 📂 linear_regression/
-   ├─── 📄 training_data.csv
-   └─── 📄 price_model.joblib
+0xBuilder/
+├── abi/
+│   ├── aave_flashloan_abi.json
+│   ├── aave_lending_pool_abi.json
+│   ├── balancer_router_abi.json
+│   ├── erc20_abi.json
+│   ├── pancakeswap_router_abi.json
+│   ├── sushiswap_router_abi.json
+│   └── uniswap_router_abi.json
+├── python/
+│   ├── abi_registry.py
+│   ├── configuration.py
+│   ├── constants.py
+│   ├── core.py
+│   ├── main.py
+│   ├── monitor.py
+│   ├── net.py
+│   ├── nonce.py
+│   └── __init__.py
+├── utils/Python/
+│   ├── strategyexecutionerror.py
+│   ├── strategyconfiguration.py
+│   ├── colorformatter.py
+│   └── __init__.py
+├── linear_regression/
+│   ├── training_data.csv
+│   └── price_model.joblib
+└── README.md
 ```
 
-# Key Components
+*   **`/abi/`:** Contains JSON files defining the Application Binary Interface (ABI) for interacting with various smart contracts.
+*   **`/python/`:** Holds the main Python source code, including modules for ABI handling, configuration, core transaction logic, mempool monitoring, safety checks, and strategy implementation.
+*   **`/utils/Python/`:** Contains utility classes, exceptions, and configurations.
+*   **`/linear_regression/`:** Includes files related to the price prediction model, including training data and model file.
+*   **`README.md`:** The current documentation.
 
-*   **`ABI_Registry`:** Centralizes ABI loading and provides methods for accessing method selectors. It validates ABIs based on required methods for different protocols.
-*   **`Configuration`:** Loads and validates the environment variables, API keys, and configurations from the environment. Provides access to these values throughout the application, and also loads ABIs.
-*   **`Transaction_Core`:** The core engine that interacts with smart contracts, estimates gas, builds and executes transactions. It uses the `Nonce_Core` to manage nonces and the `Safety_Net` for risk assessment.
-*   **`Main_Core`:** Orchestrates the entire bot. Creates instances of all components, handles connections, and manages the execution loop. It integrates the different core components together and performs the main functions of the bot.
-*   **`Mempool_Monitor`:** Listens to the mempool, identifies potentially profitable transactions, and queues them for processing. It leverages the `Transaction_Core` for decoding tx inputs and the `Safety_Net` for risk scoring.
-*   **`Market_Monitor`:** Analyzes market conditions, fetches price and volume data, and predicts price movements using the linear regression model. It interfaces with external APIs via `API_Config`.
-*   **`Safety_Net`:** Ensures transaction safety by providing risk assessment, gas price estimation and slippage adjustment.
-*   **`Strategy_Net`:** Selects and executes different MEV strategies (front-running, back-running, sandwich attacks) using the `Transaction_Core` and `Market_Monitor`. It uses performance metrics and reinforcement learning to improve its strategy selections.
-*   **`Nonce_Core`:** Manages nonces, ensuring transactions are ordered correctly.
+## Setup Instructions
 
-# Additional Components
+### Prerequisites
 
-*   **Asynchronous Programming:** Utilizes `asyncio` for high-performance concurrent operations.
-*   **Error Resilience:** Implements robust error handling and retry mechanisms.
-*   **Modular Design:** Separates concerns into components for maintainability and scalability.
-*   **Performance Optimization:** Focuses on transaction efficiency and speed.
-*   **Risk Management:** Includes a safety net to protect against losses.
-*   **Automated Profit Maximization:** Designed to identify and exploit profitable opportunities automatically.
-*   **Advanced Techniques:** Utilizes sophisticated strategies, data analysis, and risk management.
-*   **High Performance:** Emphasizes speed and efficiency in transaction handling.
-*   **Adaptability:** Leverages configurable parameters and dynamic strategies to adapt to changing market conditions.
+*   **Python 3.9+:** Ensure you have Python 3.9 or higher installed.
+*   **pip:** Python package installer.
+*   **Ethereum Node:** You need an Ethereum node client (Geth, Nethermind, etc.). We will provide a guide for Geth.
+*   **Git:** Version control system.
 
-## Goals and Objectives
+### 1. Clone the Repository
 
-The project aims to build a powerful, adaptable, and profitable MEV bot by:
+```bash
+git clone https://github.com/<your-username>/0xBuilder.git
+cd 0xBuilder
+```
 
-1.  **Maximizing Returns:** By identifying and executing various profitable strategies across different decentralized finance protocols.
-2.  **Minimizing Risk:** By implementing a robust risk management framework.
-3.  **Continuous Improvement:** By using historical performance data to learn and improve strategy selection.
-4.  **Automated Operation:** By fully automating the identification, analysis, and execution of MEV opportunities.
+### 2. Create a Virtual Environment
 
-# Prerequisites
+```bash
+python -m venv venv
+source venv/bin/activate  # For Linux/macOS
+venv\Scripts\activate  # For Windows
+```
 
-## System Requirements
+### 3. Install Dependencies
 
-(Not required but recommended)
+```bash
+pip install -r requirements.txt
+```
 
-*   **Operating System:** Linux, macOS, Windows 
-*   **Memory:** 16GB RAM 
-*   **Storage:** 2TB SSD 
-*   **Processor:** AMD Ryzen 5 5600X (or equivalent)
+### 4. Environment Configuration
 
-## Software Dependencies
+Create a `.env` file in the root directory and populate it with your environment variables. Here is a template:
 
-*   **Python 3.12:** [Download](https://www.python.org/downloads/release/python-3120/)
-*   **Geth 1.14:** [Download](https://geth.ethereum.org/)
-*   **Prysm Beacon Chain:** [Download](https://docs.prylabs.network/docs/install/install-with-script/)
-*   **Node.js 18:** [Download](https://nodejs.org/en/download/)
-*   **Solidity 0.8:** [Documentation](https://docs.soliditylang.org/en/v0.8.19/)
-*   **Remix IDE:** [Access](https://remix.ethereum.org/)
-*   **API Keys:** [CoinGecko](https://www.coingecko.com/en/api), [CoinMarketCap](https://coinmarketcap.com/api/), [CryptoCompare](https://min-api.cryptocompare.com/), [Etherscan](https://etherscan.io/apis)
+```env
+# Ethereum Node Endpoints (Choose One)
+IPC_ENDPOINT= # Path to your geth.ipc file
+HTTP_ENDPOINT= # Your http endpoint
+WEBSOCKET_ENDPOINT= # Your Websocket endpoint
 
-## Ethereum Node Setup
+# Wallet Configuration
+WALLET_KEY= # Your Private Key
+WALLET_ADDRESS= # Your public address
 
-1.  **Install Geth:**
+# API Keys for Various Services
+ETHERSCAN_API_KEY= # Your Etherscan API Key
+INFURA_PROJECT_ID= # Your Infura API KEY
+COINGECKO_API_KEY= # Your Coingecko API Key
+COINMARKETCAP_API_KEY= # Your CoinMarketCap API key
+CRYPTOCOMPARE_API_KEY= # Your CryptoCompare API key
+BINANCE_API_KEY= # Your Binance API Key
+
+# Aave Addresses
+AAVE_FLASHLOAN_ADDRESS= # Aave V3 Flashloan contract Address
+AAVE_LENDING_POOL_ADDRESS= # Aave V3 Lending Pool contract Address
+
+# DEX Router Addresses
+UNISWAP_ROUTER_ADDRESS= # Uniswap v3 router address
+SUSHISWAP_ROUTER_ADDRESS= # Sushiswap router address
+
+# JSON File Paths
+TOKEN_ADDRESSES= # Path to your token_addresses.json file
+TOKEN_SYMBOLS= # Path to your token_symbols.json
+ERC20_SIGNATURES= # Path to your erc20_signatures.json
+```
+
+**Note:**
+
+*   Replace the `#` comments with your actual values.
+*   You need exactly one endpoint (IPC, HTTP or WebSocket) configured to connect to the Ethereum network.
+*   Make sure the keys and addresses are valid.
+*   See below for instructions on how to create the necessary accounts and API keys.
+
+### 5. Run the Bot
+
+```bash
+python python/main.py
+```
+
+## Additional Documentation
+
+### 1. Setting Up a Geth Node
+
+1.  **Download Geth:** Get the latest version of Geth from the [official Ethereum website](https://geth.ethereum.org/downloads/).
+2.  **Initialize the Node:**
+
     ```bash
-    sudo add-apt-repository -y ppa:ethereum/ethereum
-    sudo apt-get update
-    sudo apt-get install geth
+    geth --datadir ~/.ethereum init <genesis-file> # replace genesis-file with the path to your genesis.json
     ```
-2.  **Create a New Account:**
+
+    *(If you connect to the Mainnet or a testnet you won't need the `--datadir` and `init` commands)*
+3.  **Run Geth:**
+
+    *   **Mainnet:**
+        ```bash
+        geth --http --http.api eth,web3 --ws --ws.api eth,web3 --ws.origins="*" --syncmode=fast
+        ```
+    *   **Testnet (Goerli):**
+        ```bash
+         geth --goerli --http --http.api eth,web3 --ws --ws.api eth,web3 --ws.origins="*" --syncmode=fast
+        ```
+    *   **For local testing:** (Replace genesis-file with your genesis.json file path):
+        ```bash
+        geth  --datadir ~/.ethereum --http --http.api eth,web3 --ws --ws.api eth,web3 --ws.origins="*" --syncmode=full --dev --dev.period 1 --mine --miner.etherbase=<your-coinbase>
+        ```
+         *(Replace `<your-coinbase>` with a coinbase you have control over, and if mining is necessary in your setup.)*
+4.  **IPC Endpoint:** Find your IPC endpoint path in the data directory (e.g., `~/.ethereum/geth.ipc`). This path will be needed in your `.env` file.
+
+### 2. Setting Up a Prysm Beacon Node
+
+If you're planning on using a PoS network, or you'd like to run a full node including a beacon node please follow the following instructions:
+
+1.  **Download Prysm:** Get the latest Prysm release from the [official Github repository](https://github.com/prysmaticlabs/prysm/releases).
+2.  **Run the Beacon Node:**
+
     ```bash
-      geth account new
-      ```
-3.  **Start Geth:**
-      ```bash
-      geth --mainnet --syncmode "snap" --http --http.api "eth,net,engine,web3 --ipcpath=/home/username/.ethereum/geth.ipc
-      ```
-4.   **Prysm Beacon Chain:**
-(required after the Ethereum 2.0 upgrade)
-   
-      ```bash
-      curl https://raw.githubusercontent.com/prysmaticlabs/prysm/master/prysm.sh --output prysm.sh
-      chmod +x prysm.sh
-      ./prysm.sh beacon-chain mainnet --exectuion-endpoint="path-to-geth.ipc" --http-web3provider="http://localhost:8545"
-      ```
-5.  **Connect to Geth:**
-      ```bash
-      geth attach "path-to-geth.ipc"
-      ```
-6.  **Check Sync Status:**
-      ```bash
+    ./beacon-chain --datadir ~/.prysm --http-web3provider <YOUR_GETH_NODE_ENDPOINT> --p2p-host-ip <YOUR_IP_ADDRESS> --p2p-tcp-port <YOUR_PORT>
+    ```
+        *(Replace `<YOUR_GETH_NODE_ENDPOINT>`, `<YOUR_IP_ADDRESS>`, and `<YOUR_PORT>` with your specific values. You also need to add any additional flags necessary for your set up. Make sure to read their official documentation.*
 
-      eth.syncing
-      ```
+### 3. Deploying Aave V3 Flashloan Contract with Remix
 
-# Installation
+1.  **Open Remix:** Go to [Remix IDE](https://remix.ethereum.org).
+2.  **Create a New File:** Create a new file (e.g., `AaveFlashloan.sol`).
+3.  **Paste the Contract Code:** Copy and paste the Aave V3 Flashloan contract code into the editor.
+    *(You can use the Aave v3 Flashloan Example implementation, or you can copy the `aave_flashloan.sol` from the `test` directory of the repository)*
+4.  **Compile:** Compile the contract in the Solidity compiler tab.
+5.  **Deploy:** In the Deploy & Run Transactions tab, select `Injected Provider` as the environment and choose the account, and deploy the contract.
+   *   You will need to specify the address of the `IPoolAddressesProvider` as the contract constructor argument. You can get this address from Aave documentation for each network.
+6.  **Get the Contract Address:** Once deployed, copy the contract address. You'll need this for your `.env` file.
 
- 
+**Note:** This is a general guide; always refer to Aave's official documentation for the latest information.
+
+### 4. Obtaining API Keys
+
+1.  **Etherscan API Key:**
+    *   Go to [Etherscan](https://etherscan.io/) and register an account.
+    *   Find the API Key section in your account settings and create one.
+2.  **Infura Project ID:**
+    *   Go to [Infura](https://infura.io/) and create an account.
+    *   Create a new project and copy the Project ID.
+3. **CoinGecko API Key:**
+    *   Go to [CoinGecko](https://www.coingecko.com/en/api) and obtain an API key for their service.
+    *   Follow the instructions to get the free API plan and its Key.
+4.  **CoinMarketCap API Key:**
+    *   Go to [CoinMarketCap](https://coinmarketcap.com/api/) and register for an API key.
+5.  **CryptoCompare API Key:**
+    *   Go to [CryptoCompare](https://min-api.cryptocompare.com/documentation) and create an account. Get your API key.
+6.  **Binance API Key:**
+    *   Go to [Binance](https://www.binance.com/en/my/settings/api-management) and create an API key.
+
+**Note:**
+*    Treat your API keys as passwords. Do not commit or share them with anyone.
+*   API keys are often rate-limited, pay attention to their usage.
+
+## Running The Bot
+
+1.  **Set up environment variables**.
+2.  **Activate the venv**.
+3.  **Execute** `python python/main.py`.
+
+## Contributing
+
+Contributions are welcome! Please submit a pull request or open an issue to discuss potential improvements and bug fixes.
+
+## License
+
+This project is licensed under the MIT License.

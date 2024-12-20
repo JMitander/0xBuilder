@@ -1,3 +1,4 @@
+# /home/mitander/0xBuilder/constants.py
 from typing import Dict
 
 # Error codes
@@ -8,6 +9,7 @@ ERROR_MODEL_TRAIN: int = 1004
 ERROR_CORE_INIT: int = 1005
 ERROR_WEB3_INIT: int = 1006
 ERROR_CONFIG_LOAD: int = 1007
+ERROR_STRATEGY_EXEC: int = 1008
 
 # Error messages with default fallbacks
 ERROR_MESSAGES: Dict[int, str] = {
@@ -17,7 +19,8 @@ ERROR_MESSAGES: Dict[int, str] = {
     ERROR_MODEL_TRAIN: "Failed to train price prediction model",
     ERROR_CORE_INIT: "Core initialization failed",
     ERROR_WEB3_INIT: "Web3 connection failed",
-    ERROR_CONFIG_LOAD: "Configuration loading failed"
+    ERROR_CONFIG_LOAD: "Configuration loading failed",
+    ERROR_STRATEGY_EXEC: "Strategy execution failed",
 }
 
 # Add a helper function to get error message with fallback

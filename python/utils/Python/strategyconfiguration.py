@@ -1,3 +1,4 @@
+# /home/mitander/0xBuilder/utils/Python/strategyconfiguration.py
 from decimal import Decimal
 
 class StrategyConfiguration:

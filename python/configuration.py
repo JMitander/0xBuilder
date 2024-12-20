@@ -1,3 +1,4 @@
+# /home/mitander/0xBuilder/configuration.py
 import asyncio
 import json
 import logging
@@ -267,7 +268,8 @@ class API_Config:
         self.rate_limit_counters = {
             "coingecko": {"count": 0, "reset_time": time.time(), "limit": 50},
             "coinmarketcap": {"count": 0, "reset_time": time.time(), "limit": 330},
-            "cryptocompare": {"count": 0, "reset_time": time.time(), "limit": 80}
+            "cryptocompare": {"count": 0, "reset_time": time.time(), "limit": 80},
+            "binance": {"count": 0, "reset_time": time.time(), "limit": 1200},
         }
         
         # Add priority queues for data fetching
@@ -366,17 +368,53 @@ class API_Config:
         return metadata
     
     async def _fetch_token_metadata(self, source: str, token: str) -> Optional[Dict[str, Any]]:
-        """Fetch token metadata from a specified source."""
+        """Fetch token metadata with improved error handling."""
         config = self.api_configs.get(source)
         if not config:
-            logger.debug(f"API configuration for {source} not found.")
             return None
-        if source == "coingecko":
-            url = f"{config['base_url']}/coins/{token}"
-            response = await self.make_request(source, url)
-            return response
-        else:
-            logger.debug(f"Unsupported metadata source: {source}")
+
+        try:
+            if source == "coingecko":
+                # Handle both token address and symbol
+                token_id = token.lower()
+                url = f"{config['base_url']}/coins/{token_id}"
+                headers = {"x-cg-pro-api-key": config['api_key']} if config['api_key'] else None
+                
+                response = await self.make_request(source, url, headers=headers)
+                if response:
+                    return {
+                        'symbol': response.get('symbol', ''),
+                        'market_cap': response.get('market_data', {}).get('market_cap', {}).get('usd', 0),
+                        'total_supply': response.get('market_data', {}).get('total_supply', 0),
+                        'circulating_supply': response.get('market_data', {}).get('circulating_supply', 0),
+                        'trading_pairs': len(response.get('tickers', [])),
+                        'exchanges': list(set(t.get('market', {}).get('name') for t in response.get('tickers', [])))
+                    }
+                    
+            elif source == "coinmarketcap":
+                url = f"{config['base_url']}/cryptocurrency/quotes/latest"
+                headers = {
+                    "X-CMC_PRO_API_KEY": config['api_key'],
+                    "Accept": "application/json"
+                }
+                params = {"symbol": token.upper()}
+                
+                response = await self.make_request(source, url, params=params, headers=headers)
+                if response and 'data' in response:
+                    data = response['data'].get(token.upper(), {})
+                    return {
+                        'symbol': data.get('symbol', ''),
+                        'market_cap': data.get('quote', {}).get('USD', {}).get('market_cap', 0),
+                        'total_supply': data.get('total_supply', 0),
+                        'circulating_supply': data.get('circulating_supply', 0),
+                        'trading_pairs': len(data.get('tags', [])),
+                        'exchanges': []  # CMC doesn't provide exchange list in basic endpoint
+                    }
+
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error fetching metadata from {source}: {e}")
             return None
 
     async def get_real_time_price(self, token: str, vs_currency: str = "eth") -> Optional[Decimal]:
@@ -433,43 +471,57 @@ class API_Config:
         max_attempts: int = 5,
         backoff_factor: float = 1.5,
     ) -> Any:
-        """Make HTTP request with exponential backoff and rate limit per provider."""
+        """Make HTTP request with improved error handling and timeout management."""
+        if self.session is None or self.session.closed:
+            self.session = aiohttp.ClientSession()
+
         rate_limiter = self.rate_limiters.get(provider_name)
-        
         if rate_limiter is None:
             logger.error(f"No rate limiter for provider {provider_name}")
             return None
-        
+
         async with rate_limiter:
             for attempt in range(max_attempts):
                 try:
-                    timeout = aiohttp.ClientTimeout(total=10 * (attempt + 1))
-                    async with self.session.get(url, params=params, headers=headers, timeout=timeout) as response:
-                        if response.status == 429:
+                    # More conservative timeout settings
+                    timeout = aiohttp.ClientTimeout(
+                        total=30,  # Total timeout
+                        connect=10,  # Connection timeout
+                        sock_read=10  # Socket read timeout
+                    )
+
+                    async with self.session.get(
+                        url,
+                        params=params,
+                        headers=headers,
+                        timeout=timeout
+                    ) as response:
+                        if response.status == 429:  # Rate limit
                             wait_time = backoff_factor ** attempt
-                            logger.warning(f"Rate limit exceeded for {provider_name}, retrying in {wait_time}s...")
+                            logger.warning(f"Rate limit for {provider_name}, waiting {wait_time}s")
                             await asyncio.sleep(wait_time)
                             continue
-                        response.raise_for_status()
+                            
+                        if response.status >= 400:
+                            logger.warning(f"Error {response.status} from {provider_name}")
+                            if attempt == max_attempts - 1:
+                                return None
+                            continue
+
                         return await response.json()
 
-                except aiohttp.ClientResponseError as e:
+                except asyncio.TimeoutError:
+                    logger.warning(f"Timeout for {provider_name} (attempt {attempt + 1})")
                     if attempt == max_attempts - 1:
-                        logger.error(f"Request failed after {max_attempts} attempts: {e}")
-                        raise
-                    wait_time = backoff_factor ** attempt
-                    logger.warning(f"Request attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
-                    await asyncio.sleep(wait_time)
-                except aiohttp.ClientConnectionError as e:
-                    if attempt == max_attempts - 1:
-                        logger.error(f"Connection error after {max_attempts} attempts: {e}")
-                        raise
-                    wait_time = backoff_factor ** attempt
-                    logger.warning(f"Connection error on attempt {attempt + 1}: {e}. Retrying in {wait_time}s...")
-                    await asyncio.sleep(wait_time)
+                        return None
                 except Exception as e:
-                    logger.error(f"Unexpected error: {e}")
-                    raise
+                    logger.error(f"Error fetching from {provider_name}: {e}")
+                    if attempt == max_attempts - 1:
+                        return None
+                
+                await asyncio.sleep(backoff_factor ** attempt)
+            
+            return None
 
     async def fetch_historical_prices(self, token: str, days: int = 30) -> List[float]:
         """Fetch historical price data for a given token symbol."""
@@ -521,48 +573,82 @@ class API_Config:
         return volume or 0.0
 
     async def _fetch_token_volume(self, source: str, token: str) -> Optional[float]:
-        """Enhanced token volume fetching with proper source handling."""
+        """Enhanced volume fetching with better error handling."""
         config = self.api_configs.get(source)
         if not config:
-            logger.debug(f"API configuration for {source} not found.")
             return None
 
         try:
             if source == "binance":
-                symbol = f"{token}USDT"
-                if token == "WETH":
-                   symbol = "ETHUSDT" # Fix for WETH volume fetching via Binance
-                url = f"{config['base_url']}{config['market_url']}"
-                params = {"symbol": symbol}
-                response = await self.make_request(source, url, params=params)
-                return float(response['volume']) if response else None
-                
+                # Use symbol mapping with fallback
+                symbols = await self._get_trading_pairs(token)
+                if not symbols:
+                    return None
+
+                # Try each symbol pair
+                for symbol in symbols:
+                    try:
+                        url = f"{config['base_url']}/ticker/24hr"
+                        params = {"symbol": symbol}
+                        response = await self.make_request(source, url, params=params)
+                        
+                        if response and 'volume' in response:
+                            return float(response['quoteVolume'])  # Use quote volume for USD value
+                    except Exception:
+                        continue
+
             elif source == "coingecko":
-                url = f"{config['base_url']}{config['volume_url'].format(id=token.lower())}"
-                response = await self.make_request(source, url)
-                return float(response['market_data']['total_volume']['usd']) if response else None
+                token_id = token.lower()
+                url = f"{config['base_url']}/simple/price"
+                params = {
+                    "ids": token_id,
+                    "vs_currencies": "usd",
+                    "include_24hr_vol": "true"
+                }
+                if config['api_key']:
+                    params['x_cg_pro_api_key'] = config['api_key']
                 
+                response = await self.make_request(source, url, params=params)
+                if response and token_id in response:
+                    return float(response[token_id].get('usd_24h_vol', 0))
+
             elif source == "coinmarketcap":
-                url = f"{config['base_url']}{config['ticker_url']}"
+                url = f"{config['base_url']}/cryptocurrency/quotes/latest"
                 headers = {"X-CMC_PRO_API_KEY": config['api_key']}
-                params = {"symbol": token}
-                response = await self.make_request(source, url, params=params, headers=headers)
-                return float(response['data'][token]['quote']['USD']['volume_24h']) if response else None
+                params = {"symbol": token.upper()}
                 
-            elif source == "cryptocompare":
-                url = f"{config['base_url']}/exchange/symbol"
-                params = {"fsym": token, "tsym": "USD"}
-                headers = {"authorization": f"Apikey {config['api_key']}"}
                 response = await self.make_request(source, url, params=params, headers=headers)
-                return float(response['Data']['VOLUME24HOUR']) if response else None
-                
-            else:
-                logger.debug(f"Unsupported volume source: {source}")
-                return None
+                if response and 'data' in response:
+                    token_data = response['data'].get(token.upper(), {})
+                    return float(token_data.get('quote', {}).get('USD', {}).get('volume_24h', 0))
+
+            return None
 
         except Exception as e:
             logger.error(f"Error fetching volume from {source}: {e}")
             return None
+
+    async def _get_trading_pairs(self, token: str) -> List[str]:
+        """Get valid trading pairs for a token."""
+        # Common base pairs
+        quote_currencies = ["USDT", "BUSD", "USD", "ETH", "BTC"]
+        
+        # Symbol mappings for common tokens
+        symbol_mappings = {
+            "WETH": ["ETH"],
+            "WBTC": ["BTC"],
+            "ETH": ["ETH"],
+            "BTC": ["BTC"],
+            # Add more mappings as needed
+        }
+        
+        base_symbols = symbol_mappings.get(token, [token])
+        pairs = []
+        
+        for base in base_symbols:
+            pairs.extend([f"{base}{quote}" for quote in quote_currencies])
+            
+        return pairs
 
     async def _fetch_from_services(self, fetch_func, description: str):
         """Helper method to fetch data from multiple services."""

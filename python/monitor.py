@@ -1,3 +1,4 @@
+# /home/mitander/0xBuilder/monitor.py
 import asyncio
 import logging
 import time
@@ -300,7 +301,7 @@ class Market_Monitor:
     def _calculate_momentum(self, prices: List[float]) -> float:
         """Calculate price momentum using exponential moving average."""
         try:
-            if len(prices) < 2:
+            if  len(prices) < 2:
                 return 0.0
             ema_short = np.mean(prices[-12:])  # 1-hour EMA
             ema_long = np.mean(prices)  # 24-hour EMA
@@ -1428,3 +1429,4 @@ class Mempool_Monitor:
         except Exception as e:
             logger.error(f"Error stopping Mempool Monitor: {e}")
             raise
+            

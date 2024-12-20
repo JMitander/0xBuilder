@@ -1,3 +1,4 @@
+# /home/mitander/0xBuilder/core.py
 from pathlib import Path
 import aiofiles
 import async_timeout
@@ -1023,7 +1024,7 @@ class Main_Core:
             'safety_net': None,
             'market_monitor': None,
             'mempool_monitor': None,
-            'transaction_core': None,
+                        'transaction_core': None,
             'strategy_net': None,
         }
         logger.info("Starting 0xBuilder...")
@@ -1588,4 +1589,3 @@ if __name__ == "__main__":
         logger.debug("Top 10 memory allocations at error:")
         top_stats = snapshot.statistics('lineno')
         for stat in top_stats[:10]:            logger.debug(str(stat))
-

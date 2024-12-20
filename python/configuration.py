@@ -22,7 +22,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-logger = logging.getLogger("Configuration")
+logger = logging.getLogger(__name__)
 
 dotenv.load_dotenv()
 
@@ -63,7 +63,7 @@ class Configuration:
         self.MIN_TRAINING_SAMPLES = 100
         self.MODEL_ACCURACY_THRESHOLD = 0.7
         self.PREDICTION_CACHE_TTL = 300  # 5 minutes
-        
+                
         self.abi_registry = ABI_Registry()
 
         # Add WETH and USDC addresses
@@ -530,6 +530,8 @@ class API_Config:
         try:
             if source == "binance":
                 symbol = f"{token}USDT"
+                if token == "WETH":
+                   symbol = "ETHUSDT" # Fix for WETH volume fetching via Binance
                 url = f"{config['base_url']}{config['market_url']}"
                 params = {"symbol": symbol}
                 response = await self.make_request(source, url, params=params)
@@ -664,7 +666,7 @@ class API_Config:
             # Priority tokens get faster, more reliable providers
             if is_priority:
                 return (reliability * 2 + rate_left) * config['weight']
-            return (reliability +  rate_left) * config['weight']
+            return (reliability + rate_left) * config['weight']
             
         return sorted(providers, key=provider_score, reverse=True)
 

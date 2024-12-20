@@ -4,6 +4,7 @@ import time
 import async_timeout
 import pandas as pd
 import numpy as np
+import os
 
 from web3 import AsyncWeb3
 from cachetools import TTLCache
@@ -18,8 +19,14 @@ from pathlib import Path
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union
 
-# Replace relative imports with absolute imports
-from constants import ERROR_MARKET_MONITOR_INIT, ERROR_MESSAGES
+# Update imports to include all error constants
+from constants import (
+    ERROR_MARKET_MONITOR_INIT,
+    ERROR_MODEL_LOAD,
+    ERROR_DATA_LOAD,
+    ERROR_MODEL_TRAIN,
+    ERROR_MESSAGES
+)
 
 logger = logging.getLogger("Monitor")
 
@@ -53,19 +60,24 @@ class Market_Monitor:
         self.price_model = LinearRegression()
         self.model_last_updated = 0
 
+        # Set full paths for better control
+        self.linear_regression_path = "/home/mitander/0xBuilder/python/linear_regression"
+        
+        # Create directory if it doesn't exist
+        os.makedirs(self.linear_regression_path, exist_ok=True)
+        
+        self.model_path = "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib"
+        self.training_data_path = "/home/mitander/0xBuilder/python/linear_regression/training_data.csv"
+
         # Add separate caches for different data types
         self.caches = {
             'price': TTLCache(maxsize=CACHE_SETTINGS['price']['size'], 
-                            ttl=CACHE_SETTINGS['price']['ttl']),
+                    ttl=CACHE_SETTINGS['price']['ttl']),
             'volume': TTLCache(maxsize=CACHE_SETTINGS['volume']['size'], 
-                             ttl=CACHE_SETTINGS['volume']['ttl']),
+                     ttl=CACHE_SETTINGS['volume']['ttl']),
             'volatility': TTLCache(maxsize=CACHE_SETTINGS['volatility']['size'], 
-                                 ttl=CACHE_SETTINGS['volatility']['ttl'])
+                     ttl=CACHE_SETTINGS['volatility']['ttl'])
         }
-
-        # Add paths for model and training data
-        self.model_path = Path(__file__).parent.parent / "linear_regression" / "price_model.joblib"
-        self.training_data_path = Path(__file__).parent.parent / "linear_regression" / "training_data.csv"
         
         # Initialize model variables
         self.price_model = None
@@ -92,23 +104,44 @@ class Market_Monitor:
         try:
             self.price_model = LinearRegression()
             self.model_last_updated = 0
-            logger.debug("Market Monitor initialized ✅")
 
-            self.model_last_updated = 0
-            logger.debug("Market Monitor initialized ✅")
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
-            # Load existing model if available
-            if self.model_path.exists():
-                self.price_model = load(self.model_path)
-                logger.debug("Loaded existing price prediction model")
+            # Load existing model if available, or create new one
+            model_loaded = False
+            if os.path.exists(self.model_path):
+                try:
+                    self.price_model = load(self.model_path)
+                    logger.debug("Loaded existing price prediction model")
+                    model_loaded = True
+                except (OSError, KeyError) as e:
+                    logger.warning(f"Failed to load model: {e}. Creating new model.")
+                    self.price_model = LinearRegression()
             
-            # Load historical training data
-            if self.training_data_path.exists():
-                self.historical_data = pd.read_csv(self.training_data_path)
-                logger.debug(f"Loaded {len(self.historical_data)} historical data points")
+            if not model_loaded:
+                logger.debug("Creating new price prediction model")
+                self.price_model = LinearRegression()
+                # Save initial model
+                try:
+                    dump(self.price_model, self.model_path)
+                    logger.debug("Saved initial price prediction model")
+                except Exception as e:
+                    logger.warning(f"Failed to save initial model: {e}")
+            
+            # Load or create training data file
+            if os.path.exists(self.training_data_path):
+                try:
+                    self.historical_data = pd.read_csv(self.training_data_path)
+                    logger.debug(f"Loaded {len(self.historical_data)} historical data points")
+                except Exception as e:
+                    logger.warning(f"Failed to load historical data: {e}. Starting with empty dataset.")
+                    self.historical_data = pd.DataFrame()
+            else:
+                self.historical_data = pd.DataFrame()
             
             # Initial model training if needed
-            if self.price_model is None or len(self.historical_data) >= self.MIN_TRAINING_SAMPLES:
+            if len(self.historical_data) >= self.MIN_TRAINING_SAMPLES:
                 await self._train_model()
             
             logger.debug("Market Monitor initialized ✅")
@@ -118,7 +151,7 @@ class Market_Monitor:
 
         except Exception as e:
             logger.critical(f"Market Monitor initialization failed: {e}")
-            raise
+            raise RuntimeError(f"Market Monitor initialization failed: {e}")
 
     async def schedule_updates(self) -> None:
         """Schedule periodic data and model updates."""

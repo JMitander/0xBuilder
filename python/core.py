@@ -1,20 +1,21 @@
 from pathlib import Path
-import signal
-import time
-import tracemalloc
 import aiofiles
-import aiohttp
 import async_timeout
+import aiohttp
 import hexbytes
 import asyncio
 import json
 import logging
+import os
+import signal
+import time
+import tracemalloc
 
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple, Union
+from web3.eth import AsyncEth
 from eth_account import Account
 from web3 import AsyncHTTPProvider, AsyncIPCProvider, AsyncWeb3, WebSocketProvider
-from web3.eth import AsyncEth
 from web3.exceptions import ContractLogicError, TransactionNotFound
 from web3.middleware import ExtraDataToPOAMiddleware
 from abi_registry import ABI_Registry
@@ -23,7 +24,7 @@ from monitor import Market_Monitor, Mempool_Monitor
 from nonce import Nonce_Core
 from net import Safety_Net, Strategy_Net
 
-logger = logging.getLogger("Core")
+logger = logging.getLogger(__name__)
 
 class Transaction_Core:
     """
@@ -777,7 +778,6 @@ class Transaction_Core:
             return None
         
     async def decode_transaction_input(self, input_data: str, contract_address: str) -> Optional[Dict[str, Any]]:
-        
         """Decode transaction input using ABI registry."""
         try:
             # Get selector from input
@@ -1031,11 +1031,11 @@ class Main_Core:
     async def _initialize_components(self) -> None:
         """Initialize all components in the correct dependency order."""
         try:
-             # 1. First initialize configuration and load ABIs
+            # 1. First initialize configuration and load ABIs
             await self._load_configuration()
             
             # Load and validate ERC20 ABI
-            erc20_abi = await self.abi_registry.load_abi('erc20')
+            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             if not erc20_abi:
                 raise ValueError("Failed to load ERC20 ABI")
             
@@ -1045,30 +1045,30 @@ class Main_Core:
 
             self.account = Account.from_key(self.configuration.WALLET_KEY)
             await self._check_account_balance()
-            
-             # 2. Initialize API config
+
+            # 2. Initialize API config
             self.components['api_config'] = API_Config(self.configuration)
-            await self._initialize_component('api_config', self.components['api_config'])
-            
+            await self.components['api_config'].initialize()
+
             # 3. Initialize nonce core
             self.components['nonce_core'] = Nonce_Core(
                 self.web3, 
                 self.account.address, 
                 self.configuration
             )
-            await self._initialize_component('nonce_core', self.components['nonce_core'])
-
+            await self.components['nonce_core'].initialize()
 
             # 4. Initialize safety net
             self.components['safety_net'] = Safety_Net(
                 self.web3,
                 self.configuration,
                 self.account,
-                self.components['api_config']
+                self.components['api_config'],
+                market_monitor = self.components.get('market_monitor')
             )
-            await self._initialize_component('safety_net', self.components['safety_net'])
+            await self.components['safety_net'].initialize()
 
-             # 5. Initialize transaction core
+            # 5. Initialize transaction core
             self.components['transaction_core'] = Transaction_Core(
                 self.web3,
                 self.account,
@@ -1081,18 +1081,16 @@ class Main_Core:
                 safety_net=self.components['safety_net'],
                 configuration=self.configuration
             )
-            await self._initialize_component('transaction_core', self.components['transaction_core'])
+            await self.components['transaction_core'].initialize()
 
-
-             # 6. Initialize market monitor
+            # 6. Initialize market monitor
             self.components['market_monitor'] = Market_Monitor(
                 web3=self.web3,
                 configuration=self.configuration,
                 api_config=self.components['api_config'],
                 transaction_core=self.components['transaction_core']
             )
-            await self._initialize_component('market_monitor', self.components['market_monitor'])
-
+            await self.components['market_monitor'].initialize()
 
             # 7. Initialize mempool monitor with validated ABI
             self.components['mempool_monitor'] = Mempool_Monitor(
@@ -1105,17 +1103,16 @@ class Main_Core:
                 erc20_abi=erc20_abi,  # Pass the loaded ABI
                 market_monitor=self.components['market_monitor']
             )
-            await self._initialize_component('mempool_monitor', self.components['mempool_monitor'])
+            await self.components['mempool_monitor'].initialize()
 
-
-             # 8. Finally initialize strategy net
+            # 8. Finally initialize strategy net
             self.components['strategy_net'] = Strategy_Net(
                 self.components['transaction_core'],
                 self.components['market_monitor'],
                 self.components['safety_net'],
                 self.components['api_config']
             )
-            await self._initialize_component('strategy_net', self.components['strategy_net'])
+            await self.components['strategy_net'].initialize()
 
             logger.info("All components initialized successfully ✅")
 
@@ -1240,7 +1237,6 @@ class Main_Core:
             except Exception as e:
                 logger.error(f"Connection attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(1)
-        return False
 
     async def _add_middleware(self, web3: AsyncWeb3) -> None:
         """Add appropriate middleware based on network."""
@@ -1278,15 +1274,15 @@ class Main_Core:
             raise
 
     async def _initialize_component(self, name: str, component: Any) -> None:
-         """Initialize a single component with error handling."""
-         try:
+        """Initialize a single component with error handling."""
+        try:
             if hasattr(component, 'initialize'):
                 await component.initialize()
             self.components[name] = component
             logger.debug(f"Initialized {name} successfully")
-         except Exception as e:
-             logger.error(f"Failed to initialize {name}: {e}")
-             raise
+        except Exception as e:
+            logger.error(f"Failed to initialize {name}: {e}")
+            raise
 
     async def _initialize_monitoring_components(self) -> None:
         """Initialize monitoring components in the correct order."""
@@ -1308,7 +1304,7 @@ class Main_Core:
                 monitored_tokens=await self.configuration.get_token_addresses(),
                 market_monitor=self.components['market_monitor'],
                 configuration=self.configuration,
-                erc20_abi= await self.abi_registry.load_abi('erc20')
+                erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             ))
 
             # 7. Finally initialize strategy net
@@ -1439,7 +1435,7 @@ class Main_Core:
         strategy = self.components['strategy_net']
         monitor = self.components['mempool_monitor']
         
-        while self.running:
+        while not monitor.profitable_transactions.empty():
             try:
                 try:
                     tx = await asyncio.wait_for(monitor.profitable_transactions.get(), timeout=1.0)

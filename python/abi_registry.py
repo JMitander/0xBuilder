@@ -1,3 +1,4 @@
+# /home/mitander/0xBuilder/abi_registry.py
 import json
 import logging
 
@@ -11,9 +12,9 @@ class ABI_Registry:
 
     REQUIRED_METHODS = {
         'erc20': {'transfer', 'approve', 'transferFrom', 'balanceOf'},
-        'uniswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity'},
-        'sushiswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity'},
-        'pancakeswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity'},
+        'uniswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
+        'sushiswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
+        'pancakeswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
         'balancer': {'swap', 'addLiquidity'},
         'aave_flashloan': {'fn_RequestFlashLoan', 'executeOperation', 'ADDRESSES_PROVIDER', 'POOL'},
         'aave_lending': {'ADDRESSES_PROVIDER', 'getReservesList', 'getReserveData'}
@@ -190,5 +191,3 @@ class ABI_Registry:
     def get_function_signature(self, abi_type: str, method_name: str) -> Optional[str]:
         """Get function signature by ABI type and method name."""
         return self.signatures.get(abi_type, {}).get(method_name)
-    
-    

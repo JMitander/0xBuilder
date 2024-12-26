@@ -1,252 +1,257 @@
-Contributing to 0xBuilder MEV Bot
+# Contributing to 0xBuilder MEV Bot
 
-Thank you for considering contributing to the 0xBuilder MEV Bot project! We welcome contributions in the form of bug reports, feature suggestions, code improvements, documentation enhancements, and more.
+[![License](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)
 
-This document provides guidelines to help you contribute effectively and maintain a high-quality codebase.
-Table of Contents
+## Table of Contents
 
-    Code of Conduct
-    Getting Started
-        Prerequisites
-        Setting Up the Development Environment
-    How to Contribute
-        Reporting Bugs
-        Suggesting Enhancements
-        Pull Requests
-    Coding Guidelines
-        Style Guide
-        Commit Messages
-        Branching Model
-    Testing
-    Documentation
-    Issue Tracker
-    Community and Support
-    License
+- [Code of Conduct](#code-of-conduct)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Setting Up the Development Environment](#setting-up-the-development-environment)
+- [How to Contribute](#how-to-contribute)
+  - [Reporting Bugs](#reporting-bugs)
+  - [Suggesting Enhancements](#suggesting-enhancements)
+  - [Pull Requests](#pull-requests)
+- [Coding Guidelines](#coding-guidelines)
+  - [Style Guide](#style-guide)
+  - [Commit Messages](#commit-messages)
+  - [Branching Model](#branching-model)
+- [Testing](#testing)
+- [Documentation](#documentation)
+- [Issue Tracker](#issue-tracker)
+- [Community and Support](#community-and-support)
+- [License](#license)
 
-Code of Conduct
+## Code of Conduct
 
-By participating in this project, you agree to abide by the Contributor Covenant Code of Conduct. Please be respectful and considerate in your interactions with others.
-Getting Started
-Prerequisites
+By participating in this project, you agree to abide by the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/version/2/0/code_of_conduct/). Please be respectful and considerate in your interactions with others.
 
-    Python 3.8 or higher
-    Git: Version control system
-    Ethereum Node: Access to a fully synchronized Ethereum node (e.g., Geth, Nethermind)
-    API Keys: For Infura, Etherscan, CoinGecko, CoinMarketCap, and CryptoCompare
-    Wallet and Private Key: For testing and signing transactions
+## Getting Started
 
-Setting Up the Development Environment
+### Prerequisites
 
-    Fork the Repository
+- **Python 3.8 or higher**
+- **Git**: Version control system
+- **Ethereum Node**: Access to a fully synchronized Ethereum node (e.g., Geth, Nethermind)
+- **API Keys**: For Infura, Etherscan, CoinGecko, CoinMarketCap, and CryptoCompare
+- **Wallet and Private Key**: For testing and signing transactions
 
-    Click on the "Fork" button at the top right of the repository page to create your own fork.
+### Setting Up the Development Environment
 
-    Clone Your Fork
+#### Fork the Repository
 
-    bash
+Click on the **"Fork"** button at the top right of the repository page to create your own fork.
 
-git clone https://github.com/jmitander/0xbuilder.git
+#### Clone Your Fork
+
+```bash
+git clone https://github.com/your-username/0xbuilder.git
 cd 0xBuilder
+```
 
-Set Upstream Remote
+#### Set Up Upstream Remote
 
-bash
-
+```bash
 git remote add upstream https://github.com/original_author/0xBuilder.git
+```
 
-Create a Virtual Environment
+#### Create a Virtual Environment
 
-bash
-
+```bash
 python3 -m venv venv
 source venv/bin/activate  # For Windows use `venv\Scripts\activate`
+```
 
-Install Dependencies
+#### Install Dependencies
 
-bash
-
+```bash
 pip install -r requirements.txt
+```
 
-Configurationsure Environment Variables
+#### Configure Environment Variables
 
-Copy the  environment file and customize it:
+Copy the environment file and customize it:
 
-bash
+```bash
+cp .env.example .env
+```
 
-cp .env- .env
+- Fill in your API keys and configuration settings in the `.env` file.
+- Ensure all paths and addresses are correct.
 
-    Fill in your API keys and configuration settings in the .env file.
-    Ensure all paths and addresses are correct.
-
-Install Pre-commit Hooks
+#### Install Pre-commit Hooks
 
 We use pre-commit hooks to enforce code style and catch errors early.
 
-bash
+```bash
+pip install pre-commit
+pre-commit install
+```
 
-    pip install pre-commit
-    pre-commit install
+## How to Contribute
 
-How to Contribute
-Reporting Bugs
+### Reporting Bugs
 
 If you find a bug, please open an issue on the GitHub repository.
 
-Before Submitting a Bug Report:
+**Before Submitting a Bug Report:**
 
-    Search Existing Issues: To avoid duplicates, please check if the issue has already been reported.
-    Use a Clear and Descriptive Title: Summarize the problem in the title.
+1. **Search Existing Issues**: To avoid duplicates, please check if the issue has already been reported.
+2. **Use a Clear and Descriptive Title**: Summarize the problem in the title.
 
-Bug Report Content:
+**Bug Report Content:**
 
-    Description: A clear and concise description of the problem.
-    Steps to Reproduce: Detailed steps to reproduce the issue.
-    Expected Behavior: What you expected to happen.
-    Actual Behavior: What actually happened.
-    Screenshots or Logs: If applicable, include error messages, stack traces, or screenshots.
-    Environment: Include details about your setup, such as operating system, Python version, and Ethereum client.
+- **Description**: A clear and concise description of the problem.
+- **Steps to Reproduce**: Detailed steps to reproduce the issue.
+- **Expected Behavior**: What you expected to happen.
+- **Actual Behavior**: What actually happened.
+- **Screenshots or Logs**: If applicable, include error messages, stack traces, or screenshots.
+- **Environment**: Include details about your setup, such as operating system, Python version, and Ethereum client.
 
-Suggesting Enhancements
+### Suggesting Enhancements
 
 We welcome suggestions for new features or improvements.
 
-Before Submitting a Feature Request:
+**Before Submitting a Feature Request:**
 
-    Check Existing Issues and Pull Requests: The feature may already be under discussion.
+- **Check Existing Issues and Pull Requests**: The feature may already be under discussion.
 
-Feature Request Content:
+**Feature Request Content:**
 
-    Description: A clear and concise description of the proposed enhancement.
-    Motivation: Explain why this feature would be useful.
-    Alternatives: Mention any alternative solutions you've considered.
+- **Description**: A clear and concise description of the proposed enhancement.
+- **Motivation**: Explain why this feature would be useful.
+- **Alternatives**: Mention any alternative solutions you've considered.
 
-Pull Requests
+### Pull Requests
 
 We appreciate your contributions! To submit a pull request (PR):
 
-    Create a Branch
+#### Create a Branch
 
-    Use a descriptive name for your branch:
+Use a descriptive name for your branch:
 
-    bash
-
+```bash
 git checkout -b feature/your-feature-name
+```
 
-Make Changes
+#### Make Changes
 
-    Write clear, maintainable code.
-    Include comments and docstrings where necessary.
-    Ensure your changes do not break existing functionality.
+- Write clear, maintainable code.
+- Include comments and docstrings where necessary.
+- Ensure your changes do not break existing functionality.
 
-Write Tests
+#### Write Tests
 
-    Add unit tests for new features or bug fixes.
-    Ensure all tests pass before submitting.
+- Add unit tests for new features or bug fixes.
+- Ensure all tests pass before submitting.
 
-Commit Your Changes
+#### Commit Your Changes
 
-    Follow the commit message guidelines below.
-    Make small, incremental commits.
+- Follow the commit message guidelines below.
+- Make small, incremental commits.
 
-Push to Your Fork
+#### Push to Your Fork
 
-bash
+```bash
+git push origin feature/your-feature-name
+```
 
-    git push origin feature/your-feature-name
+#### Create a Pull Request
 
-    Create a Pull Request
-        Go to your fork on GitHub and click "New pull request".
-        Ensure the PR is against the correct base branch (usually main or develop).
-        Provide a clear description of your changes.
+1. Go to your fork on GitHub and click **"New pull request"**.
+2. Ensure the PR is against the correct base branch (usually `main` or `develop`).
+3. Provide a clear description of your changes.
 
-    Address Feedback
-        Be responsive to comments and requested changes.
-        Update your PR with improvements as needed.
+#### Address Feedback
 
-Coding Guidelines
-Style Guide
+- Be responsive to comments and requested changes.
+- Update your PR with improvements as needed.
 
-    PEP 8: Follow the Python Enhancement Proposal 8 style guidelines.
-    Type Hints: Use type annotations for function signatures and variables.
-    Imports: Organize imports using isort and group them logically.
-    Line Length: Limit lines to a maximum of 88 characters.
-    Naming Conventions: Use descriptive and consistent naming for variables, functions, and classes.
+## Coding Guidelines
 
-Commit Messages
+### Style Guide
 
-    Format: Use the Conventional Commits specification.
+- **PEP 8**: Follow the [Python Enhancement Proposal 8](https://pep8.org/) style guidelines.
+- **Type Hints**: Use type annotations for function signatures and variables.
+- **Imports**: Organize imports using `isort` and group them logically.
+- **Line Length**: Limit lines to a maximum of 88 characters.
+- **Naming Conventions**: Use descriptive and consistent naming for variables, functions, and classes.
 
-    Structure:
+### Commit Messages
 
-    swift
+- **Format**: Use the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
 
+**Structure:**
+
+```
 type(scope): subject
 
 body (optional)
 
 footer (optional)
+```
 
-Types:
+**Types:**
 
-    feat: A new feature
-    fix: A bug fix
-    docs: Documentation changes
-    style: Code style changes (formatting, missing semi-colons, etc.)
-    refactor: Code changes that neither fix a bug nor add a feature
-    test: Adding or updating tests
-    chore: Maintenance tasks
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, missing semi-colons, etc.)
+- `refactor`: Code changes that neither fix a bug nor add a feature
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
 
-:
+**Examples:**
 
-sql
+```plaintext
+feat(strategy): add new arbitrage strategy for Uniswap
 
-    feat(strategy): add new arbitrage strategy for Uniswap
+Implement a new arbitrage strategy that detects price discrepancies between Uniswap and Sushiswap.
+```
 
-    Implement a new arbitrage strategy that detects price discrepancies between Uniswap and Sushiswap.
+### Branching Model
 
-Branching Model
+- **Feature Branches**: Use `feature/feature-name` for new features.
+- **Bug Fixes**: Use `fix/issue-number` for bug fixes.
+- **Develop Branch**: Merge your feature branches into `develop`.
+- **Main Branch**: Stable code ready for release.
 
-    Feature Branches: Use feature/feature-name for new features.
-    Bug Fixes: Use fix/issue-number for bug fixes.
-    Develop Branch: Merge your feature branches into develop.
-    Main Branch: Stable code ready for release.
+## Testing
 
-Testing
+- **Unit Tests**: Write unit tests for new code using `unittest` or `pytest`.
+- **Test Coverage**: Aim for high test coverage, especially for critical components.
 
-    Unit Tests: Write unit tests for new code using unittest or pytest.
+**Running Tests:**
 
-    Test Coverage: Aim for high test coverage, especially for critical components.
+```bash
+pytest tests/
+```
 
-    Running Tests:
+- **Continuous Integration**: Ensure your changes pass all CI checks.
 
-    bash
+## Documentation
 
-    pytest tests/
+- **Docstrings**: Include docstrings for all modules, classes, and functions using the Google style or reStructuredText.
+- **README and Guides**: Update the `README.md` or other documentation files if your changes affect them.
+- **Comments**: Write clear comments where necessary to explain complex logic.
 
-    Continuous Integration: Ensure your changes pass all CI checks.
-
-Documentation
-
-    Docstrings: Include docstrings for all modules, classes, and functions using the Google style or reStructuredText.
-    README and Guides: Update the README.md or other documentation files if your changes affect them.
-    Comments: Write clear comments where necessary to explain complex logic.
-
-Issue Tracker
+## Issue Tracker
 
 Use the GitHub issue tracker to:
 
-    Report bugs
-    Request features
-    Ask questions
-    Discuss improvements
+- Report bugs
+- Request features
+- Ask questions
+- Discuss improvements
 
-Labels: Use appropriate labels to categorize issues.
-Community and Support
+**Labels**: Use appropriate labels to categorize issues.
 
-    Discussions: Participate in discussions on GitHub.
-    Slack/Discord: Join our community channels (if available).
-    Respectful Communication: Be respectful and considerate in all interactions.
+## Community and Support
 
-License
+- **Discussions**: Participate in discussions on GitHub.
+- **Slack/Discord**: Join our community channels (if available).
+- **Respectful Communication**: Be respectful and considerate in all interactions.
 
-By contributing to 0xBuilder, you agree that your contributions will be licensed under the MIT License.
+## License
+
+By contributing to **0xBuilder**, you agree that your contributions will be licensed under the [MIT License](LICENSE).

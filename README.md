@@ -172,17 +172,12 @@ python python/main.py
 
     *   **Mainnet:**
         ```bash
-        geth --http --http.api eth,web3 --ws --ws.api eth,web3 --ws.origins="*" --syncmode=fast
+        geth --mainnet --http --http.api eth,net,admin,engine,txpool,web3 --ws --ws.api eth,net,admin,engine,txpool,web3 --ws.origins="*" --syncmode=snap --ipcpath= /PATH/TO/geth.ipc
         ```
     *   **Testnet (Goerli):**
         ```bash
-         geth --goerli --http --http.api eth,web3 --ws --ws.api eth,web3 --ws.origins="*" --syncmode=fast
+         geth --goerli --http --http.api eth,net,admin,engine,txpool,web3 --ws --ws.api eth,net,admin,engine,txpool,web3 --ws.origins="*" --syncmode=snap --ipcpath= /PATH/TO/geth.ipc
         ```
-    *   **For local testing:** (Replace genesis-file with your genesis.json file path):
-        ```bash
-        geth  --datadir ~/.ethereum --http --http.api eth,web3 --ws --ws.api eth,web3 --ws.origins="*" --syncmode=full --dev --dev.period 1 --mine --miner.etherbase=<your-coinbase>
-        ```
-         *(Replace `<your-coinbase>` with a coinbase you have control over, and if mining is necessary in your setup.)*
 4.  **IPC Endpoint:** Find your IPC endpoint path in the data directory (e.g., `~/.ethereum/geth.ipc`). This path will be needed in your `.env` file.
 
 ### 2. Setting Up a Prysm Beacon Node
@@ -191,11 +186,6 @@ If you're planning on using a PoS network, or you'd like to run a full node incl
 
 1.  **Download Prysm:** Get the latest Prysm release from the [official Github repository](https://github.com/prysmaticlabs/prysm/releases).
 2.  **Run the Beacon Node:**
-
-    ```bash
-    ./beacon-chain --datadir ~/.prysm --http-web3provider <YOUR_GETH_NODE_ENDPOINT> --p2p-host-ip <YOUR_IP_ADDRESS> --p2p-tcp-port <YOUR_PORT>
-    ```
-        *(Replace `<YOUR_GETH_NODE_ENDPOINT>`, `<YOUR_IP_ADDRESS>`, and `<YOUR_PORT>` with your specific values. You also need to add any additional flags necessary for your set up. Make sure to read their official documentation.*
 
 ### 3. Deploying Aave V3 Flashloan Contract with Remix
 

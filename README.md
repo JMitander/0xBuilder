@@ -1,5 +1,5 @@
-# 0xplorer MEV Bot
 
+# 0xBuilder MEV Bot
 
 [![License](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-white.svg)](CONTRIBUTING.md)
@@ -19,7 +19,6 @@
 [![CoinMarketCap](https://img.shields.io/badge/CoinMarketcap-API-red.svg)](https://coinmarketcap.com/api/)
 [![CryptoCompare](https://img.shields.io/badge/Cryptocompare-API-red.svg)](https://min-api.cryptocompare.com/)
 [![Etherscan](https://img.shields.io/badge/Etherscan-API-red.svg)](https://etherscan.io/apis)
-
 
 ## Table of Contents
 
@@ -47,17 +46,17 @@
 - [License](#license)
 - [Disclaimer](#disclaimer)
 
-
-
 ## Introduction
 
-**0xplorer** is an advanced Ethereum trading bot designed for high-frequency trading and MEV (Maximal Extractable Value) opportunities. It implements strategies like front-running, back-running, sandwich attacks, and flashloan executions using Python, Geth, Remix, and AsyncWeb3.py. The bot continuously monitors the Ethereum mempool for profitable transactions and executes trades automatically.
+**0xBuilder** is an advanced Ethereum trading bot designed for high-frequency trading and MEV (Maximal Extractable Value) opportunities. It implements strategies like front-running, back-running, sandwich attacks, and flashloan executions using Python, Geth, Remix, and AsyncWeb3.py. The bot continuously monitors the Ethereum mempool for profitable transactions and executes trades automatically.
 
 The bot is highly configurable, allowing users to adjust parameters, strategies, and risk levels based on their preferences. It supports multiple wallets, tokens, and trading pairs, with real-time market analysis and safety checks. The bot can be run on any Ethereum-compatible network, with support for various APIs and external data sources.
 
-**Note:** 0xplorer is a work in progress and is not production-ready. Use it at your own risk and discretion.
+**Note:** 0xBuilder is a work in progress and is not production-ready. Use it at your own risk and discretion.
 
 ## Features
+
+![0xBuilder-flow](https://github.com/user-attachments/assets/29e3da12-d253-4304-acb1-f2d74f407bf1)
 
 - **Mempool Monitoring**: Continuously monitors the Ethereum mempool for potential arbitrage and profit opportunities.
 - **Strategy Execution**: Implements various strategies, including front-running, back-running, sandwich attacks, and flashloan executions.
@@ -73,54 +72,110 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 - **Detailed Logging**: Provides detailed logs of bot activities, transactions, and strategies for analysis and debugging.
 - **Customizable**: Supports multiple wallets, tokens, and trading pairs, with the ability to add new strategies and features.
 
-![0xplorer-flow](https://github.com/user-attachments/assets/29e3da12-d253-4304-acb1-f2d74f407bf1)
 
 
 ## Project Structure
 
 ```
-/0xplorer/
-├── Config/
-│   └── Config.py               # Configuration management
-|   └── ApiClient.py            # API client for external data sources
-├── Core/
-│   ├── Xplorer.py             # Main bot script
-│   ├── NonceManager.py         # Manages Ethereum nonces
-│   ├── StrategyManager.py      # Handles trading strategies
-│   └── TransactionArray.py     # Builds and sends transaction bundles
-├── Utils/
-│   ├── token_addresses.json    # List of monitored token addresses
-│   ├── token_symbols.json      # Mapping of token addresses to symbols
-│   └── erc20_signatures.json   # ERC20 function signatures
-├── ABI/
-│   ├── erc20_ABI.json
-│   ├── aave_v3_flashloan_ABI.json
-│   ├── aave_v3_lending_pool_ABI.json
-│   ├── uniswap_v2_router_ABI.json
-│   ├── sushiswap_router_ABI.json
-│   ├── pancakeswap_router_ABI.json
-│   └── balancer_router_ABI.json
-├── Contracts/
-│   └── SimpleFlashLoan.sol     # Flashloan smart contract
-├── Analysis/
-│   ├── MarketAnalyzer.py       # Analyzes market data
-│   ├── MonitorArray.py         # Monitors mempool for transactions
-│   └── SafetyNet.py            # Safety checks and validations
-├── Contracts/
-│   └── SimpleFlashLoan.sol     # Flashloan smart contract
+/0xBuilder/
+├── abi/
+│   ├── uniswap_router_abi.json
+│   ├── sushiswap_router_abi.json
+│   ├── pancakeswap_router_abi.json
+│   ├── erc20_abi.json
+│   ├── balancer_router_abi.json
+│   └── aave_lending_pool_abi.json
+├── contracts/
+│   ├── SimpleFlashloan.sol
+│   └── IERC20.sol
+├── javascript/
+│   ├── nonce.js
+│   ├── net.js
+│   ├── monitor.js
+│   ├── main.js
+│   ├── core.js
+│   ├── configuration.js
+│   ├── colorformatter.js
+│   ├── abi_registry.js
+│   ├── __init__.js
+│   └── jsutils/
+│       ├── strategyperformancemetrics.js
+│       ├── strategyexecutionerror.js
+│       ├── strategyconfiguration.js
+│       └── colorformatter.html
+├── linear_regression/
+│   ├── training_data.csv
+│   └── price_model.joblib
+├── python/
+│   ├── nonce.py
+│   ├── net.py
+│   ├── monitor.py
+│   ├── main.py
+│   ├── core.py
+│   ├── constants.py
+│   ├── configuration.py
+│   ├── abi_registry.py
+│   ├── __init__.py
+│   └── pyutils/
+│       ├── strategyexecutionerror.py
+│       ├── strategyconfiguration.py
+│       ├── colorformatter.py
+│       └── __init__.py
+├── shared/
+│   └── MITANDER.py
+├── utils/
+│   ├── token_addresses.json
+│   ├── erc20_signatures.json
+│   └── token_symbols.json
 ├── Logs/
-│   └── 0xplorer_log.txt        # Logs bot activities
-├── .env                        # Environment variables
-├── 0xplorer.py                 # All-in-one 
-├── requirements.txt            # Python dependencies
-├── LICENSE                     # License information
-├── CONTRIBUTING.md             # Contribution guidelines
-└── README.md                   # Project documentation
+│   └── 0xBuilder_log.txt
+├── .env.example
+├── .gitignore
+├── CONTRIBUTING.md
+├── LICENSE
+├── README.md
+└── requirements.txt
 ```
+
+### Description of Key Directories and Files
+
+- **abi/**: Contains JSON files for various smart contract ABIs used in the project.
+  
+- **contracts/**: Includes Solidity smart contracts such as `SimpleFlashloan.sol` and `IERC20.sol`.
+  
+- **javascript/**: Holds all JavaScript files related to the project, including utility scripts in the `jsutils/` subdirectory.
+  
+- **linear_regression/**: Contains data and models related to linear regression analysis, such as `training_data.csv` and `price_model.joblib`.
+  
+- **python/**: Contains Python scripts that form the core functionality of the project. The `pyutils/` subdirectory includes utility modules for error handling and configuration.
+  
+- **shared/**: Includes shared Python scripts like `MITANDER.py` that might be used across different parts of the project.
+  
+- **utils/**: Stores utility JSON files that hold token addresses, ERC20 signatures, and token symbols.
+  
+- **Logs/**: Maintains log files such as `0xBuilder_log.txt` to track bot activities and operations.
+  
+- **.env.example**: Example environment variables file to guide configuration.
+  
+- **.gitignore**: Specifies files and directories to be ignored by Git.
+  
+- **CONTRIBUTING.md**: Guidelines for contributing to the project.
+  
+- **LICENSE**: Contains the licensing information for the project.
+  
+- **README.md**: Provides an overview and documentation for the project.
+  
+- **requirements.txt**: Lists the Python dependencies required for the project.
+
+### Additional Notes
+
+- Ensure that any missing directories or files (such as `Logs/` if needed) are added to maintain consistency and functionality.
+  
+- Update the `README.md` and other documentation files to reflect any changes in the project structure or functionality.
 
 ## Prerequisites
 
-Before running 0xplorer, ensure you have the following:
+Before running 0xBuilder, ensure you have the following:
 
 ### System Requirements
 
@@ -144,7 +199,7 @@ Primary Components:
    - solc v0.8.19 or higher
    - web3.py v6.0 or higher
    - ethers.js v6.0 or higher
-   - All Python packages from requirements.txt
+   - All Python packages from `requirements.txt`
 
 Additional Requirements:
 - **Git**: Latest stable version for version control
@@ -198,24 +253,13 @@ For PoS consensus layer, install either:
 - [Prysm](https://docs.prylabs.network/docs/getting-started)
 - [Lighthouse](https://lighthouse-book.sigmaprime.io/installation.html)
 
-### Required API Keys
-
-Create accounts and obtain API keys from:
-
-- [Infura](https://infura.io/) - RPC endpoints
-- [Etherscan](https://etherscan.io/) - Transaction data
-- [CoinGecko](https://www.coingecko.com/api) - Price feeds
-- [CoinMarketCap](https://coinmarketcap.com/api/) - Market data
-- [CryptoCompare](https://min-api.cryptocompare.com/) - Real-time prices
-
-Ensure that all API keys are stored securely and not shared publicly.
 ## Installation
 
 ### Cloning the Repository
 
 ```bash
-git clone https://github.com/yourusername/0xplorer.git
-cd 0xplorer
+git clone https://github.com/yourusername/0xBuilder.git
+cd 0xBuilder
 ```
 
 ### Setting up Virtual Environment
@@ -310,8 +354,8 @@ WALLET_ADDRESS=0xYourWalletAddress
 PROFIT_WALLET=0xYourProfitAddress
 
 # Token Configuration
-TOKEN_LIST_PATH=Utils/token_addresses.json
-TOKEN_SYMBOLS_PATH=Utils/token_symbols.json
+TOKEN_LIST_PATH=utils/token_addresses.json
+TOKEN_SYMBOLS_PATH=utils/token_symbols.json
 
 # DEX Router Configurations
 UNISWAP_V2_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
@@ -320,19 +364,20 @@ PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
 BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
 
 # ABI Paths
-UNISWAP_V2_ABI=ABI/uniswap_v2_router_ABI.json
-SUSHISWAP_ABI=ABI/sushiswap_router_ABI.json
-PANCAKESWAP_ABI=ABI/pancakeswap_router_ABI.json
-BALANCER_ABI=ABI/balancer_router_ABI.json
-ERC20_ABI=ABI/erc20_ABI.json
+UNISWAP_V2_ABI=abi/uniswap_router_abi.json
+SUSHISWAP_ABI=abi/sushiswap_router_abi.json
+PANCAKESWAP_ABI=abi/pancakeswap_router_abi.json
+BALANCER_ABI=abi/balancer_router_abi.json
+ERC20_ABI=abi/erc20_abi.json
 
 # Flashloan Configuration
 AAVE_V3_FLASHLOAN_CONTRACT=0xYourFlashloanContractAddress
 AAVE_V3_LENDING_POOL=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
 ```
+
 ### Configuration Files
 
-Essential JSON configuration files must be present in the `Utils` directory:
+Essential JSON configuration files must be present in the `utils` directory:
 
 | File | Description | Format |
 |------|-------------|--------|
@@ -351,7 +396,7 @@ Deploy a flashloan contract compatible with Aave V3 or your preferred protocol t
 #### Using Remix IDE (Recommended)
 
 1. Launch [Remix IDE](https://remix.ethereum.org/)
-2. Create `SimpleFlashLoan.sol`
+2. Create `SimpleFlashloan.sol`
 3. Implement flashloan logic following Aave's specifications
 4. Compile:
    - Select Solidity compiler v0.8.19+
@@ -387,28 +432,213 @@ Deploy a flashloan contract compatible with Aave V3 or your preferred protocol t
    ```
 4. Update `.env` configuration
 
-## API Key Setup
+## Obtaining API Keys
 
 Register and obtain API keys from:
 
-1. [Etherscan](https://etherscan.io/apis)
-2. [Infura](https://infura.io/register)
-3. [CoinGecko](https://www.coingecko.com/en/api)
-4. [CoinMarketCap](https://pro.coinmarketcap.com/signup)
-5. [CryptoCompare](https://www.cryptocompare.com/cryptopian/api-keys)
+1. [Infura](https://infura.io/) - RPC endpoints
+2. [Etherscan](https://etherscan.io/apis) - Transaction data
+3. [CoinGecko](https://www.coingecko.com/en/api) - Price feeds
+4. [CoinMarketCap](https://coinmarketcap.com/api/) - Market data
+5. [CryptoCompare](https://min-api.cryptocompare.com/) - Real-time prices
 
-Add keys to `.env`:
-```ini
-ETHERSCAN_API_KEY=your_key
-INFURA_PROJECT_ID=your_id
-COINGECKO_API_KEY=your_key
-COINMARKETCAP_API_KEY=your_key
-CRYPTOCOMPARE_API_KEY=your_key
+Ensure that all API keys are stored securely and not shared publicly.
+
+## Installation
+
+### Cloning the Repository
+
+```bash
+git clone https://github.com/yourusername/0xBuilder.git
+cd 0xBuilder
 ```
 
-## Bot Operation
+### Setting up Virtual Environment
+
+Using a virtual environment is strongly recommended to manage dependencies and avoid conflicts:
+
+For Linux/MacOS:
+
+```bash
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Verify activation
+which python
+```
+
+For Windows:
+
+```powershell
+# Create and activate virtual environment
+python -m venv venv
+.\venv\Scripts\activate
+
+# Verify activation
+where python
+```
+
+### Installing Dependencies
+
+Install required packages:
+
+```bash
+# Upgrade pip to latest version
+python -m pip install --upgrade pip
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify installations
+pip list
+```
+
+## Configuration
+
+### Environment Variables
+
+1. Create a `.env` file in the project root:
+
+```bash
+# Linux/MacOS
+cp .env.example .env
+
+# Windows
+copy .env.example .env
+```
+
+2. Configure the environment variables in `.env`:
+   - Add API keys from various services
+   - Configure node endpoints
+   - Set up wallet details
+   - Define smart contract addresses
+
+3. Validate the configuration:
+
+```bash
+# Verify .env file exists and permissions
+ls -la .env
+
+# Set secure file permissions (Linux/MacOS)
+chmod 600 .env
+```
+
+Example `.env` configuration:
+
+```ini
+# API Configuration
+ETHERSCAN_API_KEY=your_etherscan_api_key
+INFURA_PROJECT_ID=your_infura_project_id
+COINGECKO_API_KEY=your_coingecko_api_key
+COINMARKETCAP_API_KEY=your_coinmarketcap_api_key
+CRYPTOCOMPARE_API_KEY=your_cryptocompare_api_key
+
+# Ethereum Node Configuration
+HTTP_ENDPOINT=http://127.0.0.1:8545
+WS_ENDPOINT=wss://127.0.0.1:8546
+IPC_ENDPOINT=/path/to/geth.ipc
+
+# Wallet Configuration
+PRIVATE_KEY=your_private_key
+WALLET_ADDRESS=0xYourWalletAddress
+PROFIT_WALLET=0xYourProfitAddress
+
+# Token Configuration
+TOKEN_LIST_PATH=utils/token_addresses.json
+TOKEN_SYMBOLS_PATH=utils/token_symbols.json
+
+# DEX Router Configurations
+UNISWAP_V2_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+SUSHISWAP_ROUTER=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
+PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
+BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
+
+# ABI Paths
+UNISWAP_V2_ABI=abi/uniswap_router_abi.json
+SUSHISWAP_ABI=abi/sushiswap_router_abi.json
+PANCAKESWAP_ABI=abi/pancakeswap_router_abi.json
+BALANCER_ABI=abi/balancer_router_abi.json
+ERC20_ABI=abi/erc20_abi.json
+
+# Flashloan Configuration
+AAVE_V3_FLASHLOAN_CONTRACT=0xYourFlashloanContractAddress
+AAVE_V3_LENDING_POOL=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
+```
+
+### Configuration Files
+
+Essential JSON configuration files must be present in the `utils` directory:
+
+| File | Description | Format |
+|------|-------------|--------|
+| `token_addresses.json` | Actively monitored token contracts | `{"symbol": "address"}` |
+| `token_symbols.json` | Token address to symbol mapping | `{"address": "symbol"}` |
+| `erc20_signatures.json` | Common ERC20 function signatures | `{"name": "signature"}` |
+
+Verify all configuration files are properly formatted and contain valid data before starting the bot.
+
+## Deploying the Flashloan Contract
+
+Deploy a flashloan contract compatible with Aave V3 or your preferred protocol to enable flashloan functionality.
+
+### Deployment Options
+
+#### Using Remix IDE (Recommended)
+
+1. Launch [Remix IDE](https://remix.ethereum.org/)
+2. Create `SimpleFlashloan.sol`
+3. Implement flashloan logic following Aave's specifications
+4. Compile:
+   - Select Solidity compiler v0.8.19+
+   - Verify successful compilation
+5. Deploy:
+   - Connect MetaMask via "Injected Web3"
+   - Supply constructor arguments
+   - Confirm deployment transaction
+6. Update `.env` with contract address
+
+#### Using Development Frameworks
+
+1. Install framework:
+   ```bash
+   # Hardhat
+   npm install --save-dev hardhat
+   # or Truffle
+   npm install -g truffle
+   ```
+2. Compile contract:
+   ```bash
+   # Hardhat
+   npx hardhat compile
+   # or Truffle
+   truffle compile
+   ```
+3. Deploy:
+   ```bash
+   # Hardhat
+   npx hardhat run scripts/deploy.js
+   # or Truffle
+   truffle migrate
+   ```
+4. Update `.env` configuration
+
+## Obtaining API Keys
+
+Register and obtain API keys from:
+
+1. [Infura](https://infura.io/)
+2. [Etherscan](https://etherscan.io/apis)
+3. [CoinGecko](https://www.coingecko.com/en/api)
+4. [CoinMarketCap](https://coinmarketcap.com/api/)
+5. [CryptoCompare](https://min-api.cryptocompare.com/)
+
+Ensure that all API keys are stored securely and not shared publicly.
+
+## Running the Bot
 
 ### Prerequisites
+
 - Synchronized Ethereum node
 - Active beacon node
 - Configured environment variables
@@ -423,12 +653,14 @@ CRYPTOCOMPARE_API_KEY=your_key
 
 2. Start bot:
    ```bash
-   python Core/0xplorer.py
+   python python/main.py
    ```
+
+   *Note:* Adjust the script path if necessary based on your project structure.
 
 ### Monitoring
 
-- Check `Logs/0xplorer_log.txt` for detailed operation logs
+- Check `Logs/0xBuilder_log.txt` for detailed operation logs
 - Monitor console output for real-time status
 - Use `Ctrl+C` for graceful shutdown
 
@@ -442,15 +674,17 @@ CRYPTOCOMPARE_API_KEY=your_key
 
 ## Strategies
 
-0xplorer implements several sophisticated trading strategies to capitalize on profitable opportunities within the Ethereum network:
+0xBuilder implements several sophisticated trading strategies to capitalize on profitable opportunities within the Ethereum network:
 
 ### Core Strategies
+
 - **Front-Running**: Executes higher-priority transactions ahead of detected profitable transactions
 - **Back-Running**: Places transactions immediately after identified profitable transactions
 - **Sandwich Attacks**: Employs coordinated front-running and back-running around target transactions
 - **Flashloan Arbitrage**: Leverages borrowed assets for zero-capital arbitrage opportunities
 
 ### Technical Components
+
 - **Nonce Management System**: Maintains precise transaction ordering while preventing nonce collisions
 - **Dynamic Gas Optimization**: Automatically adjusts gas prices based on network conditions
 - **Real-time Market Analysis**: Processes market data to identify profitable trading opportunities
@@ -459,14 +693,14 @@ CRYPTOCOMPARE_API_KEY=your_key
 
 ## Logging
 
-The bot maintains detailed logs in `Logs/0xplorer_log.txt`, including:
+The bot maintains detailed logs in `Logs/0xBuilder_log.txt`, including:
 
 - Profitable transaction detection events
 - Strategy execution metrics
 - System errors and exceptions
 - Detailed transaction results
 
-Logging configuration can be customized in `Core/0xplorer.py` through the `setup_logging()` function.
+Logging configuration can be customized in `python/main.py` through the `setup_logging()` function.
 
 ## Troubleshooting
 
@@ -492,6 +726,7 @@ Logging configuration can be customized in `Core/0xplorer.py` through the `setup
 We welcome contributions! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Contribution Process
+
 1. Fork the repository
 2. Create a feature branch
 3. Follow PEP 8 style guidelines
@@ -507,13 +742,15 @@ Licensed under the [MIT License](LICENSE). See LICENSE file for details.
 **IMPORTANT**: This software is provided for educational and research purposes only. Use at your own risk.
 
 ### Risk Factors
+
 - Trading strategies may be considered aggressive or unethical
 - Cryptocurrency trading carries significant financial risk
 - Smart contract interactions may contain unforeseen vulnerabilities
 
 ### Security Notice
+
 - Protect private keys. Share them only with your dog. but never your cat! Cats cannot be trusted. 🐕✅ 🐱❌ 
 - Test thoroughly with small amounts first
 - Consider regulatory compliance in your jurisdiction
 
-[logo]: 0xplorer.png
+[logo]: 0xBuilder.png

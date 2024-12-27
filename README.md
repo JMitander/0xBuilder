@@ -167,12 +167,6 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
   
 - **requirements.txt**: Lists the Python dependencies required for the project.
 
-### Additional Notes
-
-- Ensure that any missing directories or files (such as `Logs/` if needed) are added to maintain consistency and functionality.
-  
-- Update the `README.md` and other documentation files to reflect any changes in the project structure or functionality.
-
 ## Prerequisites
 
 Before running 0xBuilder, ensure you have the following:

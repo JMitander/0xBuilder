@@ -1,5 +1,6 @@
 # /home/mitander/0xBuilder/configuration.py
 import asyncio
+from io import StringIO
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ from cachetools import TTLCache
 from abi_registry import ABI_Registry
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 # Set up logging
 logging.basicConfig(
@@ -35,63 +36,74 @@ class Configuration:
 
     def __init__(self):
         """Initialize configuration attributes with None values."""
-        self.IPC_ENDPOINT = None
-        self.HTTP_ENDPOINT = None
-        self.WEBSOCKET_ENDPOINT = None
-        self.WALLET_KEY = None
-        self.WALLET_ADDRESS = None
-        self.ETHERSCAN_API_KEY = None
-        self.INFURA_PROJECT_ID = None
-        self.COINGECKO_API_KEY = None
-        self.COINMARKETCAP_API_KEY = None
-        self.CRYPTOCOMPARE_API_KEY = None
-        self.AAVE_LENDING_POOL_ADDRESS = None
-        self.TOKEN_ADDRESSES = None
-        self.TOKEN_SYMBOLS = None
-        self.ERC20_ABI = None
-        self.ERC20_SIGNATURES = None
-        self.SUSHISWAP_ROUTER_ABI = None
-        self.SUSHISWAP_ROUTER_ADDRESS = None
-        self.UNISWAP_ROUTER_ABI = None
-        self.UNISWAP_ROUTER_ADDRESS = None
-        self.AAVE_FLASHLOAN_ABI = None
-        self.AAVE_LENDING_POOL_ABI = None
-        self.AAVE_LENDING_POOL_ADDRESS = None
-        self.AAVE_FLASHLOAN_ADDRESS = None
+        self.IPC_ENDPOINT: Optional[str] = None
+        self.HTTP_ENDPOINT: Optional[str] = None
+        self.WEBSOCKET_ENDPOINT: Optional[str] = None
+        self.WALLET_KEY: Optional[str] = None
+        self.WALLET_ADDRESS: Optional[str] = None
+        self.ETHERSCAN_API_KEY: Optional[str] = None
+        self.INFURA_PROJECT_ID: Optional[str] = None
+        self.COINGECKO_API_KEY: Optional[str] = None
+        self.COINMARKETCAP_API_KEY: Optional[str] = None
+        self.CRYPTOCOMPARE_API_KEY: Optional[str] = None
+        self.AAVE_POOL_ADDRESS: Optional[str] = None
+        self.TOKEN_ADDRESSES: Optional[List[str]] = None
+        self.TOKEN_SYMBOLS: Optional[Dict[str, str]] = None
+        self.ERC20_ABI: Optional[str] = None
+        self.ERC20_SIGNATURES: Optional[Dict[str, str]] = None
+        self.SUSHISWAP_ABI: Optional[str] = None
+        self.SUSHISWAP_ADDRESS: Optional[str] = None
+        self.UNISWAP_ABI: Optional[str] = None
+        self.UNISWAP_ADDRESS: Optional[str] = None
+        self.AAVE_FLASHLOAN_ADDRESS: Optional[str] = None
+        self.AAVE_FLASHLOAN_ABI: Optional[Any] = None
+        self.AAVE_POOL_ABI: Optional[Any] = None
+        self.AAVE_POOL_ADDRESS: Optional[str] = None
+        
         
         # Add ML model configuration
-        self.MODEL_RETRAINING_INTERVAL = 3600  # 1 hour
-        self.MIN_TRAINING_SAMPLES = 100
-        self.MODEL_ACCURACY_THRESHOLD = 0.7
-        self.PREDICTION_CACHE_TTL = 300  # 5 minutes
-                
+        self.MODEL_RETRAINING_INTERVAL: int = 3600  # 1 hour
+        self.MIN_TRAINING_SAMPLES: int = 100
+        self.MODEL_ACCURACY_THRESHOLD: float = 0.7
+        self.PREDICTION_CACHE_TTL: int = 300  # 5 minutes
+        
+        # Add default config values for strategies
+        self.SLIPPAGE_DEFAULT: float = 0.1
+        self.SLIPPAGE_MIN: float = 0.01
+        self.SLIPPAGE_MAX: float = 0.5
+        self.SLIPPAGE_HIGH_CONGESTION: float = 0.05
+        self.SLIPPAGE_LOW_CONGESTION: float = 0.2
+        self.MAX_GAS_PRICE_GWEI: int = 500
+        self.MIN_PROFIT_MULTIPLIER: float = 2.0
+        self.BASE_GAS_LIMIT: int = 21000
+        self.LINEAR_REGRESSION_PATH: str = "/linear_regression"
+        self.MODEL_PATH: str = "/linear_regression/price_model.joblib"
+        self.TRAINING_DATA_PATH: str = "/linear_regression/training_data.csv"
+
+
         self.abi_registry = ABI_Registry()
 
         # Add WETH and USDC addresses
-        self.WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" # Mainnet WETH
-        self.USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" # Mainnet USDC
-        self.USDT_ADDRESS = "0xdAC17F958D2ee523a2206206994597C13D831ec7" # Mainnet USDT
-        self.DAI_ADDRESS = "0x6B175474E89094C44Da98b954EedeAC495271d0F" # Mainnet DAI
-        self.WBTC_ADDRESS = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599" # Mainnet WBTC
-        self.SUSHI_ADDRESS = "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2" # Mainnet SUSHI
-        self.UNI_ADDRESS = "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984" # Mainnet UNI
-        self.BAL_ADDRESS = "0xba100000625a3754423978a60c9317c58a424e3D" # Mainnet BAL
-        self.AAVE_ADDRESS = "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9" # Mainnet AAVE
-        self.CRV_ADDRESS = "0xD533a949740bb3306d119CC777fa900bA034cd52" # Mainnet CRV
-        self.YFI_ADDRESS = "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e" # Mainnet YFI
-        self.REN_ADDRESS = "0x408e41876cCCDC0F92210600ef50372656052a38" # Mainnet REN
-        self.LINK_ADDRESS = "0x514910771AF9Ca656af840dff83E8264EcF986CA" # Mainnet LINK
-        self.MKR_ADDRESS = "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2" # Mainnet MKR
+        self.WETH_ADDRESS: str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # Mainnet WETH
+        self.USDC_ADDRESS: str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"  # Mainnet USDC
+        self.USDT_ADDRESS: str = "0xdAC17F958D2ee523a2206206994597C13D831ec7"  # Mainnet USDT
 
 
     async def load(self) -> None:
         """Loads the configuration in the correct order."""
         try:
             logger.info("Loading configuration... ⏳")
-            time.sleep(1) # ensuring proper initialization
+            await asyncio.sleep(1)  # ensuring proper initialization
+
+            # Initialize ABI Registry
+            await self.abi_registry.initialize()
+
+            # Proceed with configuration loading
             await self._load_configuration()
-            logger.info ("System reporting go for launch ✅...")
-            time.sleep(3) # ensuring proper initialization
+            logger.info("System reporting go for launch ✅...")
+            await asyncio.sleep(3)  # ensuring proper initialization
+
+            logger.debug("All Configurations and Environment Variables Loaded Successfully ✅")
         except Exception as e:
             logger.error(f"Error loading configuration: {e}")
             raise
@@ -102,12 +114,12 @@ class Configuration:
             # First ensure ABI registry is loaded
             if not self.abi_registry.abis:
                 raise ValueError("Failed to load ABIs")
-            
+
             # Then load the rest of the configuration
             self._load_providers_and_account()
             self._load_api_keys()
-            self._load_json_elements()
-            
+            await self._load_json_elements()
+
         except Exception as e:
             logger.error(f"Error loading configuration: {e}")
             raise
@@ -118,7 +130,6 @@ class Configuration:
         self.COINGECKO_API_KEY = self._get_env_variable("COINGECKO_API_KEY")
         self.COINMARKETCAP_API_KEY = self._get_env_variable("COINMARKETCAP_API_KEY")
         self.CRYPTOCOMPARE_API_KEY = self._get_env_variable("CRYPTOCOMPARE_API_KEY")
-        self.BINANCE_API_KEY = self._get_env_variable("BINANCE_API_KEY")
 
     def _load_providers_and_account(self) -> None:
         """Load provider endpoints and account information."""
@@ -156,29 +167,29 @@ class Configuration:
             logger.error(f"Error loading providers and account: {e}")
             raise
 
-    def _load_json_elements(self) -> None: 
+    async def _load_json_elements(self) -> None:
         try:
-            self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
-            self.TOKEN_ADDRESSES = self._load_json_file(
+            self.AAVE_POOL_ADDRESS = self._get_env_variable("AAVE_POOL_ADDRESS")
+            self.TOKEN_ADDRESSES = await self._load_json_file(
                 self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
             )
-            self.TOKEN_SYMBOLS = self._load_json_file(
+            self.TOKEN_SYMBOLS = await self._load_json_file(
                 self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
             )
-            self.ERC20_ABI = self._construct_abi_path("abi", "erc20_abi.json")
-            self.ERC20_SIGNATURES = self._load_json_file(
+            self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
+            self.ERC20_SIGNATURES = await self._load_json_file(
                 self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
             )
-            self.SUSHISWAP_ROUTER_ABI = self._construct_abi_path("abi", "sushiswap_router_abi.json")
-            self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
-            self.UNISWAP_ROUTER_ABI = self._construct_abi_path("abi", "uniswap_router_abi.json")
-            self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
-            self.AAVE_FLASHLOAN_ABI = self._load_json_file(
-                self._construct_abi_path("abi", "aave_flashloan_abi.json"),
+            self.SUSHISWAP_ABI = await self._construct_abi_path("abi", "sushiswap_abi.json")
+            self.SUSHISWAP_ADDRESS = self._get_env_variable("SUSHISWAP_ADDRESS")
+            self.UNISWAP_ABI = await self._construct_abi_path("abi", "uniswap_abi.json")
+            self.UNISWAP_ADDRESS = self._get_env_variable("UNISWAP_ADDRESS")
+            self.AAVE_FLASHLOAN_ABI = await self._load_json_file(
+                await self._construct_abi_path("abi", "aave_flashloan_abi.json"),
                 "Aave Flashloan ABI"
             )
-            self.AAVE_LENDING_POOL_ABI = self._load_json_file(
-                self._construct_abi_path("abi", "aave_lending_pool_abi.json"),
+            self.AAVE_POOL_ABI = await self._load_json_file(
+               await self._construct_abi_path("abi", "aave_pool_abi.json"),
                 "Aave Lending Pool ABI"
             )
             self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
@@ -193,10 +204,10 @@ class Configuration:
             raise EnvironmentError(f"Missing environment variable: {var_name}")
         return value
 
-    def _load_json_file(self, file_path: str, description: str) -> Any:
+    async def _load_json_file(self, file_path: str, description: str) -> Any:
         try:
-            with open(file_path, 'r') as file:
-                data = json.load(file)
+            async with aiofiles.open(file_path, 'r') as file:
+                data = json.loads(await file.read())
                 logger.debug(f"Successfully loaded {description} from {file_path}")
                 return data
         except FileNotFoundError as e:
@@ -209,7 +220,7 @@ class Configuration:
             logger.error(f"Unexpected error loading {description} from {file_path}: {e}")
             raise
 
-    def _construct_abi_path(self, base_path: str, abi_filename: str) -> str:
+    async def _construct_abi_path(self, base_path: str, abi_filename: str) -> str:
         abi_path = os.path.join(base_path, abi_filename)
         if not os.path.exists(abi_path):
             logger.error(f"ABI file does not exist: {abi_path}")
@@ -226,10 +237,10 @@ class Configuration:
     def get_abi_path(self, abi_name: str) -> str:
         abi_paths = {
             "erc20_abi": self.ERC20_ABI,
-            "sushiswap_router_abi": self.SUSHISWAP_ROUTER_ABI,
-            "uniswap_router_abi": self.UNISWAP_ROUTER_ABI,
+            "sushiswap_abi": self.SUSHISWAP_ABI,
+            "uniswap_abi": self.UNISWAP_ABI,
             "AAVE_FLASHLOAN_ABI": self.AAVE_FLASHLOAN_ABI,
-            "AAVE_LENDING_POOL_ABI": self.AAVE_LENDING_POOL_ABI,
+            "AAVE_POOL_ABI": self.AAVE_POOL_ABI,
         }
         return abi_paths.get(abi_name.lower(), "")
 
@@ -254,18 +265,27 @@ class Configuration:
         """Get ABI from registry."""
         return self.abi_registry.get_abi(abi_type)
 
-    logger.debug("All Configurations and Environment Variables Loaded Successfully ✅") 
+    logger.debug("All Configurations and Environment Variables Loaded Successfully ✅")
 
 class API_Config:
-    def __init__(self, configuration: Optional[Configuration] = None):
-        self.configuration = configuration
-        self.session = None 
-        self.price_cache = TTLCache(maxsize=2000, ttl=300)  # 5 min cache for prices
-        self.market_data_cache = TTLCache(maxsize=1000, ttl=1800)  # 30 min cache for market data
-        self.token_metadata_cache = TTLCache(maxsize=500, ttl=86400)  # 24h cache for metadata
+    """
+    Manages interactions with various external APIs for price and market data.
+    """
+    
+    MAX_REQUEST_ATTEMPTS: int = 5
+    REQUEST_BACKOFF_FACTOR: float = 1.5
+
+
+    def __init__(self, configuration: Optional["Configuration"] = None):
+        self.configuration: Optional["Configuration"] = configuration
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.price_cache: TTLCache = TTLCache(maxsize=2000, ttl=300)  # 5 min cache for prices
+        self.volume_cache: TTLCache = TTLCache(maxsize=1000, ttl=900) # 15 min cache for volumes
+        self.market_data_cache: TTLCache = TTLCache(maxsize=1000, ttl=1800)  # 30 min cache for market data
+        self.token_metadata_cache: TTLCache = TTLCache(maxsize=500, ttl=86400)  # 24h cache for metadata
         
         # Add rate limit tracking
-        self.rate_limit_counters = {
+        self.rate_limit_counters: Dict[str, Dict[str, Any]] = {
             "coingecko": {"count": 0, "reset_time": time.time(), "limit": 50},
             "coinmarketcap": {"count": 0, "reset_time": time.time(), "limit": 330},
             "cryptocompare": {"count": 0, "reset_time": time.time(), "limit": 80},
@@ -273,8 +293,8 @@ class API_Config:
         }
         
         # Add priority queues for data fetching
-        self.high_priority_tokens = set()  # Tokens currently being traded
-        self.update_intervals = {
+        self.high_priority_tokens: set[str] = set()  # Tokens currently being traded
+        self.update_intervals: Dict[str, int] = {
             'price': 30,  # Seconds
             'volume': 300,  # 5 minutes
             'market_data': 1800,  # 30 minutes
@@ -282,11 +302,11 @@ class API_Config:
         }
 
         # Initialize API lock and session
-        self.api_lock = asyncio.Lock()
-        self.session = None
+        self.api_lock: asyncio.Lock = asyncio.Lock()
+        self.session: Optional[aiohttp.ClientSession] = None
 
         # Initialize API configurations
-        self.api_configs = {
+        self.api_configs: Dict[str, Dict[str, Any]] = {
             "binance": {
                 "base_url": "https://api.binance.com/api/v3",
                 "market_url": "/ticker/24hr",
@@ -322,16 +342,16 @@ class API_Config:
         }
 
         # Initialize rate limiters after API configs
-        self.rate_limiters = {
+        self.rate_limiters: Dict[str, asyncio.Semaphore] = {
             provider: asyncio.Semaphore(config.get("rate_limit", 10))
             for provider, config in self.api_configs.items()
         }
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "API_Config":
         self.session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         if self.session:
             await self.session.close()
             logger.debug("APIconfig session closed.")
@@ -468,8 +488,6 @@ class API_Config:
         url: str,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        max_attempts: int = 5,
-        backoff_factor: float = 1.5,
     ) -> Any:
         """Make HTTP request with improved error handling and timeout management."""
         if self.session is None or self.session.closed:
@@ -481,7 +499,7 @@ class API_Config:
             return None
 
         async with rate_limiter:
-            for attempt in range(max_attempts):
+            for attempt in range(self.MAX_REQUEST_ATTEMPTS):
                 try:
                     # More conservative timeout settings
                     timeout = aiohttp.ClientTimeout(
@@ -497,14 +515,14 @@ class API_Config:
                         timeout=timeout
                     ) as response:
                         if response.status == 429:  # Rate limit
-                            wait_time = backoff_factor ** attempt
+                            wait_time = self.REQUEST_BACKOFF_FACTOR ** attempt
                             logger.warning(f"Rate limit for {provider_name}, waiting {wait_time}s")
                             await asyncio.sleep(wait_time)
                             continue
                             
                         if response.status >= 400:
                             logger.warning(f"Error {response.status} from {provider_name}")
-                            if attempt == max_attempts - 1:
+                            if attempt == self.MAX_REQUEST_ATTEMPTS - 1:
                                 return None
                             continue
 
@@ -512,14 +530,14 @@ class API_Config:
 
                 except asyncio.TimeoutError:
                     logger.warning(f"Timeout for {provider_name} (attempt {attempt + 1})")
-                    if attempt == max_attempts - 1:
+                    if attempt == self.MAX_REQUEST_ATTEMPTS - 1:
                         return None
                 except Exception as e:
                     logger.error(f"Error fetching from {provider_name}: {e}")
-                    if attempt == max_attempts - 1:
+                    if attempt == self.MAX_REQUEST_ATTEMPTS - 1:
                         return None
                 
-                await asyncio.sleep(backoff_factor ** attempt)
+                await asyncio.sleep(self.REQUEST_BACKOFF_FACTOR ** attempt)
             
             return None
 
@@ -561,15 +579,15 @@ class API_Config:
     async def get_token_volume(self, token: str) -> float:
         """Get the 24-hour trading volume for a given token symbol."""
         cache_key = f"token_volume_{token}"
-        if cache_key in self.price_cache:
+        if cache_key in self.volume_cache:
             logger.debug(f"Returning cached trading volume for {token}.")
-            return self.price_cache[cache_key]
+            return self.volume_cache[cache_key]
         volume = await self._fetch_from_services(
             lambda service: self._fetch_token_volume(service, token),
             f"trading volume for {token}",
         )
         if volume is not None:
-            self.price_cache[cache_key] = volume
+            self.volume_cache[cache_key] = volume
         return volume or 0.0
 
     async def _fetch_token_volume(self, source: str, token: str) -> Optional[float]:
@@ -650,7 +668,7 @@ class API_Config:
             
         return pairs
 
-    async def _fetch_from_services(self, fetch_func, description: str):
+    async def _fetch_from_services(self, fetch_func: Callable[[str], Any], description: str) -> Optional[Union[List[float], float]]:
         """Helper method to fetch data from multiple services."""
         for service in self.api_configs.keys():
             try:
@@ -659,25 +677,26 @@ class API_Config:
                 if result:
                     return result
             except Exception as e:
-                logger.warning(f"Failed to fetch {description} using {service}: {e}")
-        logger.warning(f"Failed to fetch {description}.")
+                logger.warning(f"failed to fetch {description} using {service}: {e}")
+        logger.warning(f"failed to fetch {description}.")
         return None
-
+    
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         """Load contract abi from a file."""
         try:
-            async with aiofiles.open(abi_path, 'r') as file:
-                content = await file.read()
-                abi = json.loads(content)
-            logger.debug(f"Loaded abi from {abi_path} successfully.")
+            abi_registry = ABI_Registry()
+            abi = await abi_registry.load_abi('erc20')
+            if not abi:
+                 raise ValueError("Failed to load ERC20 ABI using ABI Registry")
             return abi
         except Exception as e:
             logger.error(f"Failed to load abi from {abi_path}: {e}")
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the aiohttp session."""
-        await self.session.close()
+        if self.session:
+            await self.session.close()
 
     async def initialize(self) -> None:
         """Initialize API configuration."""
@@ -717,208 +736,28 @@ class API_Config:
             logger.error(f"Error fetching {data_type} price data: {e}")
             return [] if data_type == 'historical' else 0.0
 
-    async def _fetch_with_priority(self, token: str, data_type: str) -> Any:
+    async def _fetch_with_priority(self, token: str, data_type: str) -> Optional[Any]:
         """Fetch data with priority-based rate limiting."""
         try:
-            is_priority = token in self.high_priority_tokens
-            providers = self._get_sorted_providers(is_priority)
+           
+            providers = list(self.api_configs.keys())
             
-            for provider, config in providers:
-                if await self._can_make_request(provider):
-                    try:
-                        data = await self._fetch_from_provider(provider, token, data_type)
-                        if data:
-                            return data
-                    except Exception as e:
-                        logger.debug(f"Error fetching from {provider}: {e}")
-                        continue
-                        
+            # Try each provider until we get data
+            for provider in providers:
+                try:
+                    data = await self._fetch_from_provider(provider, token, data_type)
+                    if data:
+                        return data
+                except Exception as e:
+                    logger.debug(f"Error fetching from {provider}: {e}")
+                    continue
+            
             return None
             
         except Exception as e:
             logger.error(f"Error in priority fetch: {e}")
             return None
-
-    def _get_sorted_providers(self, is_priority: bool) -> List[Tuple[str, dict]]:
-        """Get providers sorted by reliability and rate limits."""
-        providers = list(self.api_configs.items())
         
-        def provider_score(provider_data):
-            name, config = provider_data
-            counter = self.rate_limit_counters[name]
-            rate_left = 1 - (counter['count'] / counter['limit'])
-            reliability = config['success_rate']
-            
-            # Priority tokens get faster, more reliable providers
-            if is_priority:
-                return (reliability * 2 + rate_left) * config['weight']
-            return (reliability + rate_left) * config['weight']
-            
-        return sorted(providers, key=provider_score, reverse=True)
-
-    async def _can_make_request(self, provider: str) -> bool:
-        """Check if we can make a request within rate limits."""
-        counter = self.rate_limit_counters[provider]
-        current_time = time.time()
-        
-        # Reset counter if time window passed
-        if current_time - counter['reset_time'] >= 60:
-            counter['count'] = 0
-            counter['reset_time'] = current_time
-            
-        return counter['count'] < counter['limit']
-
-    async def update_training_data(self) -> None:
-        """Smart update of training data."""
-        try:
-            # Get all required tokens
-            tokens = await self.configuration.get_token_addresses()
-            current_time = int(time.time())
-            
-            # Prepare batch updates
-            updates = []
-            for token in tokens:
-                # Get latest data point timestamp for this token
-                last_update = await self._get_last_update_time(token)
-                
-                # Only update if enough time has passed
-                if current_time - last_update >= self.update_intervals['market_data']:
-                    data = await self._gather_training_data(token)
-                    if data:
-                        updates.append(data)
-                        
-                # Avoid hitting rate limits
-                await asyncio.sleep(0.1)
-                
-            # Batch write updates to CSV
-            if updates:
-                await self._write_training_data(updates)
-                
-        except Exception as e:
-            logger.error(f"Error updating training data: {e}")
-
-    async def _gather_training_data(self, token: str) -> Optional[Dict[str, Any]]:
-        """Gather all required data for model training."""
-        try:
-            # Gather data concurrently
-            price, volume, market_data = await asyncio.gather(
-                self.get_real_time_price(token),
-                self.get_token_volume(token),
-                self._fetch_market_data(token),
-                return_exceptions=True
-            )
-
-            # Handle any exceptions
-            results = [price, volume, market_data]
-            if any(isinstance(r, Exception) for r in results):
-                logger.warning(f"Error gathering data for {token}")
-                return None
-
-            # Combine all data
-            return {
-                'timestamp': int(time.time()),
-                'symbol': token,
-                'price_usd': float(price),
-                'volume_24h': float(volume),
-                **market_data
-            }
-
-        except Exception as e:
-            logger.error(f"Error gathering training data: {e}")
-            return None
-
-    async def _write_training_data(self, updates: List[Dict[str, Any]]) -> None:
-        """Write updates to training data file."""
-        try:
-            df = pd.DataFrame(updates)
-            training_data_path = Path(__file__).parent.parent / "linear_regression" / "training_data.csv"
-            
-            # Append new data
-            df.to_csv(training_data_path, mode='a', header=False, index=False)
-            
-            # Keep file size manageable (keep last 30 days)
-            self._cleanup_old_data(training_data_path, days=30)
-            
-        except Exception as e:
-            logger.error(f"Error writing training data: {e}")
-
-    def _cleanup_old_data(self, filepath: Path, days: int) -> None:
-        """Remove data older than specified days."""
-        try:
-            df = pd.read_csv(filepath)
-            cutoff_time = int(time.time()) - (days * 86400)
-            df = df[df['timestamp'] >= cutoff_time]
-            df.to_csv(filepath, index=False)
-        except Exception as e:
-            logger.error(f"Error cleaning up old data: {e}")
-
-    async def _get_last_update_time(self, token: str) -> int:
-        """Get the timestamp of last data update for a token."""
-        try:
-            training_data_path = Path(__file__).parent.parent / "linear_regression" / "training_data.csv"
-            if not training_data_path.exists():
-                return 0
-                
-            df = pd.read_csv(training_data_path)
-            if df.empty or 'timestamp' not in df.columns or 'symbol' not in df.columns:
-                return 0
-                
-            token_data = df[df['symbol'] == token]
-            if token_data.empty:
-                return 0
-                
-            return int(token_data['timestamp'].max())
-            
-        except Exception as e:
-            logger.error(f"Error getting last update time for {token}: {e}")
-            return 0
-
-    async def _fetch_market_data(self, token: str) -> Optional[Dict[str, Any]]:
-        """Fetch comprehensive market data for a token."""
-        try:
-            # Cache check
-            cache_key = f"market_data_{token}"
-            if cache_key in self.market_data_cache:
-                return self.market_data_cache[cache_key]
-
-            # Gather data concurrently using asyncio.gather
-            data_tasks = [
-                self.get_token_metadata(token),
-                self.get_token_volume(token),
-                self.get_token_price_data(token, 'historical', timeframe=7)  # 7 day price history
-            ]
-            
-            metadata, volume, price_history = await asyncio.gather(*data_tasks, return_exceptions=True)
-
-            # Check for exceptions in results
-            results = [metadata, volume, price_history]
-            if any(isinstance(r, Exception) for r in results):
-                logger.warning(f"Some market data fetching failed for {token}")
-                return None
-
-            # Calculate additional metrics
-            price_volatility = self._calculate_volatility(price_history) if price_history else 0
-            market_data = {
-                'market_cap': metadata.get('market_cap', 0) if metadata else 0,
-                'volume_24h': float(volume) if volume else 0,
-                'percent_change_24h': metadata.get('price_change_24h', 0) if metadata else 0,
-                'total_supply': metadata.get('total_supply', 0) if metadata else 0,
-                'circulating_supply': metadata.get('circulating_supply', 0) if metadata else 0,
-                'volatility': price_volatility,
-                'price_momentum': self._calculate_momentum(price_history) if price_history else 0,
-                'liquidity_ratio': await self._calculate_liquidity_ratio(token),
-                'trading_pairs': len(metadata.get('trading_pairs', [])) if metadata else 0,
-                'exchange_count': len(metadata.get('exchanges', [])) if metadata else 0
-            }
-
-            # Cache the results
-            self.market_data_cache[cache_key] = market_data
-            return market_data
-
-        except Exception as e:
-            logger.error(f"Error fetching market data for {token}: {e}")
-            return None
-
     async def _fetch_from_provider(self, provider: str, token: str, data_type: str) -> Optional[Any]:
         """Fetch data from specific provider with better error handling."""
         try:
@@ -974,3 +813,170 @@ class API_Config:
         except Exception as e:
             logger.error(f"Error calculating momentum: {e}")
             return 0.0
+
+    async def _get_last_update_time(self, token: str) -> int:
+        """Get the timestamp of last data update for a token."""
+        try:
+            training_data_path = Path(__file__).parent.parent / "linear_regression" / "training_data.csv"
+            if not training_data_path.exists():
+                return 0
+                
+            df = pd.read_csv(training_data_path)
+            if df.empty or 'timestamp' not in df.columns or 'symbol' not in df.columns:
+                return 0
+                
+            token_data = df[df['symbol'] == token]
+            if token_data.empty:
+                return 0
+                
+            return int(token_data['timestamp'].max())
+            
+        except Exception as e:
+            logger.error(f"Error getting last update time for {token}: {e}")
+            return 0
+
+    async def _gather_training_data(self, token: str) -> Optional[Dict[str, Any]]:
+        """Gather all required data for model training."""
+        try:
+            # Gather data concurrently
+            price, volume, market_data = await asyncio.gather(
+                self.get_real_time_price(token),
+                self.get_token_volume(token),
+                self._fetch_market_data(token),
+                return_exceptions=True
+            )
+
+            # Handle any exceptions
+            results = [price, volume, market_data]
+            if any(isinstance(r, Exception) for r in results):
+                logger.warning(f"Error gathering data for {token}")
+                return None
+
+            # Combine all data
+            return {
+                'timestamp': int(time.time()),
+                'symbol': token,
+                'price_usd': float(price),
+                'volume_24h': float(volume),
+                **market_data
+            }
+
+        except Exception as e:
+            logger.error(f"Error gathering training data: {e}")
+            return None
+
+    async def _write_training_data(self, updates: List[Dict[str, Any]]) -> None:
+        """Write updates to training data file."""
+        try:
+            df = pd.DataFrame(updates)
+            training_data_path = Path(__file__).parent.parent / "linear_regression" / "training_data.csv"
+            
+            # Read existing data, append new data, write back to CSV
+            if training_data_path.exists():
+                async with aiofiles.open(training_data_path, 'r') as f:
+                    old_data = await f.read()
+                
+                if old_data:
+                    df_old = pd.read_csv(StringIO(old_data))
+                    df = pd.concat([df_old, df], ignore_index=True)
+
+            async with aiofiles.open(training_data_path, 'w', encoding='utf-8') as file:
+                await file.write(df.to_csv(index=False))
+
+
+            # Keep file size manageable (keep last 30 days)
+            await self._cleanup_old_data(training_data_path, days=30)
+            
+        except Exception as e:
+            logger.error(f"Error writing training data: {e}")
+            
+    async def _cleanup_old_data(self, filepath: Path, days: int) -> None:
+        """Remove data older than specified days."""
+        try:
+            async with aiofiles.open(filepath, 'r') as f:
+                content = await f.read()
+            if content:
+                df = pd.read_csv(StringIO(content))
+                cutoff_time = int(time.time()) - (days * 86400)
+                df = df[df['timestamp'] >= cutoff_time]
+                async with aiofiles.open(filepath, 'w', encoding='utf-8') as file:
+                  await file.write(df.to_csv(index=False))
+        except Exception as e:
+            logger.error(f"Error cleaning up old data: {e}")
+
+    async def _fetch_market_data(self, token: str) -> Optional[Dict[str, Any]]:
+        """Fetch comprehensive market data for a token."""
+        try:
+            # Cache check
+            cache_key = f"market_data_{token}"
+            if cache_key in self.market_data_cache:
+                return self.market_data_cache[cache_key]
+
+            # Gather data concurrently using asyncio.gather
+            data_tasks = [
+                self.get_token_metadata(token),
+                self.get_token_volume(token),
+                self.get_token_price_data(token, 'historical', timeframe=7)  # 7 day price history
+            ]
+            
+            metadata, volume, price_history = await asyncio.gather(*data_tasks, return_exceptions=True)
+
+            # Check for exceptions in results
+            results = [metadata, volume, price_history]
+            if any(isinstance(r, Exception) for r in results):
+                logger.warning(f"Some market data fetching failed for {token}")
+                return None
+
+            # Calculate additional metrics
+            price_volatility = self._calculate_volatility(price_history) if price_history else 0
+            market_data = {
+                'market_cap': metadata.get('market_cap', 0) if metadata else 0,
+                'volume_24h': float(volume) if volume else 0,
+                'percent_change_24h': metadata.get('price_change_24h', 0) if metadata else 0,
+                'total_supply': metadata.get('total_supply', 0) if metadata else 0,
+                'circulating_supply': metadata.get('circulating_supply', 0) if metadata else 0,
+                'volatility': price_volatility,
+                'price_momentum': self._calculate_momentum(price_history) if price_history else 0,
+                'liquidity_ratio': await self._calculate_liquidity_ratio(token),
+                'trading_pairs': len(metadata.get('trading_pairs', [])) if metadata else 0,
+                'exchange_count': len(metadata.get('exchanges', [])) if metadata else 0
+            }
+
+            # Cache the results
+            self.market_data_cache[cache_key] = market_data
+            return market_data
+
+        except Exception as e:
+            logger.error(f"Error fetching market data for {token}: {e}")
+            return None
+
+    async def _calculate_liquidity_ratio(self, token: str) -> float:
+        """Calculate liquidity ratio using market cap and volume from API config."""
+        try:
+            volume = await self.get_token_volume(token)
+            metadata = await self.get_token_metadata(token)
+            market_cap = metadata.get('market_cap', 0) if metadata else 0
+            return volume / market_cap if market_cap > 0 else 0.0
+        except Exception as e:
+            logger.error(f"Error calculating liquidity ratio: {e}")
+            return 0.0
+    
+    async def get_token_supply_data(self, token: str) -> Dict[str, Any]:
+            """Gets total and circulating supply for a given token."""
+            metadata = await self.get_token_metadata(token)
+            if not metadata:
+                return {}
+            return {
+                'total_supply': metadata.get('total_supply', 0),
+                'circulating_supply': metadata.get('circulating_supply', 0)
+            }
+
+    async def get_token_market_cap(self, token: str) -> float:
+        """Gets token market cap."""
+        metadata = await self.get_token_metadata(token)
+        return metadata.get('market_cap', 0) if metadata else 0
+
+    async def get_price_change_24h(self, token: str) -> float:
+        """Gets price change in the last 24h."""
+        metadata = await self.get_token_metadata(token)
+        return metadata.get('percent_change_24h', 0) if metadata else 0

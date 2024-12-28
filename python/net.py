@@ -2,9 +2,10 @@
 import asyncio
 import logging
 import random
+import sys
 import time
 from decimal import Decimal
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 
 import numpy as np
@@ -12,8 +13,8 @@ from web3 import AsyncWeb3
 from cachetools import TTLCache
 from eth_account import Account
 
-from utils.Python.strategyexecutionerror import StrategyExecutionError
-from utils.Python.strategyconfiguration import StrategyConfiguration
+from pyutils.strategyexecutionerror import StrategyExecutionError
+from pyutils.strategyconfiguration import StrategyConfiguration
 from configuration import API_Config, Configuration
 
 
@@ -32,47 +33,62 @@ class Safety_Net:
     Enhanced safety system for risk management and transaction validation.
     """
 
-    CACHE_TTL = 300  # Cache TTL in seconds
-    GAS_PRICE_CACHE_TTL = 15  # 15 sec cache for gas prices
-
-    SLIPPAGE_CONFIG = {
-        "default": 0.1,
-        "min": 0.01,
-        "max": 0.5,
-        "high_congestion": 0.05,
-        "low_congestion": 0.2,
-    }
-
-    GAS_CONFIG = {
-        "max_gas_price_gwei": 500,
-        "min_profit_multiplier": 2.0,
-        "base_gas_limit": 21000,
-    }
+    CACHE_TTL: int = 300  # Cache TTL in seconds
+    GAS_PRICE_CACHE_TTL: int = 15  # 15 sec cache for gas prices
 
     def __init__(
         self,
         web3: AsyncWeb3,
-        configuration: Optional[Configuration] = None,
+        configuration: Optional["Configuration"] = None,
         address: Optional[str] = None,
         account: Optional[Account] = None,
-        api_config: Optional[API_Config] = None,
+        api_config: Optional["API_Config"] = None,
         market_monitor: Optional[Any] = None,  # Add this parameter
     ):
-        self.web3 = web3
-        self.address = address
-        self.configuration = configuration
-        self.account = account
-        self.api_config = api_config
-        self.price_cache = TTLCache(maxsize=1000, ttl=self.CACHE_TTL)
-        self.gas_price_cache = TTLCache(maxsize=1, ttl=self.GAS_PRICE_CACHE_TTL)
-        self.market_monitor = market_monitor  # Store market_monitor reference
+        self.web3: AsyncWeb3 = web3
+        self.address: Optional[str] = address
+        self.configuration: Optional["Configuration"] = configuration
+        self.account: Optional[Account] = account
+        self.api_config: Optional["API_Config"] = api_config
+        self.price_cache: TTLCache = TTLCache(maxsize=1000, ttl=self.CACHE_TTL)
+        self.gas_price_cache: TTLCache = TTLCache(maxsize=1, ttl=self.GAS_PRICE_CACHE_TTL)
+        self.market_monitor: Optional[Any] = market_monitor  # Store market_monitor reference
 
-        self.price_lock = asyncio.Lock()
+        self.price_lock: asyncio.Lock = asyncio.Lock()
         logger.info("SafetyNet is reporting for duty 🛡️")
         time.sleep(3) # ensuring proper initialization
 
         # Add safety checks cache
-        self.safety_cache = TTLCache(maxsize=100, ttl=60)  # 1 minute cache
+        self.safety_cache: TTLCache = TTLCache(maxsize=100, ttl=60)  # 1 minute cache
+
+        # Load settings from config object
+        if self.configuration:
+            self.SLIPPAGE_CONFIG: Dict[str, float] = {
+                "default": self.configuration.get_config_value("SLIPPAGE_DEFAULT", 0.1),
+                "min": self.configuration.get_config_value("SLIPPAGE_MIN", 0.01),
+                "max": self.configuration.get_config_value("SLIPPAGE_MAX", 0.5),
+                "high_congestion": self.configuration.get_config_value("SLIPPAGE_HIGH_CONGESTION", 0.05),
+                "low_congestion": self.configuration.get_config_value("SLIPPAGE_LOW_CONGESTION", 0.2),
+            }
+            self.GAS_CONFIG: Dict[str, Union[int, float]] = {
+                "max_gas_price_gwei": self.configuration.get_config_value("MAX_GAS_PRICE_GWEI", 500),
+                "min_profit_multiplier": self.configuration.get_config_value("MIN_PROFIT_MULTIPLIER", 2.0),
+                "base_gas_limit": self.configuration.get_config_value("BASE_GAS_LIMIT", 21000)
+            }
+        else: #Defaults for testing when config class is not available.
+             self.SLIPPAGE_CONFIG: Dict[str, float] = {
+                "default":  0.1,
+                "min": 0.01,
+                "max": 0.5,
+                "high_congestion":  0.05,
+                "low_congestion": 0.2,
+            }
+             self.GAS_CONFIG: Dict[str, Union[int, float]] = {
+                "max_gas_price_gwei":  500,
+                "min_profit_multiplier": 2.0,
+                "base_gas_limit":  21000
+            }
+        
 
     async def initialize(self) -> None:
         """Initialize Safety Net components."""
@@ -99,7 +115,7 @@ class Safety_Net:
             logger.critical(f"Safety Net initialization failed: {e}")
             raise
 
-    async def get_balance(self, account: Any) -> Decimal:
+    async def get_balance(self, account: Account) -> Decimal:
         """Get account balance with retries and caching."""
         cache_key = f"balance_{account.address}"
         if cache_key in self.price_cache:
@@ -267,44 +283,46 @@ class Safety_Net:
     ) -> Tuple[bool, Dict[str, Any]]:
         """Unified safety check method for transactions."""
         try:
-            results = {
-                'is_safe': True,
-                'gas_ok': True,
-                'profit_ok': True,
-                'slippage_ok': True,
-                'congestion_ok': True,
-                'messages': []
-            }
-
-            # Check gas price
-            if check_type in ['all', 'gas']:
+             is_safe = True
+             messages = []
+             
+             if check_type in ['all', 'gas']:
                 gas_price = await self.get_dynamic_gas_price()
                 if gas_price > RISK_THRESHOLDS['gas_price']:
-                    results['gas_ok'] = False
-                    results['messages'].append(f"Gas price too high: {gas_price} Gwei")
+                     is_safe = False
+                     messages.append(f"Gas price too high: {gas_price} Gwei")
 
-            # Check profit potential
-            if check_type in ['all', 'profit']:
-                profit = await self._calculate_profit(tx_data)
+             # Check profit potential
+             if check_type in ['all', 'profit']:
+                profit = await self._calculate_profit(
+                    tx_data,
+                    await self.api_config.get_real_time_price(tx_data['output_token']),
+                    await self.adjust_slippage_tolerance(),
+                    self._calculate_gas_cost(
+                        Decimal(tx_data['gas_price']),
+                        tx_data['gas_used']
+                    )
+                )
                 if profit < RISK_THRESHOLDS['min_profit']:
-                    results['profit_ok'] = False
-                    results['messages'].append(f"Insufficient profit: {profit} ETH")
+                     is_safe = False
+                     messages.append(f"Insufficient profit: {profit} ETH")
 
-            # Check network congestion
-            if check_type in ['all', 'network']:
+             # Check network congestion
+             if check_type in ['all', 'network']:
                 congestion = await self.get_network_congestion()
                 if congestion > RISK_THRESHOLDS['congestion']:
-                    results['congestion_ok'] = False
-                    results['messages'].append(f"High network congestion: {congestion:.1%}")
+                     is_safe = False
+                     messages.append(f"High network congestion: {congestion:.1%}")
 
-            results['is_safe'] = all([
-                results['gas_ok'],
-                results['profit_ok'],
-                results['slippage_ok'],
-                results['congestion_ok']
-            ])
 
-            return results['is_safe'], results
+             return is_safe, {
+                'is_safe': is_safe,
+                'gas_ok': is_safe if check_type not in ['all', 'gas'] else gas_price <= RISK_THRESHOLDS['gas_price'],
+                'profit_ok': is_safe if check_type not in ['all', 'profit'] else profit >= RISK_THRESHOLDS['min_profit'],
+                'slippage_ok': True, # Not yet implemented slippage checks
+                'congestion_ok': is_safe if check_type not in ['all', 'network'] else congestion <= RISK_THRESHOLDS['congestion'],
+                'messages': messages
+            }
 
         except Exception as e:
             logger.error(f"Safety check error: {e}")
@@ -379,6 +397,10 @@ HIGH_VOLUME_DEFAULT = 500_000  # USD
 
 class Strategy_Net:
     """Advanced strategy network for MEV operations including front-running, back-running, and sandwich attacks."""
+    
+    REWARD_BASE_MULTIPLIER: float = -0.1
+    REWARD_TIME_PENALTY: float = -0.01
+
 
     def __init__(
         self,
@@ -387,13 +409,13 @@ class Strategy_Net:
         safety_net: Optional[Any],
         api_config: Optional[Any],
     ) -> None:
-        self.transaction_core = transaction_core
-        self.market_monitor = market_monitor
-        self.safety_net = safety_net
-        self.api_config = api_config
+        self.transaction_core: Optional[Any] = transaction_core
+        self.market_monitor: Optional[Any] = market_monitor
+        self.safety_net: Optional[Any] = safety_net
+        self.api_config: Optional[Any] = api_config
 
         # Initialize strategy types
-        self.strategy_types = [
+        self.strategy_types: List[str] = [
             "eth_transaction",
             "front_run",
             "back_run",
@@ -401,7 +423,7 @@ class Strategy_Net:
         ]
 
         # Initialize strategy registry before using it
-        self._strategy_registry = {
+        self._strategy_registry: Dict[str, List[Callable[[Dict[str, Any]], asyncio.Future]]] = {
             "eth_transaction": [self.high_value_eth_transfer],
             "front_run": [
                 self.aggressive_front_run,
@@ -424,19 +446,19 @@ class Strategy_Net:
         }
 
         # Initialize performance metrics after strategy registry
-        self.strategy_performance = {
+        self.strategy_performance: Dict[str, "StrategyPerformanceMetrics"] = {
             strategy_type: StrategyPerformanceMetrics()
             for strategy_type in self.strategy_types
         }
 
         # Initialize reinforcement weights after strategy registry
-        self.reinforcement_weights = {
+        self.reinforcement_weights: Dict[str, np.ndarray] = {
             strategy_type: np.ones(len(self._strategy_registry[strategy_type]))
             for strategy_type in self.strategy_types
         }
 
-        self.configuration = StrategyConfiguration()
-        self.history_data = []
+        self.configuration: "StrategyConfiguration" = StrategyConfiguration()
+        self.history_data: List[Dict[str, Any]] = []
 
         logger.debug("StrategyNet initialized with enhanced configuration")
 
@@ -592,8 +614,8 @@ class Strategy_Net:
         self, success: bool, profit: Decimal, execution_time: float
     ) -> float:
         """Calculate the reward for a strategy execution.""" 
-        base_reward = float(profit) if success else -0.1
-        time_penalty = -0.01 * execution_time
+        base_reward = float(profit) if success else self.REWARD_BASE_MULTIPLIER
+        time_penalty = self.REWARD_TIME_PENALTY * execution_time
         total_reward = base_reward + time_penalty
         logger.debug(f"Calculated reward: {total_reward:.4f} (Base: {base_reward}, Time Penalty: {time_penalty})")
         return total_reward
@@ -719,20 +741,18 @@ class Strategy_Net:
         except Exception as e:
             logger.error(f"Transaction validation error: {e}")
             return False, None, None
-
-    # ========================= Strategy Implementations =========================
-
+    
     async def high_value_eth_transfer(self, target_tx: Dict[str, Any]) -> bool:
-        """
+         """
         Execute high-value ETH transfer strategy with advanced validation and dynamic thresholds.
         
         :param target_tx: Target transaction dictionary
         :return: True if transaction was executed successfully, else False
         """
-        logger.info("Initiating High-Value ETH Transfer Strategy...")
+         logger.info("Initiating High-Value ETH Transfer Strategy...")
 
-        try:
-            # Basic transaction validation
+         try:
+             # Basic transaction validation
             if not isinstance(target_tx, dict) or not target_tx:
                 logger.debug("Invalid transaction format provided!")
                 return False
@@ -746,7 +766,7 @@ class Strategy_Net:
             eth_value = self.transaction_core.web3.from_wei(eth_value_in_wei, "ether")
             gas_price_gwei = self.transaction_core.web3.from_wei(gas_price, "gwei")
 
-            # Dynamic threshold based on current gas prices
+             # Dynamic threshold based on current gas prices
             base_threshold = self.transaction_core.web3.to_wei(10, "ether")
             if gas_price_gwei > 200:  # High gas price scenario
                 threshold = base_threshold * 2  # Double threshold when gas is expensive
@@ -796,7 +816,7 @@ class Strategy_Net:
             )
             return False
 
-        except Exception as e:
+         except Exception as e:
             logger.error(f"Error in high-value ETH transfer strategy: {e}")
             return False
 
@@ -846,7 +866,7 @@ class Strategy_Net:
         risk_score, market_conditions = await self._assess_risk(
             target_tx, 
             token_symbol,
-            price_change=await self._get_price_change(token_symbol)
+            price_change=await self.api_config.get_price_change_24h(token_symbol)
         )
 
         if risk_score >= 0.7:  # High confidence threshold
@@ -854,15 +874,6 @@ class Strategy_Net:
             return await self.transaction_core.front_run(target_tx)
 
         return False
-
-    async def _get_price_change(self, token_symbol: str) -> float:
-        """Get price change using centralized price fetching."""
-        current_price = await self.api_config.get_token_price_data(token_symbol, 'current')
-        predicted_price = await self.market_monitor.predict_price_movement(token_symbol)
-        
-        if current_price and predicted_price:
-            return (predicted_price / float(current_price) - 1) * 100
-        return 0.0
 
     async def predictive_front_run(self, target_tx: Dict[str, Any]) -> bool:
         """
@@ -884,7 +895,7 @@ class Strategy_Net:
                 self.market_monitor.predict_price_movement(token_symbol),
                 self.api_config.get_real_time_price(token_symbol),
                 self.market_monitor.check_market_conditions(target_tx["to"]),
-                self.market_monitor.fetch_historical_prices(token_symbol, days=1),
+                self.api_config.get_token_price_data(token_symbol, 'historical', timeframe=1),
                 return_exceptions=True
             )
             predicted_price, current_price, market_conditions, historical_prices = data
@@ -951,41 +962,64 @@ class Strategy_Net:
         Higher score indicates more favorable conditions for front-running.
         """
         score = 0
+        
+        # Define score components with weights.
+        components = {
+           "price_change": {
+               "very_strong": {"threshold": 5.0, "points": 40},
+               "strong": {"threshold": 3.0, "points": 30},
+               "moderate": {"threshold": 1.0, "points": 20},
+               "slight": {"threshold": 0.5, "points": 10}
+           },
+           "volatility": {
+               "very_low": {"threshold": 0.02, "points": 20},
+               "low": {"threshold": 0.05, "points": 15},
+               "moderate": {"threshold": 0.08, "points": 10},
+           },
+           "market_conditions": {
+                "bullish_trend": {"points": 10},
+                "not_high_volatility": {"points": 5},
+                "not_low_liquidity": {"points": 5},
+           },
+            "price_trend": {
+                "upward": {"points": 20},
+                "stable": {"points": 10},
+           }
+       }
 
-        # Price change component (0-40 points)
-        if price_change > 5.0:        # Very strong upward prediction
-            score += 40
-        elif price_change > 3.0:      # Strong upward prediction
-            score += 30
-        elif price_change > 1.0:      # Moderate upward prediction
-            score += 20
-        elif price_change > 0.5:      # Slight upward prediction
-            score += 10
+        # Price change component
+        if price_change > components["price_change"]["very_strong"]["threshold"]:
+            score += components["price_change"]["very_strong"]["points"]
+        elif price_change > components["price_change"]["strong"]["threshold"]:
+            score += components["price_change"]["strong"]["points"]
+        elif price_change > components["price_change"]["moderate"]["threshold"]:
+            score += components["price_change"]["moderate"]["points"]
+        elif price_change > components["price_change"]["slight"]["threshold"]:
+            score += components["price_change"]["slight"]["points"]
 
-        # Volatility component (0-20 points)
-        # Lower volatility is better for predictable outcomes
-        if volatility < 0.02:         # Very low volatility
-            score += 20
-        elif volatility < 0.05:       # Low volatility
-            score += 15
-        elif volatility < 0.08:       # Moderate volatility
-            score += 10
+        # Volatility component
+        if volatility < components["volatility"]["very_low"]["threshold"]:
+           score += components["volatility"]["very_low"]["points"]
+        elif volatility < components["volatility"]["low"]["threshold"]:
+           score += components["volatility"]["low"]["points"]
+        elif volatility < components["volatility"]["moderate"]["threshold"]:
+           score += components["volatility"]["moderate"]["points"]
 
-        # Market conditions component (0-20 points)
+        # Market conditions component
         if market_conditions.get("bullish_trend", False):
-            score += 10
+            score += components["market_conditions"]["bullish_trend"]["points"]
         if not market_conditions.get("high_volatility", True):
-            score += 5
+            score += components["market_conditions"]["not_high_volatility"]["points"]
         if not market_conditions.get("low_liquidity", True):
-            score += 5
+            score += components["market_conditions"]["not_low_liquidity"]["points"]
 
-        # Price trend component (0-20 points)
+        # Price trend component
         if historical_prices and len(historical_prices) > 1:
             recent_trend = (historical_prices[-1] / historical_prices[0] - 1) * 100
-            if recent_trend > 0:      # Upward trend
-                score += 20
-            elif recent_trend > -1:    # Stable trend
-                score += 10
+            if recent_trend > 0:
+                score += components["price_trend"]["upward"]["points"]
+            elif recent_trend > -1:
+                score += components["price_trend"]["stable"]["points"]
 
         logger.debug(f"Calculated opportunity score: {score}/100")
         return score
@@ -1009,7 +1043,7 @@ class Strategy_Net:
             results = await asyncio.gather(
                 self.market_monitor.check_market_conditions(target_tx["to"]),
                 self.api_config.get_real_time_price(token_symbol),
-                self.market_monitor.fetch_historical_prices(token_symbol, days=1),
+                 self.api_config.get_token_price_data(token_symbol, 'historical', timeframe=1),
                 return_exceptions=True
             )
 
@@ -1335,7 +1369,7 @@ class Strategy_Net:
         elif token_symbol in volatile_tokens:
             threshold = volatile_tokens[token_symbol]
         else:
-            threshold = 500_000  # Conservative default for unknown tokens
+            threshold = HIGH_VOLUME_DEFAULT  # Conservative default for unknown tokens
 
         logger.debug(f"Volume threshold for '{token_symbol}': ${threshold:,.2f} USD")
         return threshold
@@ -1389,12 +1423,13 @@ class Strategy_Net:
         if not valid:
             return False
 
-        historical_prices = await self.market_monitor.fetch_historical_prices(token_symbol)
+        historical_prices = await self.api_config.get_token_price_data(token_symbol, 'historical')
         if not historical_prices:
+            logger.debug("No historical price data available, skipping price boost sandwich attack")
             return False
 
         momentum = await self._analyze_price_momentum(historical_prices)
-        if momentum > 0.02:
+        if momentum > BULLISH_THRESHOLD:
             logger.debug(f"Strong price momentum detected: {momentum:.2%}")
             return await self.transaction_core.execute_sandwich_attack(target_tx)
 
@@ -1453,8 +1488,6 @@ class Strategy_Net:
         logger.debug("Conditions unfavorable for sandwich attack. Skipping.")
         return False
 
-    # ========================= End of Strategy Implementations =========================
-
     async def stop(self) -> None:
         """Stop strategy network operations.""" 
         try:
@@ -1466,7 +1499,7 @@ class Strategy_Net:
         except Exception as e:
             logger.error(f"Error stopping Strategy Net: {e}")
 
-    async def _estimate_profit(self, tx, decoded_params) -> Decimal:
+    async def _estimate_profit(self, tx: Any, decoded_params: Dict[str, Any]) -> Decimal:
         """Estimate potential profit from transaction."""
         try:
             # Extract key parameters
@@ -1476,7 +1509,7 @@ class Strategy_Net:
 
             # Calculate estimated profit based on path and value
             estimated_profit = await self.transaction_core.estimate_transaction_profit(
-                path, value, gas_price
+                tx, path, value, gas_price
             )
             logger.debug(f"Estimated profit: {estimated_profit:.4f} ETH")
             return estimated_profit
@@ -1484,16 +1517,14 @@ class Strategy_Net:
             logger.error(f"Error estimating profit: {e}")
             return Decimal("0")
 
-
-#//////////////////////////////////////////////////////////////////////////////
 class StrategyConfiguration:
     """Configuration parameters for strategy execution."""
     
     def __init__(self):
-        self.decay_factor = 0.95
-        self.min_profit_threshold = Decimal("0.01")
-        self.learning_rate = 0.01
-        self.exploration_rate = 0.1
+        self.decay_factor: float = 0.95
+        self.min_profit_threshold: Decimal = MIN_PROFIT_THRESHOLD
+        self.learning_rate: float = 0.01
+        self.exploration_rate: float = 0.1
 
 class StrategyPerformanceMetrics:
     """Metrics for tracking strategy performance."""
@@ -1503,3 +1534,94 @@ class StrategyPerformanceMetrics:
     avg_execution_time: float = 0.0
     success_rate: float = 0.0
     total_executions: int = 0
+
+
+class StrategyExecutionError(Exception):
+    """Custom exception for strategy execution failures."""
+    def __init__(self, message: str = "Strategy execution failed"):
+        self.message: str = message
+        super().__init__(self.message)
+
+
+class ColorFormatter(logging.Formatter):
+    """Custom formatter for colored log output."""
+    COLORS = {
+        "DEBUG": "\033[94m",    # Blue
+        "INFO": "\033[92m",     # Green
+        "WARNING": "\033[93m",  # Yellow
+        "ERROR": "\033[91m",    # Red
+        "CRITICAL": "\033[91m\033[1m", # Bold Red
+        "RESET": "\033[0m",     # Reset
+    }
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Formats a log record with colors."""
+        color = self.COLORS.get(record.levelname, self.COLORS["RESET"])
+        reset = self.COLORS["RESET"]
+        record.levelname = f"{color}{record.levelname}{reset}"  # Colorize level name
+        record.msg = f"{color}{record.msg}{reset}"              # Colorize message
+        return super().format(record)
+
+# Configure the logging once
+def configure_logging(level: int = logging.DEBUG) -> None:
+    """Configures logging with a colored formatter."""
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(ColorFormatter("%(asctime)s [%(levelname)s] %(message)s"))
+
+    logging.basicConfig(
+        level=level,  # Global logging level
+        handlers=[handler]
+    )
+
+# Factory function to get a logger instance
+def getLogger(name: Optional[str] = None, level: int = logging.DEBUG) -> logging.Logger:
+    """Returns a logger instance, configuring logging if it hasn't been yet."""
+    if not logging.getLogger().hasHandlers():
+        configure_logging(level)
+        
+    logger = logging.getLogger(name if name else "0xBuilder")
+    return logger
+
+# Initialize the logger globally so it can be used throughout the script
+logger = getLogger("0xBuilder")# Add new cache settings
+CACHE_SETTINGS = {
+    'price': {'ttl': 300, 'size': 1000},
+    'volume': {'ttl': 900, 'size': 500},
+    'volatility': {'ttl': 600, 'size': 200}
+}
+
+
+# Add risk thresholds
+RISK_THRESHOLDS = {
+    'gas_price': 500,  # Gwei
+    'min_profit': 0.01,  # ETH
+    'max_slippage': 0.05,  # 5%
+    'congestion': 0.8  # 80%
+}
+
+# Error codes
+ERROR_MARKET_MONITOR_INIT: int = 1001
+ERROR_MODEL_LOAD: int = 1002
+ERROR_DATA_LOAD: int = 1003
+ERROR_MODEL_TRAIN: int = 1004
+ERROR_CORE_INIT: int = 1005
+ERROR_WEB3_INIT: int = 1006
+ERROR_CONFIG_LOAD: int = 1007
+ERROR_STRATEGY_EXEC: int = 1008
+
+# Error messages with default fallbacks
+ERROR_MESSAGES: Dict[int, str] = {
+    ERROR_MARKET_MONITOR_INIT: "Market Monitor initialization failed",
+    ERROR_MODEL_LOAD: "Failed to load price prediction model",
+    ERROR_DATA_LOAD: "Failed to load historical training data",
+    ERROR_MODEL_TRAIN: "Failed to train price prediction model",
+    ERROR_CORE_INIT: "Core initialization failed",
+    ERROR_WEB3_INIT: "Web3 connection failed",
+    ERROR_CONFIG_LOAD: "Configuration loading failed",
+    ERROR_STRATEGY_EXEC: "Strategy execution failed",
+}
+
+# Add a helper function to get error message with fallback
+def get_error_message(code: int, default: str = "Unknown error") -> str:
+    """Get error message for error code with fallback to default message."""
+    return ERROR_MESSAGES.get(code, default)

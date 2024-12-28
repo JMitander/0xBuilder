@@ -162,7 +162,7 @@ class ABI_Registry:
         'pancakeswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
         'balancer': {'swap', 'addLiquidity'},
         'aave_flashloan': {'fn_RequestFlashLoan', 'executeOperation', 'ADDRESSES_PROVIDER', 'POOL'},
-        'aave_lending': {'ADDRESSES_PROVIDER', 'getReservesList', 'getReserveData'}
+        'aave': {'ADDRESSES_PROVIDER', 'getReservesList', 'getReserveData'}
     }
 
     def __init__(self):
@@ -186,12 +186,12 @@ class ABI_Registry:
 
         abi_files = {
             'erc20': 'erc20_abi.json',
-            'uniswap': 'uniswap_router_abi.json',
+            'uniswap': 'uniswap_abi.json',
             'sushiswap': 'sushiswap_router_abi.json',
             'pancakeswap': 'pancakeswap_router_abi.json',
             'balancer': 'balancer_router_abi.json',
-            'aave_flashloan': 'aave_flashloan_abi.json',
-            'aave_lending': 'aave_lending_pool_abi.json'
+            'aave_flashloan': 'aave_flashloan.abi.json',
+            'aave': 'aave_pool_abi.json'
         }
 
         # Define critical ABIs that are essential for the application
@@ -258,12 +258,12 @@ class ABI_Registry:
             abi_dir = Path(__file__).parent.parent / 'abi'
             abi_files = {
                 'erc20': 'erc20_abi.json',
-                'uniswap': 'uniswap_router_abi.json',
+                'uniswap': 'uniswap_abi.json',
                 'sushiswap': 'sushiswap_router_abi.json',
                 'pancakeswap': 'pancakeswap_router_abi.json',
                 'balancer': 'balancer_router_abi.json',
-                'aave_flashloan': 'aave_flashloan_abi.json',
-                'aave_lending': 'aave_lending_pool_abi.json'
+                'aave_flashloan': 'aave_flashloan.abi.json',
+                'aave': 'aave_pool_abi.json'
             }
             
             if abi_type not in abi_files:
@@ -355,19 +355,20 @@ class Configuration:
         self.COINGECKO_API_KEY: Optional[str] = None
         self.COINMARKETCAP_API_KEY: Optional[str] = None
         self.CRYPTOCOMPARE_API_KEY: Optional[str] = None
-        self.AAVE_LENDING_POOL_ADDRESS: Optional[str] = None
+        self.AAVE_POOL_ADDRESS: Optional[str] = None
         self.TOKEN_ADDRESSES: Optional[List[str]] = None
         self.TOKEN_SYMBOLS: Optional[Dict[str, str]] = None
         self.ERC20_ABI: Optional[str] = None
         self.ERC20_SIGNATURES: Optional[Dict[str, str]] = None
-        self.SUSHISWAP_ROUTER_ABI: Optional[str] = None
-        self.SUSHISWAP_ROUTER_ADDRESS: Optional[str] = None
-        self.UNISWAP_ROUTER_ABI: Optional[str] = None
-        self.UNISWAP_ROUTER_ADDRESS: Optional[str] = None
-        self.AAVE_FLASHLOAN_ABI: Optional[Any] = None
-        self.AAVE_LENDING_POOL_ABI: Optional[Any] = None
-        self.AAVE_LENDING_POOL_ADDRESS: Optional[str] = None
+        self.SUSHISWAP_ABI: Optional[str] = None
+        self.SUSHISWAP_ADDRESS: Optional[str] = None
+        self.UNISWAP_ABI: Optional[str] = None
+        self.UNISWAP_ADDRESS: Optional[str] = None
         self.AAVE_FLASHLOAN_ADDRESS: Optional[str] = None
+        self.AAVE_FLASHLOAN_ABI: Optional[Any] = None
+        self.AAVE_POOL_ABI: Optional[Any] = None
+        self.AAVE_POOL_ADDRESS: Optional[str] = None
+        
         
         # Add ML model configuration
         self.MODEL_RETRAINING_INTERVAL: int = 3600  # 1 hour
@@ -384,9 +385,9 @@ class Configuration:
         self.MAX_GAS_PRICE_GWEI: int = 500
         self.MIN_PROFIT_MULTIPLIER: float = 2.0
         self.BASE_GAS_LIMIT: int = 21000
-        self.LINEAR_REGRESSION_PATH: str = "/home/mitander/0xBuilder/python/linear_regression"
-        self.MODEL_PATH: str = "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib"
-        self.TRAINING_DATA_PATH: str = "/home/mitander/0xBuilder/python/linear_regression/training_data.csv"
+        self.LINEAR_REGRESSION_PATH: str = "/linear_regression"
+        self.MODEL_PATH: str = "/linear_regression/price_model.joblib"
+        self.TRAINING_DATA_PATH: str = "/linear_regression/training_data.csv"
 
 
         self.abi_registry = ABI_Registry()
@@ -395,17 +396,6 @@ class Configuration:
         self.WETH_ADDRESS: str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # Mainnet WETH
         self.USDC_ADDRESS: str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"  # Mainnet USDC
         self.USDT_ADDRESS: str = "0xdAC17F958D2ee523a2206206994597C13D831ec7"  # Mainnet USDT
-        self.DAI_ADDRESS: str = "0x6B175474E89094C44Da98b954EedeAC495271d0F"  # Mainnet DAI
-        self.WBTC_ADDRESS: str = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"  # Mainnet WBTC
-        self.SUSHI_ADDRESS: str = "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2"  # Mainnet SUSHI
-        self.UNI_ADDRESS: str = "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984"  # Mainnet UNI
-        self.BAL_ADDRESS: str = "0xba100000625a3754423978a60c9317c58a424e3D"  # Mainnet BAL
-        self.AAVE_ADDRESS: str = "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9"  # Mainnet AAVE
-        self.CRV_ADDRESS: str = "0xD533a949740bb3306d119CC777fa900bA034cd52"  # Mainnet CRV
-        self.YFI_ADDRESS: str = "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e"  # Mainnet YFI
-        self.REN_ADDRESS: str = "0x408e41876cCCDC0F92210600ef50372656052a38"  # Mainnet REN
-        self.LINK_ADDRESS: str = "0x514910771AF9Ca656af840dff83E8264EcF986CA"  # Mainnet LINK
-        self.MKR_ADDRESS: str = "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2"  # Mainnet MKR
 
 
     async def load(self) -> None:
@@ -488,7 +478,7 @@ class Configuration:
 
     async def _load_json_elements(self) -> None:
         try:
-            self.AAVE_LENDING_POOL_ADDRESS = self._get_env_variable("AAVE_LENDING_POOL_ADDRESS")
+            self.AAVE_POOL_ADDRESS = self._get_env_variable("AAVE_POOL_ADDRESS")
             self.TOKEN_ADDRESSES = await self._load_json_file(
                 self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
             )
@@ -499,16 +489,16 @@ class Configuration:
             self.ERC20_SIGNATURES = await self._load_json_file(
                 self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
             )
-            self.SUSHISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "sushiswap_router_abi.json")
-            self.SUSHISWAP_ROUTER_ADDRESS = self._get_env_variable("SUSHISWAP_ROUTER_ADDRESS")
-            self.UNISWAP_ROUTER_ABI = await self._construct_abi_path("abi", "uniswap_router_abi.json")
-            self.UNISWAP_ROUTER_ADDRESS = self._get_env_variable("UNISWAP_ROUTER_ADDRESS")
+            self.SUSHISWAP_ABI = await self._construct_abi_path("abi", "sushiswap_abi.json")
+            self.SUSHISWAP_ADDRESS = self._get_env_variable("SUSHISWAP_ADDRESS")
+            self.UNISWAP_ABI = await self._construct_abi_path("abi", "uniswap_abi.json")
+            self.UNISWAP_ADDRESS = self._get_env_variable("UNISWAP_ADDRESS")
             self.AAVE_FLASHLOAN_ABI = await self._load_json_file(
                 await self._construct_abi_path("abi", "aave_flashloan_abi.json"),
                 "Aave Flashloan ABI"
             )
-            self.AAVE_LENDING_POOL_ABI = await self._load_json_file(
-               await self._construct_abi_path("abi", "aave_lending_pool_abi.json"),
+            self.AAVE_POOL_ABI = await self._load_json_file(
+               await self._construct_abi_path("abi", "aave_pool_abi.json"),
                 "Aave Lending Pool ABI"
             )
             self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
@@ -556,10 +546,10 @@ class Configuration:
     def get_abi_path(self, abi_name: str) -> str:
         abi_paths = {
             "erc20_abi": self.ERC20_ABI,
-            "sushiswap_router_abi": self.SUSHISWAP_ROUTER_ABI,
-            "uniswap_router_abi": self.UNISWAP_ROUTER_ABI,
+            "sushiswap_abi": self.SUSHISWAP_ABI,
+            "uniswap_abi": self.UNISWAP_ABI,
             "AAVE_FLASHLOAN_ABI": self.AAVE_FLASHLOAN_ABI,
-            "AAVE_LENDING_POOL_ABI": self.AAVE_LENDING_POOL_ABI,
+            "AAVE_POOL_ABI": self.AAVE_POOL_ABI,
         }
         return abi_paths.get(abi_name.lower(), "")
 
@@ -1003,7 +993,6 @@ class API_Config:
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         """Load contract abi from a file."""
         try:
-            from abi_registry import ABI_Registry
             abi_registry = ABI_Registry()
             abi = await abi_registry.load_abi('erc20')
             if not abi:
@@ -3215,8 +3204,8 @@ class Transaction_Core:
         account: Account,
         AAVE_FLASHLOAN_ADDRESS: str,
         AAVE_FLASHLOAN_ABI: List[Dict[str, Any]],
-        AAVE_LENDING_POOL_ADDRESS: str,
-        AAVE_LENDING_POOL_ABI: List[Dict[str, Any]],
+        AAVE_POOL_ADDRESS: str,
+        AAVE_POOL_ABI: List[Dict[str, Any]],
         api_config: Optional["API_Config"] = None,
         market_monitor: Optional["Market_Monitor"] = None,
         mempool_monitor: Optional["Mempool_Monitor"] = None,
@@ -3225,8 +3214,8 @@ class Transaction_Core:
         configuration: Optional["Configuration"] = None,
         gas_price_multiplier: float = 1.1,
         erc20_abi: Optional[List[Dict[str, Any]]] = None,
-        uniswap_router_address: Optional[str] = None,
-        uniswap_router_abi: Optional[List[Dict[str, Any]]] = None,
+        uniswap_address: Optional[str] = None,
+        uniswap_abi: Optional[List[Dict[str, Any]]] = None,
     ):
         self.web3: AsyncWeb3 = web3
         self.account: Account = account
@@ -3242,11 +3231,11 @@ class Transaction_Core:
         self.current_profit: Decimal = Decimal("0")
         self.AAVE_FLASHLOAN_ADDRESS: str = AAVE_FLASHLOAN_ADDRESS
         self.AAVE_FLASHLOAN_ABI: List[Dict[str, Any]] = AAVE_FLASHLOAN_ABI
-        self.AAVE_LENDING_POOL_ADDRESS: str = AAVE_LENDING_POOL_ADDRESS
-        self.AAVE_LENDING_POOL_ABI: List[Dict[str, Any]] = AAVE_LENDING_POOL_ABI
+        self.AAVE_POOL_ADDRESS: str = AAVE_POOL_ADDRESS
+        self.AAVE_POOL_ABI: List[Dict[str, Any]] = AAVE_POOL_ABI
         self.abi_registry: ABI_Registry = ABI_Registry()
-        self.uniswap_router_address: str = uniswap_router_address
-        self.uniswap_router_abi: List[Dict[str, Any]] = uniswap_router_abi or []
+        self.uniswap_address: str = uniswap_address
+        self.uniswap_abi: List[Dict[str, Any]] = uniswap_abi or []
         
 
 
@@ -3264,7 +3253,7 @@ class Transaction_Core:
         try:
             # Initialize contracts using ABIs from registry
             router_configs = [
-                (self.configuration.UNISWAP_ROUTER_ADDRESS, 'uniswap', 'Uniswap'),
+                (self.configuration.UNISWAP_ADDRESS, 'uniswap', 'Uniswap'),
                 (self.configuration.SUSHISWAP_ROUTER_ADDRESS, 'sushiswap', 'Sushiswap'),
             ]
 
@@ -3296,11 +3285,11 @@ class Transaction_Core:
 
             await self._validate_contract(self.aave_flashloan, "Aave Flashloan", 'aave_flashloan')
 
-            self.aave_lending_pool = self.web3.eth.contract(
-                address=self.normalize_address(self.AAVE_LENDING_POOL_ADDRESS),
-                abi=self.AAVE_LENDING_POOL_ABI
+            self.aave_pool = self.web3.eth.contract(
+                address=self.normalize_address(self.AAVE_POOL_ADDRESS),
+                abi=self.AAVE_POOL_ABI
             )
-            await self._validate_contract(self.aave_lending_pool, "Aave Lending Pool", 'aave_lending')
+            await self._validate_contract(self.aave_pool, "Aave Lending Pool", 'aave')
 
             logger.info("Transaction Core initialized successfully")
 
@@ -3844,7 +3833,7 @@ class Transaction_Core:
 
             # Router address mapping
             routers = {
-                self.configuration.UNISWAP_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
+                self.configuration.UNISWAP_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
                 self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
             }
 
@@ -3905,7 +3894,7 @@ class Transaction_Core:
 
             # Router address mapping
             routers = {
-                self.configuration.UNISWAP_ROUTER_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
+                self.configuration.UNISWAP_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
                 self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
             }
 
@@ -4236,8 +4225,8 @@ class Main_Core:
                 self.account,
                 self.configuration.AAVE_FLASHLOAN_ADDRESS,
                 self.configuration.AAVE_FLASHLOAN_ABI,
-                self.configuration.AAVE_LENDING_POOL_ADDRESS,
-                self.configuration.AAVE_LENDING_POOL_ABI,
+                self.configuration.AAVE_POOL_ADDRESS,
+                self.configuration.AAVE_POOL_ABI,
                 api_config=self.components['api_config'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
@@ -4620,7 +4609,6 @@ class Main_Core:
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
        """Load contract ABI from a file with better path handling."""
        try:
-            from abi_registry import ABI_Registry
             abi_registry = ABI_Registry()
             abi = await abi_registry.load_abi('erc20')
             if not abi:
@@ -5471,7 +5459,7 @@ class Strategy_Net:
         try:
             analysis_results = await asyncio.gather(
                 self.market_monitor.predict_price_movement(token_symbol),
-                 self.market_monitor.check_market_conditions(target_tx["to"]),
+                self.market_monitor.check_market_conditions(target_tx["to"]),
                 self.api_config.get_real_time_price(token_symbol),
                 self.api_config.get_token_volume(token_symbol),
                 return_exceptions=True
@@ -6025,8 +6013,8 @@ class Main_Core:
                 self.account,
                 self.configuration.AAVE_FLASHLOAN_ADDRESS,
                 self.configuration.AAVE_FLASHLOAN_ABI,
-                self.configuration.AAVE_LENDING_POOL_ADDRESS,
-                self.configuration.AAVE_LENDING_POOL_ABI,
+                self.configuration.AAVE_POOL_ADDRESS,
+                self.configuration.AAVE_POOL_ABI,
                 api_config=self.components['api_config'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
@@ -6409,7 +6397,6 @@ class Main_Core:
     async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
         """Load contract ABI from a file with better path handling."""
         try:
-            from abi_registry import ABI_Registry
             abi_registry = ABI_Registry()
             abi = await abi_registry.load_abi('erc20')
             if not abi:

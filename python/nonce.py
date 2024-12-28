@@ -2,8 +2,8 @@
 import asyncio
 import logging
 import time
-from typing import Optional
 from web3 import AsyncWeb3
+from web3.exceptions import Web3ValueError
 from cachetools import TTLCache
 
 from configuration import Configuration
@@ -18,24 +18,25 @@ class Nonce_Core:
     auto-recovery, and comprehensive error handling.
     """
 
-    MAX_RETRIES = 3
-    RETRY_DELAY = 1.0
-    CACHE_TTL = 300  # Cache TTL in seconds
+    MAX_RETRIES: int = 3
+    RETRY_DELAY: float = 1.0
+    CACHE_TTL: int = 300  # Cache TTL in seconds
+    TRANSACTION_TIMEOUT: int = 120  # Transaction receipt timeout in seconds
 
     def __init__(
         self,
         web3: AsyncWeb3,
         address: str,
-        configuration: Configuration,
+        configuration: "Configuration",
     ):
-        self.pending_transactions = set()
-        self.web3 = web3
-        self.configuration = configuration
-        self.address = address
-        self.lock = asyncio.Lock()
-        self.nonce_cache = TTLCache(maxsize=1, ttl=self.CACHE_TTL)
-        self.last_sync = time.monotonic()
-        self._initialized = False
+        self.pending_transactions: set[int] = set()
+        self.web3: AsyncWeb3 = web3
+        self.configuration: "Configuration" = configuration
+        self.address: str = address
+        self.lock: asyncio.Lock = asyncio.Lock()
+        self.nonce_cache: TTLCache = TTLCache(maxsize=1, ttl=self.CACHE_TTL)
+        self.last_sync: float = time.monotonic()
+        self._initialized: bool = False
 
     async def initialize(self) -> None:
         """Initialize the nonce manager with error recovery."""
@@ -87,7 +88,7 @@ class Nonce_Core:
                 logger.warning(f"Attempt {attempt+1} failed to fetch nonce: {e}")
                 await asyncio.sleep(backoff)
                 backoff *= 2
-        raise RuntimeError("Failed to fetch current nonce after retries")
+        raise Web3ValueError("Failed to fetch current nonce after retries")
 
     async def _get_pending_nonce(self) -> int:
         """Get highest nonce from pending transactions."""
@@ -97,13 +98,14 @@ class Nonce_Core:
             return pending
         except Exception as e:
             logger.error(f"Error fetching pending nonce: {e}")
-            return await self._fetch_current_nonce_with_retries()
+            # Instead of retrying, raise exception for upper layer to manage it.
+            raise Web3ValueError(f"Failed to fetch pending nonce: {e}")
 
     async def track_transaction(self, tx_hash: str, nonce: int) -> None:
         """Track pending transaction for nonce management."""
         self.pending_transactions.add(nonce)
         try:
-            receipt = await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            receipt = await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=self.TRANSACTION_TIMEOUT)
             if receipt.status == 1:
                 logger.info(f"Transaction {tx_hash} succeeded.")
             else:

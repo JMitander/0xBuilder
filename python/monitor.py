@@ -3,10 +3,12 @@ import asyncio
 import logging
 import time
 import async_timeout
+import joblib
 import pandas as pd
 import numpy as np
 import os
 
+import scheduling
 from web3 import AsyncWeb3
 from cachetools import TTLCache
 from sklearn.linear_model import LinearRegression
@@ -18,7 +20,7 @@ from net import Safety_Net
 from joblib import dump, load
 from pathlib import Path
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 # Update imports to include all error constants
 from constants import (
@@ -45,33 +47,35 @@ class Market_Monitor:
     MODEL_UPDATE_INTERVAL: int = 3600  # Update model every hour
     VOLATILITY_THRESHOLD: float = 0.05  # 5% standard deviation
     LIQUIDITY_THRESHOLD: int = 100_000  # $100,000 in 24h volume
+    PRICE_EMA_SHORT_PERIOD: int = 12
+    PRICE_EMA_LONG_PERIOD: int = 26
+    
 
     def __init__(
         self,
         web3: AsyncWeb3,
-        configuration: Optional[Configuration],
-        api_config: Optional[API_Config],
+        configuration: Optional["Configuration"],
+        api_config: Optional["API_Config"],
         transaction_core: Optional[Any] = None,  # Add this parameter
     ) -> None:
         """Initialize Market Monitor with required components."""
-        self.web3 = web3
-        self.configuration = configuration
-        self.api_config = api_config
-        self.transaction_core = transaction_core  # Store transaction_core reference
-        self.price_model = LinearRegression()
-        self.model_last_updated = 0
+        self.web3: AsyncWeb3 = web3
+        self.configuration: Optional["Configuration"] = configuration
+        self.api_config: Optional["API_Config"] = api_config
+        self.transaction_core: Optional[Any] = transaction_core  # Store transaction_core reference
+        self.price_model: Optional[LinearRegression] = LinearRegression()
+        self.model_last_updated: float = 0
+    
+        # Get from config or default
+        self.linear_regression_path: str = self.configuration.get_config_value("LINEAR_REGRESSION_PATH", "/home/mitander/0xBuilder/python/linear_regression") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression"
+        self.model_path: str = self.configuration.get_config_value("MODEL_PATH", "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib"
+        self.training_data_path: str = self.configuration.get_config_value("TRAINING_DATA_PATH", "/home/mitander/0xBuilder/python/linear_regression/training_data.csv") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression/training_data.csv"
 
-        # Set full paths for better control
-        self.linear_regression_path = "/home/mitander/0xBuilder/python/linear_regression"
-        
         # Create directory if it doesn't exist
         os.makedirs(self.linear_regression_path, exist_ok=True)
         
-        self.model_path = "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib"
-        self.training_data_path = "/home/mitander/0xBuilder/python/linear_regression/training_data.csv"
-
         # Add separate caches for different data types
-        self.caches = {
+        self.caches: Dict[str, TTLCache] = {
             'price': TTLCache(maxsize=CACHE_SETTINGS['price']['size'], 
                     ttl=CACHE_SETTINGS['price']['ttl']),
             'volume': TTLCache(maxsize=CACHE_SETTINGS['volume']['size'], 
@@ -81,21 +85,22 @@ class Market_Monitor:
         }
         
         # Initialize model variables
-        self.price_model = None
-        self.last_training_time = 0
-        self.model_accuracy = 0.0
-        self.RETRAINING_INTERVAL = 3600  # Retrain every hour
-        self.MIN_TRAINING_SAMPLES = 100
+        self.price_model: Optional[LinearRegression] = None
+        self.last_training_time: float = 0
+        self.model_accuracy: float = 0.0
+        self.RETRAINING_INTERVAL: int = self.configuration.MODEL_RETRAINING_INTERVAL if self.configuration else 3600 # Retrain every hour
+        self.MIN_TRAINING_SAMPLES: int = self.configuration.MIN_TRAINING_SAMPLES if self.configuration else 100
         
         # Initialize data storage
-        self.historical_data = pd.DataFrame()
-        self.prediction_cache = TTLCache(maxsize=1000, ttl=300)  # 5-minute cache
+        self.historical_data: pd.DataFrame = pd.DataFrame()
+        self.prediction_cache: TTLCache = TTLCache(maxsize=1000, ttl=300)  # 5-minute cache
 
-        # Add data update scheduling
+        # Add data update
+        scheduling
         self.update_scheduler = {
             'training_data': 0,  # Last update timestamp
             'model': 0,          # Last model update timestamp
-            'UPDATE_INTERVAL': 3600,  # 1 hour
+            'UPDATE_INTERVAL': self.configuration.MODEL_RETRAINING_INTERVAL if self.configuration else 3600,  # 1 hour
             'MODEL_INTERVAL': 86400   # 24 hours
         }
         self.abi_registry = ABI_Registry()
@@ -113,7 +118,7 @@ class Market_Monitor:
             model_loaded = False
             if os.path.exists(self.model_path):
                 try:
-                    self.price_model = load(self.model_path)
+                    self.price_model = joblib.load(self.model_path)
                     logger.debug("Loaded existing price prediction model")
                     model_loaded = True
                 except (OSError, KeyError) as e:
@@ -125,7 +130,7 @@ class Market_Monitor:
                 self.price_model = LinearRegression()
                 # Save initial model
                 try:
-                    dump(self.price_model, self.model_path)
+                    joblib.dump(self.price_model, self.model_path)
                     logger.debug("Saved initial price prediction model")
                 except Exception as e:
                     logger.warning(f"Failed to save initial model: {e}")
@@ -251,7 +256,8 @@ class Market_Monitor:
                 return 0.0
 
             # Make prediction
-            features = ['market_cap', 'volume_24h', 'percent_change_24h', 'total_supply', 'circulating_supply', 'volatility', 'liquidity_ratio', 'avg_transaction_value', 'trading_pairs', 'exchange_count', 'price_momentum', 'buy_sell_ratio', 'smart_money_flow']
+            features = ['market_cap', 'volume_24h', 'percent_change_24h', 'total_supply', 'circulating_supply', 'volatility', 'liquidity_ratio', 'avg_transaction_value', 
+                        'trading_pairs', 'exchange_count', 'price_momentum', 'buy_sell_ratio', 'smart_money_flow']
             X = pd.DataFrame([market_data], columns=features)
             prediction = self.price_model.predict(X)[0]
 
@@ -303,7 +309,7 @@ class Market_Monitor:
         try:
             if  len(prices) < 2:
                 return 0.0
-            ema_short = np.mean(prices[-12:])  # 1-hour EMA
+            ema_short = np.mean(prices[-self.PRICE_EMA_SHORT_PERIOD:])  # 1-hour EMA
             ema_long = np.mean(prices)  # 24-hour EMA
             return (ema_short / ema_long) - 1 if ema_long != 0 else 0.0
         except Exception as e:
@@ -453,7 +459,7 @@ class Market_Monitor:
             self.model_accuracy = self.price_model.score(X_test, y_test)
             
             # Save model and accuracy metrics
-            dump(self.price_model, self.model_path)
+            joblib.dump(self.price_model, self.model_path)
             
             self.last_training_time = time.time()
             logger.debug(f"Model trained successfully. Accuracy: {self.model_accuracy:.4f}")
@@ -486,7 +492,7 @@ class Market_Monitor:
             self.caches['volume'][cache_key] = volume
         return volume or 0.0
 
-    async def _fetch_from_services(self, fetch_func, description: str) -> Optional[Union[List[float], float]]:
+    async def _fetch_from_services(self, fetch_func: Callable[[str], Any], description: str) -> Optional[Union[List[float], float]]:
         """
         Helper method to fetch data from multiple services.
 
@@ -1133,7 +1139,9 @@ class Mempool_Monitor:
                 function_params.get("amountOut",
                 function_params.get("amount",
                 function_params.get("_amount", 0)
-            )))
+                )
+                )
+            )
 
             # Enhanced hex string handling
             def parse_amount(amount: Any) -> int:
@@ -1429,4 +1437,3 @@ class Mempool_Monitor:
         except Exception as e:
             logger.error(f"Error stopping Mempool Monitor: {e}")
             raise
-            

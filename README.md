@@ -202,6 +202,9 @@ Additional Requirements:
 
 ### Ethereum Node Setup
 
+![image](https://github.com/user-attachments/assets/9089ee37-e9c5-40b4-892a-ea143feb963e)
+
+
 Choose and set up an execution client (EL) compatible with the Ethereum network:
 
 | Client | Language | OS Support | Networks | Sync Methods |
@@ -248,6 +251,8 @@ For PoS consensus layer, install either:
 - [Lighthouse](https://lighthouse-book.sigmaprime.io/installation.html)
 
 ## Installation
+
+![image](https://github.com/user-attachments/assets/a7df3a13-75fe-4c87-b26d-9c9e80b7c556)
 
 ### Cloning the Repository
 
@@ -383,6 +388,9 @@ Verify all configuration files are properly formatted and contain valid data bef
 
 ## Deploying the Flashloan Contract
 
+![image](https://github.com/user-attachments/assets/93c3ea5b-afed-4f0a-b998-01396d10c415)
+
+
 Deploy a flashloan contract compatible with Aave V3 or your preferred protocol to enable flashloan functionality.
 
 ### Deployment Options
@@ -427,6 +435,9 @@ Deploy a flashloan contract compatible with Aave V3 or your preferred protocol t
 4. Update `.env` configuration
 
 ## Obtaining API Keys
+
+![image](https://github.com/user-attachments/assets/9e60cf9a-ac0a-45a9-bc45-6a99e9904e0d)
+
 
 Register and obtain API keys from:
 
@@ -698,6 +709,9 @@ Logging configuration can be customized in `python/main.py` through the `setup_l
 
 ## Troubleshooting
 
+![image](https://github.com/user-attachments/assets/1fe0e967-fa1b-4b08-894c-da4d32e3fd2c)
+
+
 ### Common Issues and Solutions
 
 | Issue | Solution |
@@ -709,6 +723,9 @@ Logging configuration can be customized in `python/main.py` through the `setup_l
 | Node Sync Status | Ensure full node synchronization before operation |
 
 ### Debug Tips
+
+![image](https://github.com/user-attachments/assets/0a30894f-da6f-4a60-9043-387a8ae79e18)
+
 
 1. Enable verbose logging for detailed debugging
 2. Maintain updated dependencies

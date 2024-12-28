@@ -164,7 +164,7 @@ class Market_Monitor:
         while True:
             try:
                 current_time = time.time()
-                
+        
                 # Update training data
                 if current_time - self.update_scheduler['training_data'] >= self.update_scheduler['UPDATE_INTERVAL']:
                     await self.api_config.update_training_data()
@@ -297,6 +297,7 @@ class Market_Monitor:
                 'liquidity_ratio': await self._calculate_liquidity_ratio(token_symbol),
                 **market_data
             }
+            
             
             return features
         

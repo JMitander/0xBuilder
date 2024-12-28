@@ -1894,7 +1894,6 @@ class Main_Core:
                 )
 
             # Tasks will be automatically cancelled when leaving the context
-                
         except* asyncio.CancelledError:
             logger.info("Tasks cancelled during shutdown")
         except* Exception as e:

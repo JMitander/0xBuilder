@@ -1542,7 +1542,6 @@ class StrategyExecutionError(Exception):
         self.message: str = message
         super().__init__(self.message)
 
-
 class ColorFormatter(logging.Formatter):
     """Custom formatter for colored log output."""
     COLORS = {
@@ -1572,7 +1571,6 @@ def configure_logging(level: int = logging.DEBUG) -> None:
         level=level,  # Global logging level
         handlers=[handler]
     )
-
 # Factory function to get a logger instance
 def getLogger(name: Optional[str] = None, level: int = logging.DEBUG) -> logging.Logger:
     """Returns a logger instance, configuring logging if it hasn't been yet."""

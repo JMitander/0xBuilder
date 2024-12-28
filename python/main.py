@@ -9,7 +9,6 @@ import logging
 from configuration import Configuration
 from core import Main_Core
 
-
 # Get the logger
 logger = logging.getLogger("Main")
 

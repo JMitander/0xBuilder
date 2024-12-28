@@ -252,7 +252,7 @@ For PoS consensus layer, install either:
 ### Cloning the Repository
 
 ```bash
-git clone https://github.com/yourusername/0xBuilder.git
+git clone https://github.com/jmitander/0xBuilder.git
 cd 0xBuilder
 ```
 

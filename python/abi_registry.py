@@ -13,7 +13,6 @@ logger = logging.getLogger("ABI_Registry")
 
 class ABI_Registry:
     """Centralized ABI registry with validation and signature mapping."""
-
     REQUIRED_METHODS = {
         'erc20': {'transfer', 'approve', 'transferFrom', 'balanceOf'},
         'uniswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},

@@ -8,7 +8,6 @@ from cachetools import TTLCache
 
 from configuration import Configuration
 
- 
 
 logger = logging.getLogger("Nonce")
 

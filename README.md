@@ -11,8 +11,6 @@
 [![AAVE](https://img.shields.io/badge/Aave-v3-orange.svg)](https://aave.com/)
 [![Uniswap](https://img.shields.io/badge/Uniswap-v2.0-orange.svg)](https://uniswap.org/)
 [![Sushiswap](https://img.shields.io/badge/Sushiswap-v2-orange.svg)](https://sushiswap.fi/)
-[![PancakeSwap](https://img.shields.io/badge/PancakeSwap-v2/v3-orange.svg)](https://pancakeswap.finance/)
-[![Balancer](https://img.shields.io/badge/Balancer-v3-orange.svg)](https://balancer.finance/)
 ##
 [![Infura](https://img.shields.io/badge/Infura-API-red.svg)](https://infura.io/)
 [![CoinGecko](https://img.shields.io/badge/Coingecko-API-red.svg)](https://www.coingecko.com/en/api)
@@ -97,7 +95,6 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   ├── configuration.js
 │   ├── colorformatter.js
 │   ├── abi_registry.js
-│   ├── __init__.js
 │   └── jsutils/
 │       ├── strategyperformancemetrics.js
 │       ├── strategyexecutionerror.js
@@ -114,13 +111,12 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 │   ├── core.py
 │   ├── constants.py
 │   ├── configuration.py
-│   ├── abi_registry.py
-│   ├── __init__.py
+│   └── abi_registry.py
 │   └── pyutils/
 │       ├── strategyexecutionerror.py
 │       ├── strategyconfiguration.py
-│       ├── colorformatter.py
-│       └── __init__.py
+│       └── colorformatter.py
+│       
 ├── shared/
 │   └── MITANDER.py
 ├── utils/
@@ -130,10 +126,6 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 ├── Logs/
 │   └── 0xBuilder_log.txt
 ├── .env.example
-├── .gitignore
-├── CONTRIBUTING.md
-├── LICENSE
-├── README.md
 └── requirements.txt
 ```
 
@@ -148,8 +140,7 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 - **linear_regression/**: Contains data and models related to linear regression analysis, such as `training_data.csv` and `price_model.joblib`.
   
 - **python/**: Contains Python scripts that form the core functionality of the project. The `pyutils/` subdirectory includes utility modules for error handling and configuration.
-  
-- **shared/**: Includes shared Python scripts like `MITANDER.py` that might be used across different parts of the project.
+  .
   
 - **utils/**: Stores utility JSON files that hold token addresses, ERC20 signatures, and token symbols.
   
@@ -350,28 +341,23 @@ IPC_ENDPOINT=/path/to/geth.ipc
 # Wallet Configuration
 PRIVATE_KEY=your_private_key
 WALLET_ADDRESS=0xYourWalletAddress
-PROFIT_WALLET=0xYourProfitAddress
 
 # Token Configuration
-TOKEN_LIST_PATH=utils/token_addresses.json
-TOKEN_SYMBOLS_PATH=utils/token_symbols.json
+TOKEN_ADDRESSES=utils/token_addresses.json
+TOKEN_SYMBOLS=utils/token_symbols.json
 
 # DEX Router Configurations
-UNISWAP_V2_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-SUSHISWAP_ROUTER=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
-PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
-BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
+UNISWAP_ADDRESS=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+SUSHISWAP_ADDRESS=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
 
 # ABI Paths
-UNISWAP_V2_ABI=abi/uniswap_abi.json
+UNISWAP_ABI=abi/uniswap_abi.json
 SUSHISWAP_ABI=abi/sushiswap_router_abi.json
-PANCAKESWAP_ABI=abi/pancakeswap_router_abi.json
-BALANCER_ABI=abi/balancer_router_abi.json
 ERC20_ABI=abi/erc20_abi.json
 
 # Flashloan Configuration
-AAVE_V3_FLASHLOAN_CONTRACT=0xYourFlashloanContractAddress
-AAVE_V3_LENDING_POOL=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
+AAVE_ADDRESS=0xYourFlashloanContractAddress
+AAVE_POOL_ADDRESS=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
 ```
 
 ### Configuration Files
@@ -454,7 +440,7 @@ Ensure that all API keys are stored securely and not shared publicly.
 ### Cloning the Repository
 
 ```bash
-git clone https://github.com/yourusername/0xBuilder.git
+git clone https://github.com/jmitander/0xBuilder.git
 cd 0xBuilder
 ```
 
@@ -547,28 +533,23 @@ IPC_ENDPOINT=/path/to/geth.ipc
 # Wallet Configuration
 PRIVATE_KEY=your_private_key
 WALLET_ADDRESS=0xYourWalletAddress
-PROFIT_WALLET=0xYourProfitAddress
 
 # Token Configuration
-TOKEN_LIST_PATH=utils/token_addresses.json
-TOKEN_SYMBOLS_PATH=utils/token_symbols.json
+TOKEN_ADDRESSES=utils/token_addresses.json
+TOKEN_SYMBOLS=utils/token_symbols.json
 
 # DEX Router Configurations
-UNISWAP_V2_ROUTER=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
-SUSHISWAP_ROUTER=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
-PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
-BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
+UNISWAP_ADDRESS=0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+SUSHISWAP_ADDRESS=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
 
 # ABI Paths
-UNISWAP_V2_ABI=abi/uniswap_abi.json
+UNISWAP_ABI=abi/uniswap_abi.json
 SUSHISWAP_ABI=abi/sushiswap_router_abi.json
-PANCAKESWAP_ABI=abi/pancakeswap_router_abi.json
-BALANCER_ABI=abi/balancer_router_abi.json
 ERC20_ABI=abi/erc20_abi.json
 
 # Flashloan Configuration
-AAVE_V3_FLASHLOAN_CONTRACT=0xYourFlashloanContractAddress
-AAVE_V3_LENDING_POOL=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
+AAVE_ADDRESS=0xYourFlashloanContractAddress
+AAVE_POOL_ADDRESS=0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2
 ```
 
 ### Configuration Files

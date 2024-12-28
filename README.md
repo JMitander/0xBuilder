@@ -79,12 +79,12 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 ```
 /0xBuilder/
 ├── abi/
-│   ├── uniswap_router_abi.json
+│   ├── uniswap_abi.json
 │   ├── sushiswap_router_abi.json
 │   ├── pancakeswap_router_abi.json
 │   ├── erc20_abi.json
 │   ├── balancer_router_abi.json
-│   └── aave_lending_pool_abi.json
+│   └── aave_pool_abi.json
 ├── contracts/
 │   ├── SimpleFlashloan.sol
 │   └── IERC20.sol
@@ -364,7 +364,7 @@ PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
 BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
 
 # ABI Paths
-UNISWAP_V2_ABI=abi/uniswap_router_abi.json
+UNISWAP_V2_ABI=abi/uniswap_abi.json
 SUSHISWAP_ABI=abi/sushiswap_router_abi.json
 PANCAKESWAP_ABI=abi/pancakeswap_router_abi.json
 BALANCER_ABI=abi/balancer_router_abi.json
@@ -555,7 +555,7 @@ PANCAKESWAP_ROUTER=0xEfF92A263d31888d860bD50809A8D171709b7b1c
 BALANCER_ROUTER=0x3E66B66Fd1d0b02fDa6C811da9E0547970DB2f21
 
 # ABI Paths
-UNISWAP_V2_ABI=abi/uniswap_router_abi.json
+UNISWAP_V2_ABI=abi/uniswap_abi.json
 SUSHISWAP_ABI=abi/sushiswap_router_abi.json
 PANCAKESWAP_ABI=abi/pancakeswap_router_abi.json
 BALANCER_ABI=abi/balancer_router_abi.json

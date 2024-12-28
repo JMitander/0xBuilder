@@ -883,7 +883,6 @@ class API_Config:
             async with aiofiles.open(training_data_path, 'w', encoding='utf-8') as file:
                 await file.write(df.to_csv(index=False))
 
-
             # Keep file size manageable (keep last 30 days)
             await self._cleanup_old_data(training_data_path, days=30)
             

@@ -1,118 +1,58 @@
+from abc import ABC, abstractmethod
+from io import StringIO
 import json
 import os
-import asyncio
-import aiofiles
-import aiohttp
-import dotenv
-import time
-import sys
-import tracemalloc
-import async_timeout
-import hexbytes
-import scheduling
-import random
-import joblib
-import logging
-import pandas as pd
-import numpy as np
-
-# Data processing and machine learning libraries
-from sklearn.linear_model import LinearRegression
-from colorama import Fore, Style, init
-from io import StringIO
-from cachetools import TTLCache
-
-# Type hints, dataclasses, and decorators
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
+import random
+import tracemalloc
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-# Web3 and Ethereum imports
-from web3 import AsyncWeb3, AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider
-from web3.eth import AsyncEth
-from web3.exceptions import TransactionNotFound, ContractLogicError, Web3ValueError
-from web3.middleware import ExtraDataToPOAMiddleware
-
+import aiofiles
+import aiohttp
+import async_timeout
+import dotenv
 from eth_account import Account
 from eth_utils import function_signature_to_4byte_selector
+import logging
 
-# Initialize colorama
-init(autoreset=True)
+import joblib
+import numpy as np
+import pandas as pd
+import asyncio
+import time
+from typing import Optional
 
-class CustomFormatter(logging.Formatter):
-    """Custom logging formatter with colors."""
-    LEVEL_COLORS = {
-        logging.DEBUG: f"{Fore.MAGENTA}",    # Blue
-        logging.INFO: f"{Fore.GREEN}",     # Green
-        logging.WARNING: f"{Fore.YELLOW}",  # Yellow
-        logging.ERROR: f"{Fore.RED}",    # Red
-        logging.CRITICAL: f"{Fore.RED}", # Bold Red
-        "RESET": "\033[0m",     # Reset
-    }
+from cachetools import TTLCache
+from web3 import AsyncHTTPProvider, AsyncIPCProvider, AsyncWeb3, WebSocketProvider
+from web3.exceptions import Web3ValueError, ContractLogicError, TransactionNotFound
+from web3.eth import AsyncEth
+from web3.middleware import ExtraDataToPOAMiddleware
+from sklearn.linear_model import LinearRegression
 
-    COLORS = {
-        "RESET": "\033[0m",
-        "RED": "\033[31m",
-        "GREEN": "\033[32m",
-        "YELLOW": "\033[33m",
-        "MAGENTA": "\033[35m",
-
-    }
-
-    def format(self, record: logging.LogRecord) -> str:
-        """Formats a log record with colors."""
-        color = self.LEVEL_COLORS.get(record.levelname, self.COLORS["RESET"])
-        reset = self.COLORS["RESET"]
-        record.levelname = f"{color}{record.levelname}{reset}"  # Colorize level name
-        record.msg = f"{color}{record.msg}{reset}"              # Colorize message
-        return super().format(record)
-
-# Configure the logging once
-def configure_logging(level: int = logging.DEBUG) -> None:
-    """Configures logging with a colored formatter."""
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(CustomFormatter("%(asctime)s [%(levelname)s] %(message)s"))
-    handler.stream.reconfigure(encoding='utf-8') # explicitly specify UTF-8 encoding
-    logging.basicConfig(
-        level=level,  # Global logging level
-        handlers=[handler]
-    )
-
-# Factory function to get a logger instance
-def getLogger(name: Optional[str] = None, level: int = logging.DEBUG) -> logging.Logger:
-    """Returns a logger instance, configuring logging if it hasn't been yet."""
-    if not logging.getLogger().hasHandlers():
-        configure_logging(level)
-        
-    logger = logging.getLogger(name if name else "0xBuilder")
-    return logger
-
-
-
-dotenv.load_dotenv() 
+from logging import getLogger
 
 logger = getLogger("0xBuilder")
 
-# Configuration Constants
+# ----- Constants -----
+
+# Core Configuration Constants (outside the class)
 MIN_PROFIT_THRESHOLD: Decimal = Decimal("0.01")
 DEFAULT_GAS_THRESHOLD: int = 200
 STRATEGY_SCORE_THRESHOLD: int = 75
 BULLISH_THRESHOLD: float = 0.02
 HIGH_VOLUME_DEFAULT: int = 500_000  # USD
 
-CACHE_SETTINGS: Dict[str, Dict[str, int]] = {
-    'price': {'ttl': 300, 'size': 1000},
-    'volume': {'ttl': 900, 'size': 500},
-    'volatility': {'ttl': 600, 'size': 200}
-}
 
-# Add risk thresholds
+# Risk Thresholds
 RISK_THRESHOLDS: Dict[str, Union[int, float]] = {
     'gas_price': 500,  # Gwei
     'min_profit': 0.01,  # ETH
     'max_slippage': 0.05,  # 5%
     'congestion': 0.8  # 80%
 }
+
 
 # Error codes
 ERROR_MARKET_MONITOR_INIT: int = 1001
@@ -141,17 +81,285 @@ def get_error_message(code: int, default: str = "Unknown error") -> str:
     """Get error message for error code with fallback to default message."""
     return ERROR_MESSAGES.get(code, default)
 
-import json
-import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+@dataclass
+class CacheSettings:
+    """Settings for different types of caches."""
+    ttl: int
+    size: int
 
-import aiofiles
-from eth_utils import function_signature_to_4byte_selector
+@dataclass
+class MLModelSettings:
+    """Settings for machine learning model training and usage."""
+    model_retraining_interval: int = 3600 # 1 hour
+    min_training_samples: int = 100
+    model_accuracy_threshold: float = 0.7
+    prediction_cache_ttl: int = 300 # 5 minutes
+    
+@dataclass
+class StrategySettings:
+    """Settings for the MEV strategies."""
+    slippage_default: float = 0.1
+    slippage_min: float = 0.01
+    slippage_max: float = 0.5
+    slippage_high_congestion: float = 0.05
+    slippage_low_congestion: float = 0.2
+    max_gas_price_gwei: int = 500
+    min_profit_multiplier: float = 2.0
+    base_gas_limit: int = 21000
+    
+@dataclass
+class FilePaths:
+    """File paths for various data files."""
+    linear_regression_path: str = "/linear_regression"
+    model_path: str = "/linear_regression/price_model.joblib"
+    training_data_path: str = "/linear_regression/training_data.csv"
 
-# Initialize logging (ensure this is done before any logging is performed)
-logger = logging.getLogger("0xBuilder")
+@dataclass
+class ContractAddresses:
+    """Contract addresses for various components."""
+    weth_address: str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" # Mainnet WETH
+    usdc_address: str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" # Mainnet USDC
+    usdt_address: str = "0xdAC17F958D2ee523a2206206994597C13D831ec7" # Mainnet USDT
 
+class EnvironmentLoader:
+    """Loads configuration from environment variables."""
+
+    def __init__(self):
+         # Load dotenv variables once on initialization
+         dotenv.load_dotenv()
+
+    def load_providers_and_account(self) -> Dict[str, Optional[str]]:
+        """Load provider endpoints and account information."""
+        endpoints = {
+            "ipc_endpoint": os.getenv("IPC_ENDPOINT"),
+            "http_endpoint": os.getenv("HTTP_ENDPOINT"),
+            "websocket_endpoint": os.getenv("WEBSOCKET_ENDPOINT"),
+        }
+
+        # Validate that exactly one endpoint is configured
+        active_endpoints = sum(1 for endpoint in endpoints.values() if endpoint is not None and endpoint.strip() != '')
+        if active_endpoints != 1:
+                active = []
+                if endpoints["ipc_endpoint"]: active.append("IPC")
+                if endpoints["http_endpoint"]: active.append("HTTP")
+                if endpoints["websocket_endpoint"]: active.append("WebSocket")
+                raise ValueError(
+                    f"Exactly one endpoint (IPC, HTTP, or WebSocket) must be configured. "
+                    f"Found {active_endpoints} active endpoints: {', '.join(active)}"
+                )
+        return {
+            **endpoints,
+            "wallet_key": self._get_env_variable("WALLET_KEY"),
+            "wallet_address": self._get_env_variable("WALLET_ADDRESS"),
+            "aave_pool_address": self._get_env_variable("AAVE_POOL_ADDRESS"),
+            "sushiswap_address": self._get_env_variable("SUSHISWAP_ADDRESS"),
+            "uniswap_address": self._get_env_variable("UNISWAP_ADDRESS"),
+            "aave_flashloan_address": self._get_env_variable("AAVE_FLASHLOAN_ADDRESS"),
+        }
+
+
+    def load_api_keys(self) -> Dict[str, Optional[str]]:
+        """Load API keys from environment variables."""
+        return {
+            "etherscan_api_key": self._get_env_variable("ETHERSCAN_API_KEY"),
+            "infura_project_id": self._get_env_variable("INFURA_PROJECT_ID"),
+            "coingecko_api_key": self._get_env_variable("COINGECKO_API_KEY"),
+            "coinmarketcap_api_key": self._get_env_variable("COINMARKETCAP_API_KEY"),
+            "cryptocompare_api_key": self._get_env_variable("CRYPTOCOMPARE_API_KEY"),
+        }
+
+
+    def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
+        value = os.getenv(var_name, default)
+        if value is None:
+            raise EnvironmentError(f"Missing environment variable: {var_name}")
+        return value
+
+
+class JsonFileLoader:
+    """Loads configuration from JSON files."""
+
+    def __init__(self):
+        self.logger = logging.getLogger("0xBuilder")
+
+    async def load_json_file(self, file_path: str, description: str) -> Any:
+        try:
+            async with aiofiles.open(file_path, 'r') as file:
+                data = json.loads(await file.read())
+                self.logger.debug(f"Successfully loaded {description} from {file_path}")
+                return data
+        except FileNotFoundError as e:
+            self.logger.error(f"File not found for {description}: {file_path}")
+            raise
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON decode error for {description} in file {file_path}: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error loading {description} from {file_path}: {e}")
+            raise
+
+    async def construct_abi_path(self, base_path: str, abi_filename: str) -> str:
+        abi_path = os.path.join(base_path, abi_filename)
+        if not os.path.exists(abi_path):
+            self.logger.error(f"ABI file does not exist: {abi_path}")
+            raise FileNotFoundError(f"ABI file not found: {abi_path}")
+        self.logger.debug(f"ABI path constructed: {abi_path}")
+        return abi_path
+    
+    async def load_json_elements(self, env_vars: Dict[str, Optional[str]]) -> Dict[str, Optional[Any]]:
+        """Load configuration settings from json files."""
+        try:
+            token_addresses = await self.load_json_file(
+                env_vars["token_addresses"], "monitored tokens"
+            )
+
+            token_symbols = await self.load_json_file(
+                env_vars["token_symbols"], "token symbols"
+            )
+            
+            erc20_signatures = await self.load_json_file(
+               env_vars["erc20_signatures"], "ERC20 function signatures"
+            )
+
+            aave_flashloan_abi_path = await self.construct_abi_path("abi", "aave_flashloan_abi.json")
+            aave_flashloan_abi = await self.load_json_file(
+                aave_flashloan_abi_path, "Aave Flashloan ABI"
+            )
+
+            aave_pool_abi_path = await self.construct_abi_path("abi", "aave_pool_abi.json")
+            aave_pool_abi = await self.load_json_file(
+               aave_pool_abi_path, "Aave Lending Pool ABI"
+            )
+            return {
+                 "token_addresses": token_addresses,
+                 "token_symbols": token_symbols,
+                 "erc20_signatures": erc20_signatures,
+                 "aave_flashloan_abi": aave_flashloan_abi,
+                 "aave_pool_abi": aave_pool_abi
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error loading JSON elements: {e}")
+            raise
+
+class Configuration:
+    """
+    Loads configuration from environment variables and monitored tokens from a JSON file.
+    """
+
+    def __init__(self):
+        """Initialize configuration attributes with None values."""
+        self.ipc_endpoint: Optional[str] = None
+        self.http_endpoint: Optional[str] = None
+        self.websocket_endpoint: Optional[str] = None
+        self.wallet_key: Optional[str] = None
+        self.wallet_address: Optional[str] = None
+        self.etherscan_api_key: Optional[str] = None
+        self.infura_project_id: Optional[str] = None
+        self.coingecko_api_key: Optional[str] = None
+        self.coinmarketcap_api_key: Optional[str] = None
+        self.cryptocompare_api_key: Optional[str] = None
+        self.aave_pool_address: Optional[str] = None
+        self.token_addresses: Optional[List[str]] = None
+        self.token_symbols: Optional[Dict[str, str]] = None
+        self.erc20_signatures: Optional[Dict[str, str]] = None
+        self.sushiswap_address: Optional[str] = None
+        self.uniswap_address: Optional[str] = None
+        self.aave_flashloan_address: Optional[str] = None
+        self.aave_flashloan_abi: Optional[Any] = None
+        self.aave_pool_abi: Optional[Any] = None
+        
+        # Add ML model configuration
+        self.model_settings = MLModelSettings()
+        
+        # Add default config values for strategies
+        self.strategy_settings = StrategySettings()
+
+        # Add default config values for filepaths
+        self.file_paths = FilePaths()
+        
+        # Add Default contract addresses
+        self.contract_addresses = ContractAddresses()
+
+        # Cache settings
+        self.cache_settings: Dict[str, CacheSettings] = {
+            'price': CacheSettings(ttl=300, size=1000),
+            'volume': CacheSettings(ttl=900, size=500),
+            'volatility': CacheSettings(ttl=600, size=200)
+        }
+
+
+        self.abi_registry = ABI_Registry()
+        self.env_loader = EnvironmentLoader()
+        self.json_loader = JsonFileLoader()
+
+    async def load(self) -> None:
+        """Loads the configuration in the correct order."""
+        try:
+            logger.info("Loading configuration... ⏳")
+            await asyncio.sleep(1)  # ensuring proper initialization
+
+            # Initialize ABI Registry
+            await self.abi_registry.initialize()
+
+            # Load all providers and account variables
+            env_vars = self.env_loader.load_providers_and_account()
+            self.ipc_endpoint = env_vars.get("ipc_endpoint")
+            self.http_endpoint = env_vars.get("http_endpoint")
+            self.websocket_endpoint = env_vars.get("websocket_endpoint")
+            self.wallet_key = env_vars.get("wallet_key")
+            self.wallet_address = env_vars.get("wallet_address")
+            self.aave_pool_address = env_vars.get("aave_pool_address")
+            self.sushiswap_address = env_vars.get("sushiswap_address")
+            self.uniswap_address = env_vars.get("uniswap_address")
+            self.aave_flashloan_address = env_vars.get("aave_flashloan_address")
+
+
+            # Load API keys
+            api_keys = self.env_loader.load_api_keys()
+            self.etherscan_api_key = api_keys.get("etherscan_api_key")
+            self.infura_project_id = api_keys.get("infura_project_id")
+            self.coingecko_api_key = api_keys.get("coingecko_api_key")
+            self.coinmarketcap_api_key = api_keys.get("coinmarketcap_api_key")
+            self.cryptocompare_api_key = api_keys.get("cryptocompare_api_key")
+
+
+            # Then load the rest of the configuration
+            json_vars = await self.json_loader.load_json_elements(env_vars)
+            self.token_addresses = json_vars.get("token_addresses")
+            self.token_symbols = json_vars.get("token_symbols")
+            self.erc20_signatures = json_vars.get("erc20_signatures")
+            self.aave_flashloan_abi = json_vars.get("aave_flashloan_abi")
+            self.aave_pool_abi = json_vars.get("aave_pool_abi")
+
+            logger.info("System reporting go for launch ✅...")
+            await asyncio.sleep(3)  # ensuring proper initialization
+
+            logger.debug("All Configurations and Environment Variables Loaded Successfully ✅")
+        except Exception as e:
+            logger.error(f"Error loading configuration: {e}")
+            raise
+
+    async def get_token_addresses(self) -> List[str]:
+        return self.token_addresses
+
+    async def get_token_symbols(self) -> Dict[str, str]:
+        return self.token_symbols
+    
+    def get_config_value(self, key: str, default: Any = None) -> Any:
+        """Safe configuration value access with default."""
+        try:
+            return getattr(self, key, default)
+        except AttributeError:
+            logger.warning(f"Configuration key '{key}' not found, using default: {default}")
+            return default
+    
+    async def get_abi(self, abi_type: str) -> Optional[List[Dict]]:
+        """Get ABI from registry."""
+        return self.abi_registry.get_abi(abi_type)
+
+
+# ABI registry and helpers class remains the same
 class ABI_Registry:
     """Centralized ABI registry with validation and signature mapping."""
 
@@ -159,10 +367,8 @@ class ABI_Registry:
         'erc20': {'transfer', 'approve', 'transferFrom', 'balanceOf'},
         'uniswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
         'sushiswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
-        'pancakeswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
-        'balancer': {'swap', 'addLiquidity'},
         'aave_flashloan': {'fn_RequestFlashLoan', 'executeOperation', 'ADDRESSES_PROVIDER', 'POOL'},
-        'aave': {'ADDRESSES_PROVIDER', 'getReservesList', 'getReserveData'}
+        'aave_pool': {'ADDRESSES_PROVIDER', 'getReservesList', 'getReserveData'}
     }
 
     def __init__(self):
@@ -188,8 +394,6 @@ class ABI_Registry:
             'erc20': 'erc20_abi.json',
             'uniswap': 'uniswap_abi.json',
             'sushiswap': 'sushiswap_router_abi.json',
-            'pancakeswap': 'pancakeswap_router_abi.json',
-            'balancer': 'balancer_router_abi.json',
             'aave_flashloan': 'aave_flashloan.abi.json',
             'aave': 'aave_pool_abi.json'
         }
@@ -260,8 +464,6 @@ class ABI_Registry:
                 'erc20': 'erc20_abi.json',
                 'uniswap': 'uniswap_abi.json',
                 'sushiswap': 'sushiswap_router_abi.json',
-                'pancakeswap': 'pancakeswap_router_abi.json',
-                'balancer': 'balancer_router_abi.json',
                 'aave_flashloan': 'aave_flashloan.abi.json',
                 'aave': 'aave_pool_abi.json'
             }
@@ -336,461 +538,11 @@ class ABI_Registry:
     def get_function_signature(self, abi_type: str, method_name: str) -> Optional[str]:
         """Get function signature by ABI type and method name."""
         return self.signatures.get(abi_type, {}).get(method_name)
-
-
-class Configuration:
-    """
-    Loads configuration from environment variables and monitored tokens from a JSON file.
-    """
-
-    def __init__(self):
-        """Initialize configuration attributes with None values."""
-        self.IPC_ENDPOINT: Optional[str] = None
-        self.HTTP_ENDPOINT: Optional[str] = None
-        self.WEBSOCKET_ENDPOINT: Optional[str] = None
-        self.WALLET_KEY: Optional[str] = None
-        self.WALLET_ADDRESS: Optional[str] = None
-        self.ETHERSCAN_API_KEY: Optional[str] = None
-        self.INFURA_PROJECT_ID: Optional[str] = None
-        self.COINGECKO_API_KEY: Optional[str] = None
-        self.COINMARKETCAP_API_KEY: Optional[str] = None
-        self.CRYPTOCOMPARE_API_KEY: Optional[str] = None
-        self.AAVE_POOL_ADDRESS: Optional[str] = None
-        self.TOKEN_ADDRESSES: Optional[List[str]] = None
-        self.TOKEN_SYMBOLS: Optional[Dict[str, str]] = None
-        self.ERC20_ABI: Optional[str] = None
-        self.ERC20_SIGNATURES: Optional[Dict[str, str]] = None
-        self.SUSHISWAP_ABI: Optional[str] = None
-        self.SUSHISWAP_ADDRESS: Optional[str] = None
-        self.UNISWAP_ABI: Optional[str] = None
-        self.UNISWAP_ADDRESS: Optional[str] = None
-        self.AAVE_FLASHLOAN_ADDRESS: Optional[str] = None
-        self.AAVE_FLASHLOAN_ABI: Optional[Any] = None
-        self.AAVE_POOL_ABI: Optional[Any] = None
-        self.AAVE_POOL_ADDRESS: Optional[str] = None
-        
-        
-        # Add ML model configuration
-        self.MODEL_RETRAINING_INTERVAL: int = 3600  # 1 hour
-        self.MIN_TRAINING_SAMPLES: int = 100
-        self.MODEL_ACCURACY_THRESHOLD: float = 0.7
-        self.PREDICTION_CACHE_TTL: int = 300  # 5 minutes
-        
-        # Add default config values for strategies
-        self.SLIPPAGE_DEFAULT: float = 0.1
-        self.SLIPPAGE_MIN: float = 0.01
-        self.SLIPPAGE_MAX: float = 0.5
-        self.SLIPPAGE_HIGH_CONGESTION: float = 0.05
-        self.SLIPPAGE_LOW_CONGESTION: float = 0.2
-        self.MAX_GAS_PRICE_GWEI: int = 500
-        self.MIN_PROFIT_MULTIPLIER: float = 2.0
-        self.BASE_GAS_LIMIT: int = 21000
-        self.LINEAR_REGRESSION_PATH: str = "/linear_regression"
-        self.MODEL_PATH: str = "/linear_regression/price_model.joblib"
-        self.TRAINING_DATA_PATH: str = "/linear_regression/training_data.csv"
-
-
-        self.abi_registry = ABI_Registry()
-
-        # Add WETH and USDC addresses
-        self.WETH_ADDRESS: str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # Mainnet WETH
-        self.USDC_ADDRESS: str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"  # Mainnet USDC
-        self.USDT_ADDRESS: str = "0xdAC17F958D2ee523a2206206994597C13D831ec7"  # Mainnet USDT
-
-
-    async def load(self) -> None:
-        """Loads the configuration in the correct order."""
-        try:
-            logger.info("Loading configuration... ⏳")
-            await asyncio.sleep(1)  # ensuring proper initialization
-
-            # Initialize ABI Registry
-            await self.abi_registry.initialize()
-
-            # Proceed with configuration loading
-            await self._load_configuration()
-            logger.info("System reporting go for launch ✅...")
-            await asyncio.sleep(3)  # ensuring proper initialization
-
-            logger.debug("All Configurations and Environment Variables Loaded Successfully ✅")
-        except Exception as e:
-            logger.error(f"Error loading configuration: {e}")
-            raise
-
-    async def _load_configuration(self) -> None:
-        """Load configuration in the correct order."""
-        try:
-            # First ensure ABI registry is loaded
-            if not self.abi_registry.abis:
-                raise ValueError("Failed to load ABIs")
-
-            # Then load the rest of the configuration
-            self._load_providers_and_account()
-            self._load_api_keys()
-            await self._load_json_elements()
-
-        except Exception as e:
-            logger.error(f"Error loading configuration: {e}")
-            raise
-
-    def _load_api_keys(self) -> None:
-        self.ETHERSCAN_API_KEY = self._get_env_variable("ETHERSCAN_API_KEY")
-        self.INFURA_PROJECT_ID = self._get_env_variable("INFURA_PROJECT_ID")
-        self.COINGECKO_API_KEY = self._get_env_variable("COINGECKO_API_KEY")
-        self.COINMARKETCAP_API_KEY = self._get_env_variable("COINMARKETCAP_API_KEY")
-        self.CRYPTOCOMPARE_API_KEY = self._get_env_variable("CRYPTOCOMPARE_API_KEY")
-
-    def _load_providers_and_account(self) -> None:
-        """Load provider endpoints and account information."""
-        try:
-            # Load all possible endpoints
-            self.IPC_ENDPOINT = os.getenv("IPC_ENDPOINT")
-            self.HTTP_ENDPOINT = os.getenv("HTTP_ENDPOINT")
-            self.WEBSOCKET_ENDPOINT = os.getenv("WEBSOCKET_ENDPOINT")
-            
-            # Count active endpoints
-            active_endpoints = sum(1 for endpoint in [
-                self.IPC_ENDPOINT, 
-                self.HTTP_ENDPOINT, 
-                self.WEBSOCKET_ENDPOINT
-            ] if endpoint is not None and endpoint.strip() != '')
-
-            if active_endpoints != 1:
-                active = []
-                if self.IPC_ENDPOINT: active.append("IPC")
-                if self.HTTP_ENDPOINT: active.append("HTTP")
-                if self.WEBSOCKET_ENDPOINT: active.append("WebSocket")
-                raise ValueError(
-                    f"Exactly one endpoint (IPC, HTTP, or WebSocket) must be configured. "
-                    f"Found {active_endpoints} active endpoints: {', '.join(active)}"
-                )
-
-            self.WALLET_KEY = self._get_env_variable("WALLET_KEY")
-            self.WALLET_ADDRESS = self._get_env_variable("WALLET_ADDRESS")
-
-            logger.info("Providers OK ✅")
-            logger.info("Account OK ✅")
-            logger.info("API Keys OK ✅")
-            
-        except Exception as e:
-            logger.error(f"Error loading providers and account: {e}")
-            raise
-
-    async def _load_json_elements(self) -> None:
-        try:
-            self.AAVE_POOL_ADDRESS = self._get_env_variable("AAVE_POOL_ADDRESS")
-            self.TOKEN_ADDRESSES = await self._load_json_file(
-                self._get_env_variable("TOKEN_ADDRESSES"), "monitored tokens"
-            )
-            self.TOKEN_SYMBOLS = await self._load_json_file(
-                self._get_env_variable("TOKEN_SYMBOLS"), "token symbols"
-            )
-            self.ERC20_ABI = await self._construct_abi_path("abi", "erc20_abi.json")
-            self.ERC20_SIGNATURES = await self._load_json_file(
-                self._get_env_variable("ERC20_SIGNATURES"), "ERC20 function signatures"
-            )
-            self.SUSHISWAP_ABI = await self._construct_abi_path("abi", "sushiswap_abi.json")
-            self.SUSHISWAP_ADDRESS = self._get_env_variable("SUSHISWAP_ADDRESS")
-            self.UNISWAP_ABI = await self._construct_abi_path("abi", "uniswap_abi.json")
-            self.UNISWAP_ADDRESS = self._get_env_variable("UNISWAP_ADDRESS")
-            self.AAVE_FLASHLOAN_ABI = await self._load_json_file(
-                await self._construct_abi_path("abi", "aave_flashloan_abi.json"),
-                "Aave Flashloan ABI"
-            )
-            self.AAVE_POOL_ABI = await self._load_json_file(
-               await self._construct_abi_path("abi", "aave_pool_abi.json"),
-                "Aave Lending Pool ABI"
-            )
-            self.AAVE_FLASHLOAN_ADDRESS = self._get_env_variable("AAVE_FLASHLOAN_ADDRESS")
-            logger.debug("JSON elements loaded successfully.")
-        except Exception as e:
-            logger.error(f"Error loading JSON elements: {e}")
-            raise
-
-    def _get_env_variable(self, var_name: str, default: Optional[str] = None) -> str:
-        value = os.getenv(var_name, default)
-        if value is None:
-            raise EnvironmentError(f"Missing environment variable: {var_name}")
-        return value
-
-    async def _load_json_file(self, file_path: str, description: str) -> Any:
-        try:
-            async with aiofiles.open(file_path, 'r') as file:
-                data = json.loads(await file.read())
-                logger.debug(f"Successfully loaded {description} from {file_path}")
-                return data
-        except FileNotFoundError as e:
-            logger.error(f"File not found for {description}: {file_path}")
-            raise
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error for {description} in file {file_path}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error loading {description} from {file_path}: {e}")
-            raise
-
-    async def _construct_abi_path(self, base_path: str, abi_filename: str) -> str:
-        abi_path = os.path.join(base_path, abi_filename)
-        if not os.path.exists(abi_path):
-            logger.error(f"ABI file does not exist: {abi_path}")
-            raise FileNotFoundError(f"ABI file not found: {abi_path}")
-        logger.debug(f"ABI path constructed: {abi_path}")
-        return abi_path
-
-    async def get_token_addresses(self) -> List[str]:
-        return self.TOKEN_ADDRESSES
-
-    async def get_token_symbols(self) -> Dict[str, str]:
-        return self.TOKEN_SYMBOLS
-
-    def get_abi_path(self, abi_name: str) -> str:
-        abi_paths = {
-            "erc20_abi": self.ERC20_ABI,
-            "sushiswap_abi": self.SUSHISWAP_ABI,
-            "uniswap_abi": self.UNISWAP_ABI,
-            "AAVE_FLASHLOAN_ABI": self.AAVE_FLASHLOAN_ABI,
-            "AAVE_POOL_ABI": self.AAVE_POOL_ABI,
-        }
-        return abi_paths.get(abi_name.lower(), "")
-
-    async def initialize(self) -> None:
-        """Initialize configuration with error handling."""
-        try:
-            await self._load_configuration()
-            logger.debug("Configuration initialized successfully.")
-        except Exception as e:
-            logger.critical(f"Configuration initialization failed: {e}")
-            raise
-
-    def get_config_value(self, key: str, default: Any = None) -> Any:
-        """Safe configuration value access with default."""
-        try:
-            return getattr(self, key, default)
-        except AttributeError:
-            logger.warning(f"Configuration key '{key}' not found, using default: {default}")
-            return default
-
-    async def get_abi(self, abi_type: str) -> Optional[List[Dict]]:
-        """Get ABI from registry."""
-        return self.abi_registry.get_abi(abi_type)
-
-    logger.debug("All Configurations and Environment Variables Loaded Successfully ✅")
-
-class API_Config:
-    """
-    Manages interactions with various external APIs for price and market data.
-    """
     
-    MAX_REQUEST_ATTEMPTS: int = 5
-    REQUEST_BACKOFF_FACTOR: float = 1.5
 
 
-    def __init__(self, configuration: Optional["Configuration"] = None):
-        self.configuration: Optional["Configuration"] = configuration
-        self.session: Optional[aiohttp.ClientSession] = None
-        self.price_cache: TTLCache = TTLCache(maxsize=2000, ttl=300)  # 5 min cache for prices
-        self.volume_cache: TTLCache = TTLCache(maxsize=1000, ttl=900) # 15 min cache for volumes
-        self.market_data_cache: TTLCache = TTLCache(maxsize=1000, ttl=1800)  # 30 min cache for market data
-        self.token_metadata_cache: TTLCache = TTLCache(maxsize=500, ttl=86400)  # 24h cache for metadata
-        
-        # Add rate limit tracking
-        self.rate_limit_counters: Dict[str, Dict[str, Any]] = {
-            "coingecko": {"count": 0, "reset_time": time.time(), "limit": 50},
-            "coinmarketcap": {"count": 0, "reset_time": time.time(), "limit": 330},
-            "cryptocompare": {"count": 0, "reset_time": time.time(), "limit": 80},
-            "binance": {"count": 0, "reset_time": time.time(), "limit": 1200},
-        }
-        
-        # Add priority queues for data fetching
-        self.high_priority_tokens: set[str] = set()  # Tokens currently being traded
-        self.update_intervals: Dict[str, int] = {
-            'price': 30,  # Seconds
-            'volume': 300,  # 5 minutes
-            'market_data': 1800,  # 30 minutes
-            'metadata': 86400  # 24 hours
-        }
-
-        # Initialize API lock and session
-        self.api_lock: asyncio.Lock = asyncio.Lock()
-        self.session: Optional[aiohttp.ClientSession] = None
-
-        # Initialize API configurations
-        self.api_configs: Dict[str, Dict[str, Any]] = {
-            "binance": {
-                "base_url": "https://api.binance.com/api/v3",
-                "market_url": "/ticker/24hr",
-                "success_rate": 1.0,
-                "weight": 1.0,
-                "rate_limit": 1200,
-            },
-            "coingecko": {
-                "base_url": "https://api.coingecko.com/api/v3",
-                "market_url": "/coins/{id}/market_chart",
-                "volume_url": "/coins/{id}",
-                "api_key": configuration.COINGECKO_API_KEY if configuration else None,
-                "success_rate": 1.0,
-                "weight": 0.8,
-                "rate_limit": 50,
-            },
-            "coinmarketcap": {
-                "base_url": "https://pro-api.coinmarketcap.com/v1",
-                "ticker_url": "/cryptocurrency/quotes/latest",
-                "api_key": configuration.COINMARKETCAP_API_KEY if configuration else None,
-                "success_rate": 1.0,
-                "weight": 0.7,
-                "rate_limit": 333,
-            },
-            "cryptocompare": {
-                "base_url": "https://min-api.cryptocompare.com/data",
-                "price_url": "/price",
-                "api_key": configuration.CRYPTOCOMPARE_API_KEY if configuration else None,
-                "success_rate": 1.0,
-                "weight": 0.6,
-                "rate_limit": 80,
-            },
-        }
-
-        # Initialize rate limiters after API configs
-        self.rate_limiters: Dict[str, asyncio.Semaphore] = {
-            provider: asyncio.Semaphore(config.get("rate_limit", 10))
-            for provider, config in self.api_configs.items()
-        }
-
-    async def __aenter__(self) -> "API_Config":
-        self.session = aiohttp.ClientSession()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self.session:
-            await self.session.close()
-            logger.debug("APIconfig session closed.")
-
-    async def get_token_symbol(self, web3: AsyncWeb3, token_address: str) -> Optional[str]:
-        """Get the token symbol for a given token address."""
-        if token_address in self.token_metadata_cache:
-            metadata = self.token_metadata_cache[token_address]
-            return metadata.get('symbol')
-        if token_address in self.configuration.TOKEN_SYMBOLS:
-            symbol = self.configuration.TOKEN_SYMBOLS[token_address]
-            self.token_metadata_cache[token_address] = {'symbol':symbol}
-            return symbol
-        try:
-            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            contract = web3.eth.contract(address=token_address, abi=erc20_abi)
-            symbol = await contract.functions.symbol().call()
-            self.token_metadata_cache[token_address] = {'symbol': symbol}
-            return symbol
-        except Exception as e:
-            logger.error(f"Error getting symbol for token {token_address}: {e}")
-            return None
-        
-    async def get_token_metadata(self, token: str) -> Optional[Dict[str, Any]]:
-        """Get metadata for a given token symbol."""
-        if token in self.token_metadata_cache:
-            return self.token_metadata_cache[token]
-        metadata = await self._fetch_from_services(
-            lambda service: self._fetch_token_metadata(service, token),
-            f"metadata for {token}",
-        )
-        if metadata:
-            self.token_metadata_cache[token] = metadata
-        return metadata
-    
-    async def _fetch_token_metadata(self, source: str, token: str) -> Optional[Dict[str, Any]]:
-        """Fetch token metadata with improved error handling."""
-        config = self.api_configs.get(source)
-        if not config:
-            return None
-
-        try:
-            if source == "coingecko":
-                # Handle both token address and symbol
-                token_id = token.lower()
-                url = f"{config['base_url']}/coins/{token_id}"
-                headers = {"x-cg-pro-api-key": config['api_key']} if config['api_key'] else None
-                
-                response = await self.make_request(source, url, headers=headers)
-                if response:
-                    return {
-                        'symbol': response.get('symbol', ''),
-                        'market_cap': response.get('market_data', {}).get('market_cap', {}).get('usd', 0),
-                        'total_supply': response.get('market_data', {}).get('total_supply', 0),
-                        'circulating_supply': response.get('market_data', {}).get('circulating_supply', 0),
-                        'trading_pairs': len(response.get('tickers', [])),
-                        'exchanges': list(set(t.get('market', {}).get('name') for t in response.get('tickers', [])))
-                    }
-                    
-            elif source == "coinmarketcap":
-                url = f"{config['base_url']}/cryptocurrency/quotes/latest"
-                headers = {
-                    "X-CMC_PRO_API_KEY": config['api_key'],
-                    "Accept": "application/json"
-                }
-                params = {"symbol": token.upper()}
-                
-                response = await self.make_request(source, url, params=params, headers=headers)
-                if response and 'data' in response:
-                    data = response['data'].get(token.upper(), {})
-                    return {
-                        'symbol': data.get('symbol', ''),
-                        'market_cap': data.get('quote', {}).get('USD', {}).get('market_cap', 0),
-                        'total_supply': data.get('total_supply', 0),
-                        'circulating_supply': data.get('circulating_supply', 0),
-                        'trading_pairs': len(data.get('tags', [])),
-                        'exchanges': []  # CMC doesn't provide exchange list in basic endpoint
-                    }
-
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error fetching metadata from {source}: {e}")
-            return None
-
-    async def get_real_time_price(self, token: str, vs_currency: str = "eth") -> Optional[Decimal]:
-        """Get real-time price using weighted average from multiple sources."""
-        cache_key = f"price_{token}_{vs_currency}"
-        if cache_key in self.price_cache:
-            return self.price_cache[cache_key]
-        prices = []
-        weights = []
-        async with self.api_lock:
-            for source, config in self.api_configs.items():
-                try:
-                    price = await self._fetch_price(source, token, vs_currency)
-                    if price:
-                        prices.append(price)
-                        weights.append(config["weight"] * config["success_rate"])
-                except Exception as e:
-                    logger.error(f"Error fetching price from {source}: {e}")
-                    config["success_rate"] *= 0.9
-        if not prices:
-            logger.warning(f"No valid prices found for {token}!")
-            return None
-        weighted_price = sum(p * w for p, w in zip(prices, weights)) / sum(weights)
-        self.price_cache[cache_key] = Decimal(str(weighted_price))
-        return self.price_cache[cache_key]
-
-    async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
-        """Fetch the price of a token from a specified source."""
-        config = self.api_configs.get(source)
-        if not config:
-            logger.error(f"API source {source} not configured.")
-            return None
-
-        try:
-            async with self.session.get(config["base_url"] + f"/simple/price?ids={token}&vs_currencies={vs_currency}") as response:
-                if response.status == 200:
-                    data = await response.json()
-                    price = Decimal(str(data[token][vs_currency]))
-                    logger.debug(f"Fetched price from {source}: {price}")
-                    return price
-                else:
-                    logger.error(f"Failed to fetch price from {source}: Status {response.status}")
-                    return None
-        except Exception as e:
-            logger.error(f"Exception fetching price from {source}: {e}")
-            return None
-
+class AbstractDataFetcher(ABC):
+    @abstractmethod
     async def make_request(
         self,
         provider_name: str,
@@ -798,9 +550,35 @@ class API_Config:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Any:
-        """Make HTTP request with improved error handling and timeout management."""
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
+      pass
+    @abstractmethod
+    async def fetch_from_services(self, fetch_func: Callable[[str], Any], description: str) -> Optional[Union[List[float], float]]:
+       pass
+
+
+class RateLimiter:
+    """Manages rate limiting for various APIs."""
+    MAX_REQUEST_ATTEMPTS: int = 5
+    REQUEST_BACKOFF_FACTOR: float = 1.5
+
+    def __init__(self, api_configs: Dict[str, Dict[str, Any]]):
+        self.api_configs = api_configs
+        self.rate_limiters: Dict[str, asyncio.Semaphore] = {
+            provider: asyncio.Semaphore(config.get("rate_limit", 10))
+            for provider, config in self.api_configs.items()
+        }
+    
+    async def make_request(
+        self,
+        provider_name: str,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        session: Optional[aiohttp.ClientSession] = None,
+    ) -> Any:
+      
+        if session is None or session.closed:
+           raise RuntimeError("Session needs to be provided to make the request!")
 
         rate_limiter = self.rate_limiters.get(provider_name)
         if rate_limiter is None:
@@ -817,7 +595,7 @@ class API_Config:
                         sock_read=10  # Socket read timeout
                     )
 
-                    async with self.session.get(
+                    async with session.get(
                         url,
                         params=params,
                         headers=headers,
@@ -849,6 +627,248 @@ class API_Config:
                 await asyncio.sleep(self.REQUEST_BACKOFF_FACTOR ** attempt)
             
             return None
+        
+
+class DataFetcher(AbstractDataFetcher):
+    """Fetches data from external APIs."""
+    def __init__(self, api_configs: Dict[str, Dict[str, Any]], rate_limiter: RateLimiter):
+       self.api_configs = api_configs
+       self.rate_limiter = rate_limiter
+    async def make_request(
+        self,
+        provider_name: str,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Any:
+      """Makes an API request with rate limiting and error handling."""
+      async with aiohttp.ClientSession() as session:
+           return await self.rate_limiter.make_request(provider_name, url, params, headers, session)
+
+    async def fetch_from_services(self, fetch_func: Callable[[str], Any], description: str) -> Optional[Union[List[float], float]]:
+      """Helper method to fetch data from multiple services."""
+      for service in self.api_configs.keys():
+          try:
+              logger.debug(f"Fetching {description} using {service}...")
+              result = await fetch_func(service)
+              if result:
+                  return result
+          except Exception as e:
+              logger.warning(f"failed to fetch {description} using {service}: {e}")
+      logger.warning(f"failed to fetch {description}.")
+      return None
+
+class API_Config:
+    """
+    Manages interactions with various external APIs for price and market data.
+    """
+
+    def __init__(self, configuration: Configuration):
+        self.configuration: Configuration = configuration
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.price_cache: TTLCache = TTLCache(
+            maxsize=self.configuration.cache_settings['price'].size,
+            ttl=self.configuration.cache_settings['price'].ttl
+        )  # 5 min cache for prices
+        self.volume_cache: TTLCache = TTLCache(
+             maxsize=self.configuration.cache_settings['volume'].size,
+             ttl=self.configuration.cache_settings['volume'].ttl
+         ) # 15 min cache for volumes
+        self.market_data_cache: TTLCache = TTLCache(
+             maxsize=1000,
+             ttl=1800
+        )  # 30 min cache for market data
+        self.token_metadata_cache: TTLCache = TTLCache(
+            maxsize=500,
+            ttl=86400
+        )  # 24h cache for metadata
+
+        # Add priority queues for data fetching
+        self.high_priority_tokens: set[str] = set()  # Tokens currently being traded
+        self.update_intervals: Dict[str, int] = {
+            'price': 30,  # Seconds
+            'volume': 300,  # 5 minutes
+            'market_data': 1800,  # 30 minutes
+            'metadata': 86400  # 24 hours
+        }
+
+         # Initialize API configurations
+        self.api_configs: Dict[str, Dict[str, Any]] = {
+            "binance": {
+                "base_url": "https://api.binance.com/api/v3",
+                "market_url": "/ticker/24hr",
+                "success_rate": 1.0,
+                "weight": 1.0,
+                "rate_limit": 1200,
+            },
+            "coingecko": {
+                "base_url": "https://api.coingecko.com/api/v3",
+                "market_url": "/coins/{id}/market_chart",
+                "volume_url": "/coins/{id}",
+                "api_key": configuration.coingecko_api_key,
+                "success_rate": 1.0,
+                "weight": 0.8,
+                "rate_limit": 50,
+            },
+            "coinmarketcap": {
+                "base_url": "https://pro-api.coinmarketcap.com/v1",
+                "ticker_url": "/cryptocurrency/quotes/latest",
+                "api_key": configuration.coinmarketcap_api_key,
+                "success_rate": 1.0,
+                "weight": 0.7,
+                "rate_limit": 333,
+            },
+            "cryptocompare": {
+                "base_url": "https://min-api.cryptocompare.com/data",
+                "price_url": "/price",
+                 "api_key": configuration.cryptocompare_api_key,
+                "success_rate": 1.0,
+                "weight": 0.6,
+                "rate_limit": 80,
+            },
+        }
+
+         # Initialize rate limiter after API configs
+        self.rate_limiter = RateLimiter(self.api_configs)
+        self.data_fetcher = DataFetcher(self.api_configs, self.rate_limiter)
+        self.abi_registry = ABI_Registry()
+        
+    async def __aenter__(self) -> "API_Config":
+      self.session = aiohttp.ClientSession()
+      return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self.session:
+            await self.session.close()
+            logger.debug("APIconfig session closed.")
+
+    async def get_token_symbol(self, web3: aiohttp.ClientSession, token_address: str) -> Optional[str]:
+        """Get the token symbol for a given token address."""
+        if token_address in self.token_metadata_cache:
+            metadata = self.token_metadata_cache[token_address]
+            return metadata.get('symbol')
+        if token_address in self.configuration.token_symbols:
+            symbol = self.configuration.token_symbols[token_address]
+            self.token_metadata_cache[token_address] = {'symbol':symbol}
+            return symbol
+        try:
+            erc20_abi = await self.abi_registry.load_abi('erc20')
+            contract = web3.eth.contract(address=token_address, abi=erc20_abi)
+            symbol = await contract.functions.symbol().call()
+            self.token_metadata_cache[token_address] = {'symbol': symbol}
+            return symbol
+        except Exception as e:
+            logger.error(f"Error getting symbol for token {token_address}: {e}")
+            return None
+
+    async def get_token_metadata(self, token: str) -> Optional[Dict[str, Any]]:
+        """Get metadata for a given token symbol."""
+        if token in self.token_metadata_cache:
+            return self.token_metadata_cache[token]
+        metadata = await self.data_fetcher.fetch_from_services(
+            lambda service: self._fetch_token_metadata(service, token),
+            f"metadata for {token}",
+        )
+        if metadata:
+            self.token_metadata_cache[token] = metadata
+        return metadata
+
+    async def _fetch_token_metadata(self, source: str, token: str) -> Optional[Dict[str, Any]]:
+        """Fetch token metadata with improved error handling."""
+        config = self.api_configs.get(source)
+        if not config:
+            return None
+
+        try:
+            if source == "coingecko":
+                # Handle both token address and symbol
+                token_id = token.lower()
+                url = f"{config['base_url']}/coins/{token_id}"
+                headers = {"x-cg-pro-api-key": config['api_key']} if config['api_key'] else None
+                
+                response = await self.data_fetcher.make_request(source, url, headers=headers)
+                if response:
+                    return {
+                        'symbol': response.get('symbol', ''),
+                        'market_cap': response.get('market_data', {}).get('market_cap', {}).get('usd', 0),
+                        'total_supply': response.get('market_data', {}).get('total_supply', 0),
+                        'circulating_supply': response.get('market_data', {}).get('circulating_supply', 0),
+                        'trading_pairs': len(response.get('tickers', [])),
+                        'exchanges': list(set(t.get('market', {}).get('name') for t in response.get('tickers', [])))
+                    }
+                    
+            elif source == "coinmarketcap":
+                url = f"{config['base_url']}/cryptocurrency/quotes/latest"
+                headers = {
+                    "X-CMC_PRO_API_KEY": config['api_key'],
+                    "Accept": "application/json"
+                }
+                params = {"symbol": token.upper()}
+                
+                response = await self.data_fetcher.make_request(source, url, params=params, headers=headers)
+                if response and 'data' in response:
+                    data = response['data'].get(token.upper(), {})
+                    return {
+                        'symbol': data.get('symbol', ''),
+                        'market_cap': data.get('quote', {}).get('USD', {}).get('market_cap', 0),
+                        'total_supply': data.get('total_supply', 0),
+                        'circulating_supply': data.get('circulating_supply', 0),
+                        'trading_pairs': len(data.get('tags', [])),
+                        'exchanges': []  # CMC doesn't provide exchange list in basic endpoint
+                    }
+
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error fetching metadata from {source}: {e}")
+            return None
+
+
+    async def get_real_time_price(self, token: str, vs_currency: str = "eth") -> Optional[Decimal]:
+        """Get real-time price using weighted average from multiple sources."""
+        cache_key = f"price_{token}_{vs_currency}"
+        if cache_key in self.price_cache:
+            return self.price_cache[cache_key]
+        prices = []
+        weights = []
+
+        for source, config in self.api_configs.items():
+            try:
+                price = await self._fetch_price(source, token, vs_currency)
+                if price:
+                    prices.append(price)
+                    weights.append(config["weight"] * config["success_rate"])
+            except Exception as e:
+                logger.error(f"Error fetching price from {source}: {e}")
+                config["success_rate"] *= 0.9
+        if not prices:
+            logger.warning(f"No valid prices found for {token}!")
+            return None
+        weighted_price = sum(p * w for p, w in zip(prices, weights)) / sum(weights)
+        self.price_cache[cache_key] = Decimal(str(weighted_price))
+        return self.price_cache[cache_key]
+
+    async def _fetch_price(self, source: str, token: str, vs_currency: str) -> Optional[Decimal]:
+        """Fetch the price of a token from a specified source."""
+        config = self.api_configs.get(source)
+        if not config:
+            logger.error(f"API source {source} not configured.")
+            return None
+
+        try:
+            url = config["base_url"] + f"/simple/price?ids={token}&vs_currencies={vs_currency}"
+            response = await self.data_fetcher.make_request(source, url)
+            if response:
+               data = response
+               price = Decimal(str(data[token][vs_currency]))
+               logger.debug(f"Fetched price from {source}: {price}")
+               return price
+            else:
+                 logger.error(f"Failed to fetch price from {source}")
+                 return None
+        except Exception as e:
+            logger.error(f"Exception fetching price from {source}: {e}")
+            return None
 
     async def fetch_historical_prices(self, token: str, days: int = 30) -> List[float]:
         """Fetch historical price data for a given token symbol."""
@@ -856,7 +876,7 @@ class API_Config:
         if cache_key in self.price_cache:
             logger.debug(f"Returning cached historical prices for {token}.")
             return self.price_cache[cache_key]
-        prices = await self._fetch_from_services(
+        prices = await self.data_fetcher.fetch_from_services(
             lambda service: self._fetch_historical_prices(service, token, days),
             f"historical prices for {token}",
         )
@@ -872,15 +892,16 @@ class API_Config:
             return None
 
         try:
-            async with self.session.get(config["base_url"] + f"/coins/{token}/market_chart?vs_currency=eth&days={days}") as response:
-                if response.status == 200:
-                    data = await response.json()
-                    prices = [price[1] for price in data.get("prices", [])]
-                    logger.debug(f"Fetched historical prices from {source}: {prices}")
-                    return prices
-                else:
-                    logger.error(f"Failed to fetch historical prices from {source}: Status {response.status}")
-                    return None
+            url = config["base_url"] + f"/coins/{token}/market_chart?vs_currency=eth&days={days}"
+            response = await self.data_fetcher.make_request(source, url)
+            if response:
+                data = response
+                prices = [price[1] for price in data.get("prices", [])]
+                logger.debug(f"Fetched historical prices from {source}: {prices}")
+                return prices
+            else:
+                logger.error(f"Failed to fetch historical prices from {source}")
+                return None
         except Exception as e:
             logger.error(f"Exception fetching historical prices from {source}: {e}")
             return None
@@ -891,7 +912,7 @@ class API_Config:
         if cache_key in self.volume_cache:
             logger.debug(f"Returning cached trading volume for {token}.")
             return self.volume_cache[cache_key]
-        volume = await self._fetch_from_services(
+        volume = await self.data_fetcher.fetch_from_services(
             lambda service: self._fetch_token_volume(service, token),
             f"trading volume for {token}",
         )
@@ -917,7 +938,7 @@ class API_Config:
                     try:
                         url = f"{config['base_url']}/ticker/24hr"
                         params = {"symbol": symbol}
-                        response = await self.make_request(source, url, params=params)
+                        response = await self.data_fetcher.make_request(source, url, params=params)
                         
                         if response and 'volume' in response:
                             return float(response['quoteVolume'])  # Use quote volume for USD value
@@ -935,7 +956,7 @@ class API_Config:
                 if config['api_key']:
                     params['x_cg_pro_api_key'] = config['api_key']
                 
-                response = await self.make_request(source, url, params=params)
+                response = await self.data_fetcher.make_request(source, url, params=params)
                 if response and token_id in response:
                     return float(response[token_id].get('usd_24h_vol', 0))
 
@@ -944,7 +965,7 @@ class API_Config:
                 headers = {"X-CMC_PRO_API_KEY": config['api_key']}
                 params = {"symbol": token.upper()}
                 
-                response = await self.make_request(source, url, params=params, headers=headers)
+                response = await self.data_fetcher.make_request(source, url, params=params, headers=headers)
                 if response and 'data' in response:
                     token_data = response['data'].get(token.upper(), {})
                     return float(token_data.get('quote', {}).get('USD', {}).get('volume_24h', 0))
@@ -977,31 +998,6 @@ class API_Config:
             
         return pairs
 
-    async def _fetch_from_services(self, fetch_func: Callable[[str], Any], description: str) -> Optional[Union[List[float], float]]:
-        """Helper method to fetch data from multiple services."""
-        for service in self.api_configs.keys():
-            try:
-                logger.debug(f"Fetching {description} using {service}...")
-                result = await fetch_func(service)
-                if result:
-                    return result
-            except Exception as e:
-                logger.warning(f"failed to fetch {description} using {service}: {e}")
-        logger.warning(f"failed to fetch {description}.")
-        return None
-    
-    async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
-        """Load contract abi from a file."""
-        try:
-            abi_registry = ABI_Registry()
-            abi = await abi_registry.load_abi('erc20')
-            if not abi:
-                 raise ValueError("Failed to load ERC20 ABI using ABI Registry")
-            return abi
-        except Exception as e:
-            logger.error(f"Failed to load abi from {abi_path}: {e}")
-            raise
-
     async def close(self) -> None:
         """Close the aiohttp session."""
         if self.session:
@@ -1010,7 +1006,6 @@ class API_Config:
     async def initialize(self) -> None:
         """Initialize API configuration."""
         try:
-            self.session = aiohttp.ClientSession()
             logger.info("API_Config initialized ✅")
         except Exception as e:
             logger.critical(f"API_Config initialization failed: {e}")
@@ -1269,26 +1264,6 @@ class API_Config:
         except Exception as e:
             logger.error(f"Error calculating liquidity ratio: {e}")
             return 0.0
-    
-    async def get_token_supply_data(self, token: str) -> Dict[str, Any]:
-            """Gets total and circulating supply for a given token."""
-            metadata = await self.get_token_metadata(token)
-            if not metadata:
-                return {}
-            return {
-                'total_supply': metadata.get('total_supply', 0),
-                'circulating_supply': metadata.get('circulating_supply', 0)
-            }
-
-    async def get_token_market_cap(self, token: str) -> float:
-        """Gets token market cap."""
-        metadata = await self.get_token_metadata(token)
-        return metadata.get('market_cap', 0) if metadata else 0
-
-    async def get_price_change_24h(self, token: str) -> float:
-        """Gets price change in the last 24h."""
-        metadata = await self.get_token_metadata(token)
-        return metadata.get('percent_change_24h', 0) if metadata else 0
 
 
 class Nonce_Core:
@@ -1306,11 +1281,11 @@ class Nonce_Core:
         self,
         web3: AsyncWeb3,
         address: str,
-        configuration: "Configuration",
+        configuration: Configuration,
     ):
         self.pending_transactions: set[int] = set()
         self.web3: AsyncWeb3 = web3
-        self.configuration: "Configuration" = configuration
+        self.configuration: Configuration = configuration
         self.address: str = address
         self.lock: asyncio.Lock = asyncio.Lock()
         self.nonce_cache: TTLCache = TTLCache(maxsize=1, ttl=self.CACHE_TTL)
@@ -1382,17 +1357,19 @@ class Nonce_Core:
 
     async def track_transaction(self, tx_hash: str, nonce: int) -> None:
         """Track pending transaction for nonce management."""
-        self.pending_transactions.add(nonce)
-        try:
-            receipt = await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=self.TRANSACTION_TIMEOUT)
-            if receipt.status == 1:
-                logger.info(f"Transaction {tx_hash} succeeded.")
-            else:
-                logger.error(f"Transaction {tx_hash} failed.")
-        except Exception as e:
-            logger.error(f"Error tracking transaction {tx_hash}: {e}")
-        finally:
-            self.pending_transactions.discard(nonce)
+        async with self.lock:
+            self.pending_transactions.add(nonce)
+            try:
+                receipt = await self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=self.TRANSACTION_TIMEOUT)
+                if receipt.status == 1:
+                    logger.info(f"Transaction {tx_hash} succeeded.")
+                else:
+                    logger.error(f"Transaction {tx_hash} failed.")
+            except Exception as e:
+                logger.error(f"Error tracking transaction {tx_hash}: {e}")
+            finally:
+                self.pending_transactions.discard(nonce)
+
 
     async def _handle_nonce_error(self) -> None:
         """Handle nonce-related errors with recovery attempt."""
@@ -1425,74 +1402,57 @@ class Nonce_Core:
     def _should_refresh_cache(self) -> bool:
         """Check if the nonce cache should be refreshed based on time."""
         return time.monotonic() - self.last_sync > self.CACHE_TTL
+    
+
 
 class Safety_Net:
     """
     Enhanced safety system for risk management and transaction validation.
     """
 
-    CACHE_TTL: int = 300  # Cache TTL in seconds
     GAS_PRICE_CACHE_TTL: int = 15  # 15 sec cache for gas prices
 
     def __init__(
         self,
         web3: AsyncWeb3,
-        configuration: Optional["Configuration"] = None,
-        address: Optional[str] = None,
+        configuration: Configuration,
         account: Optional[Account] = None,
-        api_config: Optional["API_Config"] = None,
-        market_monitor: Optional[Any] = None,  # Add this parameter
+        api_config: Optional[API_Config] = None,
+        market_monitor: Optional['Market_Monitor'] = None,  # Add this parameter
     ):
         self.web3: AsyncWeb3 = web3
-        self.address: Optional[str] = address
-        self.configuration: Optional["Configuration"] = configuration
+        self.address: Optional[str] = account.address if account else None
+        self.configuration: Configuration = configuration
         self.account: Optional[Account] = account
-        self.api_config: Optional["API_Config"] = api_config
-        self.price_cache: TTLCache = TTLCache(maxsize=1000, ttl=self.CACHE_TTL)
+        self.api_config: Optional[API_Config] = api_config
+        self.price_cache: TTLCache = TTLCache(maxsize=1000, ttl=300)
         self.gas_price_cache: TTLCache = TTLCache(maxsize=1, ttl=self.GAS_PRICE_CACHE_TTL)
-        self.market_monitor: Optional[Any] = market_monitor  # Store market_monitor reference
-
+        self.market_monitor: Optional[Market_Monitor] = market_monitor  # Store market_monitor reference
+        
         self.price_lock: asyncio.Lock = asyncio.Lock()
         logger.info("SafetyNet is reporting for duty 🛡️")
         time.sleep(3) # ensuring proper initialization
 
         # Add safety checks cache
         self.safety_cache: TTLCache = TTLCache(maxsize=100, ttl=60)  # 1 minute cache
-
-        # Load settings from config object
-        if self.configuration:
-            self.SLIPPAGE_CONFIG: Dict[str, float] = {
-                "default": self.configuration.get_config_value("SLIPPAGE_DEFAULT", 0.1),
-                "min": self.configuration.get_config_value("SLIPPAGE_MIN", 0.01),
-                "max": self.configuration.get_config_value("SLIPPAGE_MAX", 0.5),
-                "high_congestion": self.configuration.get_config_value("SLIPPAGE_HIGH_CONGESTION", 0.05),
-                "low_congestion": self.configuration.get_config_value("SLIPPAGE_LOW_CONGESTION", 0.2),
+        self.SLIPPAGE_CONFIG: Dict[str, float] = {
+                "default": self.configuration.strategy_settings.slippage_default,
+                "min": self.configuration.strategy_settings.slippage_min,
+                "max": self.configuration.strategy_settings.slippage_max,
+                "high_congestion": self.configuration.strategy_settings.slippage_high_congestion,
+                "low_congestion": self.configuration.strategy_settings.slippage_low_congestion,
             }
-            self.GAS_CONFIG: Dict[str, Union[int, float]] = {
-                "max_gas_price_gwei": self.configuration.get_config_value("MAX_GAS_PRICE_GWEI", 500),
-                "min_profit_multiplier": self.configuration.get_config_value("MIN_PROFIT_MULTIPLIER", 2.0),
-                "base_gas_limit": self.configuration.get_config_value("BASE_GAS_LIMIT", 21000)
+        self.GAS_CONFIG: Dict[str, Union[int, float]] = {
+            "max_gas_price_gwei": self.configuration.strategy_settings.max_gas_price_gwei,
+            "min_profit_multiplier": self.configuration.strategy_settings.min_profit_multiplier,
+            "base_gas_limit": self.configuration.strategy_settings.base_gas_limit
             }
-        else: #Defaults for testing when config class is not available.
-             self.SLIPPAGE_CONFIG: Dict[str, float] = {
-                "default":  0.1,
-                "min": 0.01,
-                "max": 0.5,
-                "high_congestion":  0.05,
-                "low_congestion": 0.2,
-            }
-             self.GAS_CONFIG: Dict[str, Union[int, float]] = {
-                "max_gas_price_gwei":  500,
-                "min_profit_multiplier": 2.0,
-                "base_gas_limit":  21000
-            }
-        
 
     async def initialize(self) -> None:
         """Initialize Safety Net components."""
         try:
             # Initialize price cache
-            self.price_cache = TTLCache(maxsize=1000, ttl=self.CACHE_TTL)
+            self.price_cache = TTLCache(maxsize=1000, ttl=300)
             
             # Initialize gas price cache
             self.gas_price_cache = TTLCache(maxsize=1, ttl=self.GAS_PRICE_CACHE_TTL)
@@ -1613,27 +1573,6 @@ class Safety_Net:
             f"Profitable: {profitable}"
         )
 
-    async def get_dynamic_gas_price(self) -> Decimal:
-        """Get the current gas price dynamically with fallback."""
-        if "gas_price" in self.gas_price_cache:
-            return self.gas_price_cache["gas_price"]
-        try:
-            if not self.web3:
-                logger.error("Web3 not initialized in Safety_Net")
-                return Decimal("50")  # Default fallback gas price in Gwei
-                
-            gas_price = await self.web3.eth.gas_price
-            if gas_price is None:
-                logger.warning("Failed to get gas price, using fallback")
-                return Decimal("50")  # Fallback gas price
-                
-            gas_price_decimal = Decimal(gas_price) / Decimal(10**9)  # Convert to Gwei
-            self.gas_price_cache["gas_price"] = gas_price_decimal
-            return gas_price_decimal
-        except Exception as e:
-            logger.error(f"Failed to get dynamic gas price: {e}")
-            return Decimal("50")  # Fallback gas price on error
-
     async def estimate_gas(self, transaction_data: Dict[str, Any]) -> int:
         """Estimate the gas required for a transaction."""
         try:
@@ -1673,6 +1612,7 @@ class Safety_Net:
             return congestion_level
         except Exception as e:
             logger.error(f"Error fetching network congestion: {e}")
+            return 0
 
     async def check_transaction_safety(
         self, 
@@ -1729,15 +1669,12 @@ class Safety_Net:
     async def stop(self) -> None:
          """Stops the 0xBuilder gracefully."""
          try:
-            if self.api_config:
-                await self.api_config.close()
             logger.debug("Safety Net stopped successfully.")
          except Exception as e:
              logger.error(f"Error stopping safety net: {e}")
              raise
              logger.error(f"Error stopping safety net: {e}")
              raise
-
     async def assess_transaction_risk(
         self,
         tx: Dict[str, Any],
@@ -1786,6 +1723,54 @@ class Safety_Net:
             logger.error(f"Error in risk assessment: {e}")
             return 0.0, {}
 
+    async def get_dynamic_gas_price(self) -> Decimal:
+         """Gets the dynamic gas price from the web3 client with caching."""
+         cache_key = "dynamic_gas_price"
+         if cache_key in self.gas_price_cache:
+            return self.gas_price_cache[cache_key]
+         try:
+            # Get gas price from web3
+            gas_price = await self.web3.eth.gas_price
+            gas_price_gwei = Decimal(self.web3.from_wei(gas_price, 'gwei'))
+            
+            # Apply configured multiplier
+            adjusted_gas_price = gas_price_gwei
+            self.gas_price_cache[cache_key] = adjusted_gas_price
+            logger.debug(f"Fetched dynamic gas price: {adjusted_gas_price} Gwei")
+            return adjusted_gas_price
+
+         except Exception as e:
+            logger.error(f"Error fetching dynamic gas price: {e}. Returning default value.")
+            return Decimal(20)
+         
+
+
+logger = getLogger("0xBuilder")
+
+class MarketDataMetrics:
+    """Tracks metrics for market data."""
+    def __init__(self):
+        self.price_volatility: float = 0.0
+        self.price_momentum: float = 0.0
+        self.liquidity_ratio: float = 0.0
+        self.trading_pairs: int = 0
+        self.exchange_count: int = 0
+        self.avg_transaction_value: float = 0.0
+        self.buy_sell_ratio: float = 1.0
+        self.smart_money_flow: float = 0.0
+        
+
+    def reset(self):
+        """Resets the metrics."""
+        self.price_volatility = 0.0
+        self.price_momentum = 0.0
+        self.liquidity_ratio = 0.0
+        self.trading_pairs = 0
+        self.exchange_count = 0
+        self.avg_transaction_value = 0.0
+        self.buy_sell_ratio = 1.0
+        self.smart_money_flow = 0.0
+
 
 class Market_Monitor:
     """Advanced market monitoring system for real-time analysis and prediction."""
@@ -1801,55 +1786,55 @@ class Market_Monitor:
     def __init__(
         self,
         web3: AsyncWeb3,
-        configuration: Optional["Configuration"],
-        api_config: Optional["API_Config"],
-        transaction_core: Optional[Any] = None,  # Add this parameter
+        configuration: Configuration,
+        api_config: API_Config,
+        transaction_core: 'Transaction_Core',  # Add this parameter using forward reference
     ) -> None:
         """Initialize Market Monitor with required components."""
         self.web3: AsyncWeb3 = web3
-        self.configuration: Optional["Configuration"] = configuration
-        self.api_config: Optional["API_Config"] = api_config
-        self.transaction_core: Optional[Any] = transaction_core  # Store transaction_core reference
+        self.configuration: Configuration = configuration
+        self.api_config: API_Config = api_config
+        self.transaction_core: Optional[Transaction_Core] = transaction_core  # Store transaction_core reference
         self.price_model: Optional[LinearRegression] = LinearRegression()
         self.model_last_updated: float = 0
-    
-        # Get from config or default
-        self.linear_regression_path: str = self.configuration.get_config_value("LINEAR_REGRESSION_PATH", "/home/mitander/0xBuilder/python/linear_regression") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression"
-        self.model_path: str = self.configuration.get_config_value("MODEL_PATH", "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib"
-        self.training_data_path: str = self.configuration.get_config_value("TRAINING_DATA_PATH", "/home/mitander/0xBuilder/python/linear_regression/training_data.csv") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression/training_data.csv"
+        
+        self.model_path: str = self.configuration.file_paths.model_path
+        self.training_data_path: str = self.configuration.file_paths.training_data_path
+        self.linear_regression_path: str = self.configuration.file_paths.linear_regression_path
+
 
         # Create directory if it doesn't exist
         os.makedirs(self.linear_regression_path, exist_ok=True)
         
         # Add separate caches for different data types
         self.caches: Dict[str, TTLCache] = {
-            'price': TTLCache(maxsize=CACHE_SETTINGS['price']['size'], 
-                    ttl=CACHE_SETTINGS['price']['ttl']),
-            'volume': TTLCache(maxsize=CACHE_SETTINGS['volume']['size'], 
-                     ttl=CACHE_SETTINGS['volume']['ttl']),
-            'volatility': TTLCache(maxsize=CACHE_SETTINGS['volatility']['size'], 
-                     ttl=CACHE_SETTINGS['volatility']['ttl'])
+            'price': TTLCache(maxsize=self.configuration.cache_settings['price'].size, 
+                    ttl=self.configuration.cache_settings['price'].ttl),
+            'volume': TTLCache(maxsize=self.configuration.cache_settings['volume'].size, 
+                     ttl=self.configuration.cache_settings['volume'].ttl),
+            'volatility': TTLCache(maxsize=self.configuration.cache_settings['volatility'].size, 
+                     ttl=self.configuration.cache_settings['volatility'].ttl)
         }
         
         # Initialize model variables
         self.price_model: Optional[LinearRegression] = None
         self.last_training_time: float = 0
         self.model_accuracy: float = 0.0
-        self.RETRAINING_INTERVAL: int = self.configuration.MODEL_RETRAINING_INTERVAL if self.configuration else 3600 # Retrain every hour
-        self.MIN_TRAINING_SAMPLES: int = self.configuration.MIN_TRAINING_SAMPLES if self.configuration else 100
-        
+        self.RETRAINING_INTERVAL: int = self.configuration.model_settings.model_retraining_interval
+        self.MIN_TRAINING_SAMPLES: int = self.configuration.model_settings.min_training_samples
+
         # Initialize data storage
         self.historical_data: pd.DataFrame = pd.DataFrame()
-        self.prediction_cache: TTLCache = TTLCache(maxsize=1000, ttl=300)  # 5-minute cache
+        self.prediction_cache: TTLCache = TTLCache(maxsize=1000, ttl=self.configuration.model_settings.prediction_cache_ttl)  # 5-minute cache
 
         # Add data update
-        scheduling
         self.update_scheduler = {
             'training_data': 0,  # Last update timestamp
             'model': 0,          # Last model update timestamp
-            'UPDATE_INTERVAL': self.configuration.MODEL_RETRAINING_INTERVAL if self.configuration else 3600,  # 1 hour
+            'UPDATE_INTERVAL': self.configuration.model_settings.model_retraining_interval,  # 1 hour
             'MODEL_INTERVAL': 86400   # 24 hours
         }
+
         self.abi_registry = ABI_Registry()
 
     async def initialize(self) -> None:
@@ -1914,7 +1899,7 @@ class Market_Monitor:
                 
                 # Update training data
                 if current_time - self.update_scheduler['training_data'] >= self.update_scheduler['UPDATE_INTERVAL']:
-                    await self.api_config.update_training_data()
+                    await self._update_training_data()
                     self.update_scheduler['training_data'] = current_time
                 
                 # Retrain model
@@ -2076,13 +2061,20 @@ class Market_Monitor:
     async def _get_trading_metrics(self, token_symbol: str) -> Dict[str, float]:
         """Get additional trading metrics."""
         try:
-            return {
-                'avg_transaction_value': await self._get_avg_transaction_value(token_symbol),
-                'trading_pairs': await self._get_trading_pairs_count(token_symbol),
-                'exchange_count': await self._get_exchange_count(token_symbol),
-                'buy_sell_ratio': await self._get_buy_sell_ratio(token_symbol),
-                'smart_money_flow': await self._get_smart_money_flow(token_symbol)
-            }
+           market_metrics = MarketDataMetrics()
+           market_metrics.avg_transaction_value = await self._get_avg_transaction_value(token_symbol)
+           market_metrics.trading_pairs = await self._get_trading_pairs_count(token_symbol)
+           market_metrics.exchange_count = await self._get_exchange_count(token_symbol)
+           market_metrics.buy_sell_ratio = await self._get_buy_sell_ratio(token_symbol)
+           market_metrics.smart_money_flow = await self._get_smart_money_flow(token_symbol)
+
+           return {
+               'avg_transaction_value': market_metrics.avg_transaction_value,
+               'trading_pairs': market_metrics.trading_pairs,
+               'exchange_count': market_metrics.exchange_count,
+                'buy_sell_ratio': market_metrics.buy_sell_ratio,
+                'smart_money_flow': market_metrics.smart_money_flow
+           }
         except Exception as e:
             logger.error(f"Error getting trading metrics: {e}")
             return {
@@ -2144,17 +2136,20 @@ class Market_Monitor:
         # Real implementation would require on-chain data analysis
         return 0.0
     
-    async def update_training_data(self, new_data: Dict[str, Any]) -> None:
+    async def _update_training_data(self) -> None:
         """Update training data with new market information."""
         try:
-            # Convert new data to DataFrame row
-            df_row = pd.DataFrame([new_data])
-            
-            # Append to historical data
-            self.historical_data = pd.concat([self.historical_data, df_row], ignore_index=True)
-            
-            # Save updated data
-            self.historical_data.to_csv(self.training_data_path, index=False)
+            tokens = await self.configuration.get_token_addresses()
+            # Create tasks to gather data for all the tokens concurrently
+            tasks = [self._gather_training_data(token) for token in tokens]
+            results = await asyncio.gather(*tasks)
+
+            # Remove all null results from the array.
+            valid_updates = [result for result in results if result]
+                
+            # Update the historical training data
+            if valid_updates:
+                 await self._write_training_data(valid_updates)
             
             # Retrain model if enough new data
             if len(self.historical_data) >= self.MIN_TRAINING_SAMPLES:
@@ -2238,11 +2233,11 @@ class Market_Monitor:
         if volume is not None:
             self.caches['volume'][cache_key] = volume
         return volume or 0.0
-
+    
     async def _fetch_from_services(self, fetch_func: Callable[[str], Any], description: str) -> Optional[Union[List[float], float]]:
         """
         Helper method to fetch data from multiple services.
-
+        
         :param fetch_func: Function to fetch data from a service
         :param description: Description of the data being fetched
         :return: Fetched data or None
@@ -2257,6 +2252,7 @@ class Market_Monitor:
                 logger.warning(f"failed to fetch {description} using {service}: {e}")
         logger.warning(f"failed to fetch {description}.")
         return None
+
 
     # Helper Methods
     def _calculate_volatility(
@@ -2289,48 +2285,6 @@ class Market_Monitor:
             self.price_model.fit(X, y)
             self.model_last_updated = time.time()
 
-    async def is_arbitrage_opportunity(self, target_tx: Dict[str, Any]) -> bool:
-        """Use transaction_core for decoding but avoid circular dependencies."""
-        if not self.transaction_core:
-            logger.warning("Transaction core not initialized, cannot check arbitrage")
-            return False
-
-        try:
-            decoded_tx = await self.transaction_core.decode_transaction_input(
-                target_tx["input"], target_tx["to"]
-            )
-             # Add logic here to check for arbitrage
-            if not decoded_tx:
-                logger.debug("Transaction input could not be decoded")
-                return False
-            
-            if 'swap' in decoded_tx.get('function_name', '').lower():
-                logger.debug("Transaction is a swap, might have arbitrage oppurtunity.")
-                # Further check for price differences etc. can be implemented here
-                return True
-
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error checking arbitrage opportunity: {e}")
-            return False
-
-    async def _get_prices_from_services(self, token_symbol: str) -> List[float]:
-        """
-        Get real-time prices from different services.
-
-        :param token_symbol: Token symbol to get prices for
-        :return: List of real-time prices
-        """
-        prices = []
-        for service in self.api_config.api_configs.keys():
-            try:
-                price = await self.api_config.get_real_time_price(token_symbol)
-                if price is not None:
-                    prices.append(price)
-            except Exception as e:
-                logger.warning(f"failed to get price from {service}: {e}")
-        return prices
 
     async def stop(self) -> None:
         """Clean up resources and stop monitoring."""
@@ -2345,7 +2299,7 @@ class Market_Monitor:
     async def _get_contract(self, address: str, abi_type: str) -> Optional[Any]:
         """Get contract instance using ABI registry."""
         try:
-            abi = self.abi_registry.get_abi(abi_type)
+            abi = await self.abi_registry.get_abi(abi_type)
             if not abi:
                 return None
             return self.web3.eth.contract(
@@ -2356,16 +2310,18 @@ class Market_Monitor:
             logger.error(f"Error creating contract instance: {e}")
             return None
 
+
 class Mempool_Monitor:
     """
     Advanced mempool monitoring system that identifies and analyzes profitable transactions.
     Includes sophisticated profit estimation, caching, and parallel processing capabilities.
     """
 
-    MAX_RETRIES = 3
-    RETRY_DELAY = 1.0
     BATCH_SIZE = 10
     MAX_PARALLEL_TASKS = 50
+    MAX_RETRIES = 3
+    RETRY_DELAY = 1.0
+    
 
     def __init__(
         self,
@@ -2375,8 +2331,8 @@ class Mempool_Monitor:
         api_config: API_Config,
         monitored_tokens: Optional[List[str]] = None,
         configuration: Optional[Configuration] = None,
-        erc20_abi: Optional[List[Dict[str, Any]]] = None,  # Changed to accept loaded ABI
-        market_monitor: Optional[Market_Monitor] = None # Market monitor for arbitrage check
+        erc20_abi: Optional[List[Dict[str, Any]]] = None,
+        market_monitor: Optional[Market_Monitor] = None,
     ):
         # Core components
         self.web3 = web3
@@ -2388,6 +2344,7 @@ class Mempool_Monitor:
 
         # Monitoring state
         self.running = False
+        self.stopping = False
         self.pending_transactions = asyncio.Queue()
         self.monitored_tokens = set(monitored_tokens or [])
         self.profitable_transactions = asyncio.Queue()
@@ -2401,7 +2358,7 @@ class Mempool_Monitor:
         else:
             self.erc20_abi = erc20_abi
             logger.debug(f"Loaded ERC20 ABI with {len(self.erc20_abi)} entries")
-        self.minimum_profit_threshold = Decimal("0.001")
+        self.minimum_profit_threshold = configuration.min_profit_threshold if configuration else 0.001
         self.max_parallel_tasks = self.MAX_PARALLEL_TASKS
         self.retry_attempts = self.MAX_RETRIES
         self.backoff_factor = 1.5
@@ -2417,8 +2374,8 @@ class Mempool_Monitor:
             '0x23b872dd': 'transferFrom',
             # Add more common ERC20 function signatures as needed
         }
-        if configuration and hasattr(configuration, 'ERC20_SIGNATURES'):
-            self.function_signatures.update(configuration.ERC20_SIGNATURES)
+        if configuration and hasattr(configuration, 'erc20_signatures') and configuration.erc20_signatures:
+            self.function_signatures.update(configuration.erc20_signatures)
 
         self.abi_registry = ABI_Registry()
 
@@ -2536,7 +2493,7 @@ class Mempool_Monitor:
             
             # Test filter with timeout
             try:
-                async with async_timeout.timeout(5):
+                async with asyncio.timeout(5):
                     await pending_filter.get_new_entries()
                     logger.debug("Successfully set up pending transaction filter")
                     return pending_filter
@@ -2740,9 +2697,9 @@ class Mempool_Monitor:
                     logger.debug(f"Contract decode error: {e}")
 
             # Method 3: Configuration fallback
-            if not decoded and hasattr(self.configuration, 'ERC20_SIGNATURES'):
+            if not decoded and hasattr(self.configuration, 'erc20_signatures'):
                 try:
-                    function_name = self.configuration.ERC20_SIGNATURES.get(function_selector)
+                    function_name = self.configuration.erc20_signatures.get(function_selector)
                     if function_name:
                         decoded = True
                 except Exception as e:
@@ -3143,48 +3100,7 @@ class Mempool_Monitor:
             logger.error(f"Parameter validation error: {e}")
             return False
 
-    async def initialize(self) -> None:
-        """
-        Initialize with proper ABI loading.
-        """
-        try:
-            # Load ERC20 ABI through ABI manager
-            self.erc20_abi = await self.abi_registry.load_abi('erc20')
-            if not self.erc20_abi:
-                raise ValueError("Failed to load ERC20 ABI")
-            
-            # Validate required methods
-            required_methods = ['transfer', 'approve', 'transferFrom', 'balanceOf']
-            if not self.abi_registry.validate_abi(self.erc20_abi, required_methods):
-                raise ValueError("Invalid ERC20 ABI")
-            
-            # Initialize other attributes
-            self.running = False
-            self.pending_transactions = asyncio.Queue()
-            self.profitable_transactions = asyncio.Queue()
-            self.processed_transactions = set()
-            self.task_queue = asyncio.Queue()
-            
-            logger.info("MempoolMonitor initialized ✅")
-        
-        except Exception as e:
-            logger.critical(f"Mempool Monitor initialization failed: {e}")
-            raise
 
-    async def stop(self) -> None:
-        """
-        Gracefully stop the Mempool Monitor.
-        """ 
-        try:
-            self.running = False
-            self.stopping = True
-            await self.task_queue.join()
-            logger.debug("Mempool Monitor stopped gracefully.")
-        
-        except Exception as e:
-            logger.error(f"Error stopping Mempool Monitor: {e}")
-            raise
-            
 class Transaction_Core:
     """
     Transaction_Core is the main transaction engine that handles all transaction-related
@@ -3202,43 +3118,33 @@ class Transaction_Core:
         self,
         web3: AsyncWeb3,
         account: Account,
-        AAVE_FLASHLOAN_ADDRESS: str,
-        AAVE_FLASHLOAN_ABI: List[Dict[str, Any]],
-        AAVE_POOL_ADDRESS: str,
-        AAVE_POOL_ABI: List[Dict[str, Any]],
-        api_config: Optional["API_Config"] = None,
-        market_monitor: Optional["Market_Monitor"] = None,
-        mempool_monitor: Optional["Mempool_Monitor"] = None,
-        nonce_core: Optional["Nonce_Core"] = None,
-        safety_net: Optional["Safety_Net"] = None,
-        configuration: Optional["Configuration"] = None,
-        gas_price_multiplier: float = 1.1,
-        erc20_abi: Optional[List[Dict[str, Any]]] = None,
-        uniswap_address: Optional[str] = None,
-        uniswap_abi: Optional[List[Dict[str, Any]]] = None,
+        configuration: Configuration,
+        api_config: Optional[API_Config] = None,
+        market_monitor: Optional[Market_Monitor] = None,
+        mempool_monitor: Optional[Mempool_Monitor] = None,
+        nonce_core: Optional[Nonce_Core] = None,
+        safety_net: Optional[Safety_Net] = None,
     ):
         self.web3: AsyncWeb3 = web3
         self.account: Account = account
-        self.configuration: Optional["Configuration"] = configuration
-        self.market_monitor: Optional["Market_Monitor"] = market_monitor
-        self.mempool_monitor: Optional["Mempool_Monitor"] = mempool_monitor
-        self.api_config: Optional["API_Config"] = api_config
-        self.nonce_core: Optional["Nonce_Core"] = nonce_core
-        self.safety_net: Optional["Safety_Net"] = safety_net
-        self.gas_price_multiplier: float = gas_price_multiplier
+        self.configuration: Configuration = configuration
+        self.market_monitor: Optional[Market_Monitor] = market_monitor
+        self.mempool_monitor: Optional[Mempool_Monitor] = mempool_monitor
+        self.api_config: Optional[API_Config] = api_config
+        self.nonce_core: Optional[Nonce_Core] = nonce_core
+        self.safety_net: Optional[Safety_Net] = safety_net
         self.RETRY_ATTEMPTS: int = self.MAX_RETRIES
-        self.erc20_abi: List[Dict[str, Any]] = erc20_abi or []
         self.current_profit: Decimal = Decimal("0")
-        self.AAVE_FLASHLOAN_ADDRESS: str = AAVE_FLASHLOAN_ADDRESS
-        self.AAVE_FLASHLOAN_ABI: List[Dict[str, Any]] = AAVE_FLASHLOAN_ABI
-        self.AAVE_POOL_ADDRESS: str = AAVE_POOL_ADDRESS
-        self.AAVE_POOL_ABI: List[Dict[str, Any]] = AAVE_POOL_ABI
         self.abi_registry: ABI_Registry = ABI_Registry()
-        self.uniswap_address: str = uniswap_address
-        self.uniswap_abi: List[Dict[str, Any]] = uniswap_abi or []
         
-
-
+        # Initialize contract attributes
+        self.aave_flashloan = None
+        self.aave_pool = None
+        self.uniswap_router_contract = None
+        self.sushiswap_router_contract = None
+        self.gas_price_multiplier: float = 1.1
+        
+        
     def normalize_address(self, address: str) -> str:
         """Normalize Ethereum address to checksum format."""
         try:
@@ -3253,8 +3159,8 @@ class Transaction_Core:
         try:
             # Initialize contracts using ABIs from registry
             router_configs = [
-                (self.configuration.UNISWAP_ADDRESS, 'uniswap', 'Uniswap'),
-                (self.configuration.SUSHISWAP_ROUTER_ADDRESS, 'sushiswap', 'Sushiswap'),
+                (self.configuration.uniswap_address, 'uniswap', 'Uniswap'),
+                (self.configuration.sushiswap_address, 'sushiswap', 'Sushiswap'),
             ]
 
             for address, abi_type, name in router_configs:
@@ -3279,15 +3185,15 @@ class Transaction_Core:
 
             # Initialize Aave contracts with correct functions
             self.aave_flashloan = self.web3.eth.contract(
-                address=self.normalize_address(self.configuration.AAVE_FLASHLOAN_ADDRESS),
-                abi=self.configuration.AAVE_FLASHLOAN_ABI
+                address=self.normalize_address(self.configuration.aave_flashloan_address),
+                abi=self.configuration.aave_flashloan_abi
             )
 
             await self._validate_contract(self.aave_flashloan, "Aave Flashloan", 'aave_flashloan')
 
             self.aave_pool = self.web3.eth.contract(
-                address=self.normalize_address(self.AAVE_POOL_ADDRESS),
-                abi=self.AAVE_POOL_ABI
+                address=self.normalize_address(self.configuration.aave_pool_address),
+                abi=self.configuration.aave_pool_abi
             )
             await self._validate_contract(self.aave_pool, "Aave Lending Pool", 'aave')
 
@@ -3307,7 +3213,7 @@ class Transaction_Core:
                 await contract.functions.ADDRESSES_PROVIDER().call()
                 logger.debug(f"{name} contract validated successfully via ADDRESSES_PROVIDER()")
             elif abi_type in ['uniswap', 'sushiswap']:
-                path = [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]
+                path = [self.configuration.contract_addresses.weth_address, self.configuration.contract_addresses.usdc_address]
                 await contract.functions.getAmountsOut(1000000, path).call()
                 logger.debug(f"{name} contract validated successfully")
             else:
@@ -3317,19 +3223,6 @@ class Transaction_Core:
         except Exception as e:
              logger.warning(f"Contract validation warning for {name}: {e}")
 
-    async def _load_erc20_abi(self) -> List[Dict[str, Any]]:
-        """Load the ERC20 ABI with better path handling."""
-        try:
-            return await self.abi_registry.get_abi('erc20')
-            
-        except Exception as e:
-            logger.error(f"Failed to load ERC20 ABI: {e}")
-            raise
-
-    async def _validate_signatures(self) -> None:
-        """Validate loaded ERC20 signatures."""
-        # This function was not used, and it is now removed
-        pass
 
     async def build_transaction(self, function_call: Any, additional_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Enhanced transaction building with EIP-1559 support and proper gas estimation.""" 
@@ -3833,8 +3726,8 @@ class Transaction_Core:
 
             # Router address mapping
             routers = {
-                self.configuration.UNISWAP_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
-                self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
+                self.configuration.uniswap_address: (self.uniswap_router_contract, "Uniswap"),
+                self.configuration.sushiswap_address: (self.sushiswap_router_contract, "Sushiswap"),
             }
 
             if to_address not in routers:
@@ -3894,8 +3787,8 @@ class Transaction_Core:
 
             # Router address mapping
             routers = {
-                self.configuration.UNISWAP_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
-                self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
+                self.configuration.uniswap_address: (self.uniswap_router_contract, "Uniswap"),
+                self.configuration.sushiswap_address: (self.sushiswap_router_contract, "Sushiswap"),
             }
 
             if to_address not in routers:
@@ -3959,751 +3852,226 @@ class Transaction_Core:
             return None
 
     async def cancel_transaction(self, nonce: int) -> bool:
-            """
-            Cancels a stuck transaction by sending a zero-value transaction with the same nonce.
-    
-            :param nonce: Nonce of the transaction to cancel.
-            :return: True if cancellation was successful, else False.
-            """
-            cancel_tx = {
-                "to": self.account.address,
-                "value": 0,
-                "gas": 21_000,
-                "gasPrice": self.web3.to_wei(self.DEFAULT_CANCEL_GAS_PRICE_GWEI, "gwei"),  # Higher than the stuck transaction
-                "nonce": nonce,
-                "chainId": await self.web3.eth.chain_id,
-                "from": self.account.address,
-            }
-            
+            """ Cancel a pending transaction by nonce. """
             try:
-                signed_cancel_tx = await self.sign_transaction(cancel_tx)
-                tx_hash = await self.web3.eth.send_raw_transaction(signed_cancel_tx)
-                tx_hash_hex = (
-                    tx_hash.hex()
-                    if isinstance(tx_hash, hexbytes.HexBytes)
-                    else tx_hash
-                )
-                logger.debug(
-                    f"Cancellation transaction sent successfully: {tx_hash_hex}"
-                )
-                return True
+                tx = {
+                    "nonce": nonce,
+                    "from": self.account.address,
+                    "to": None,
+                    "value": 0,
+                    "gas": 21_000,
+                    "gasPrice": self.DEFAULT_CANCEL_GAS_PRICE_GWEI * 10**9,
+                    "chainId": await self.web3.eth.chain_id,
+                }
+                tx_hash = await self.execute_transaction(tx)
+                if tx_hash:
+                    logger.info(f"Transaction with nonce {nonce} cancelled successfully. ✅ ")
+                    return True
+                else:
+                    logger.warning(f"Failed to cancel transaction with nonce {nonce}. ⚠️ ")
+                    return False
             except Exception as e:
-                logger.warning(f"Failed to cancel transaction: {e}")
+                logger.error(f"Error cancelling transaction: {e}")
                 return False
-
-    async def estimate_gas_limit(self, tx: Dict[str, Any]) -> int:
-        """
-        Estimates the gas limit for a transaction.
-
-        :param tx: Transaction dictionary.
-        :return: Estimated gas limit.
-        """
+    
+    async def _calculate_final_profit(
+        self,
+        amounts: Dict[str, Decimal],
+        gas_costs: Dict[str, Decimal],
+        market_data: Dict[str, Any]
+    ) -> Decimal:
+        """Calculate final profit with all factors considered."""
         try:
-            gas_estimate = await self.web3.eth.estimate_gas(tx)
-            logger.debug(f"Estimated gas: {gas_estimate}")
-            return gas_estimate
+            # Calculate expected output value with slippage
+            expected_output_value = (
+                amounts['output_eth'] * 
+                market_data['price'] * 
+                market_data['slippage']
+            ).quantize(Decimal("0.000000001"))
+
+            # Calculate net profit
+            profit = (
+                expected_output_value - 
+                amounts['input_eth'] - 
+                gas_costs['gas_cost_eth']
+            ).quantize(Decimal("0.000000001"))
+
+            return profit
+
+        except Exception as e:
+            logger.error(f"Error in final profit calculation: {e}")
+            return Decimal(0)
+            
+    async def _log_profit_calculation(self, profit: Decimal, amounts: Dict[str, Decimal], gas_costs: Dict[str, Decimal], market_data: Dict[str, Any]) -> None:
+        """Log detailed profit calculation metrics."""
+        logger.debug(
+            f"Profit Calculation Details:\n"
+            f"Token: {market_data['symbol']}\n"
+            f"Input Amount: {amounts['input_eth']:.9f} ETH\n"
+            f"Expected Output: {amounts['output_eth']:.9f} tokens\n"
+            f"Market Price: {market_data['price']:.9f}\n"
+            f"Slippage: {(1 - float(market_data['slippage'])) * 100:.2f}%\n"
+            f"Gas Cost: {gas_costs['gas_cost_eth']:.9f} ETH\n"
+            f"Gas Price: {gas_costs['gas_price_gwei']:.2f} Gwei\n"
+            f"Final Profit: {profit:.9f} ETH"
+        )
+
+    async def _log_transaction_details(self, tx, is_eth=False) -> None:
+        try:
+            transaction_info = {
+                "transaction hash": tx.hash.hex(),
+                "value": self.web3.from_wei(tx.value, "ether") if is_eth else tx.value,
+                "from": tx["from"],
+                "to": (tx.to[:10] + "..." + tx.to[-10:]) if tx.to else None,
+                "input": tx.input,
+                "gas price": self.web3.from_wei(tx.gasPrice, "gwei"),
+            }
+            if is_eth:
+                logger.debug(f"Pending ETH Transaction Details: {transaction_info}")
+            else:
+                logger.debug(f"Pending Token Transaction Details: {transaction_info}")
         except Exception as e:
             logger.debug(
-                f"Gas estimation failed: {e}. Using default gas limit of {self.DEFAULT_GAS_LIMIT}."
+                f"Error logging transaction details for {tx.hash.hex()}: {e}"
             )
-            return self.DEFAULT_GAS_LIMIT  # Default gas limit
-
-    async def get_current_profit(self) -> Decimal:
-        """
-        Fetches the current profit from the safety net.
-
-        :return: Current profit as Decimal.
-        """
-        try:
-            current_profit = await self.safety_net.get_balance(self.account)
-            self.current_profit = Decimal(current_profit)
-            logger.debug(f"Current profit: {self.current_profit} ETH")
-            return self.current_profit
-        except Exception as e:
-            logger.error(f"Error fetching current profit: {e}")
-            return Decimal("0")
-
-    async def withdraw_eth(self) -> bool:
-        """
-        Withdraws ETH from the flashloan contract.
-
-        :return: True if successful, else False.
-        """
-        try:
-            withdraw_function = self.aave_flashloan.functions.withdrawETH()
-            tx = await self.build_transaction(withdraw_function)
-            tx_hash = await self.execute_transaction(tx)
-            if (tx_hash):
-                logger.debug(
-                    f"ETH withdrawal transaction sent with hash: {tx_hash}"
-                )
-                return True
-            else:
-                logger.warning("Failed to send ETH withdrawal transaction.")
-                return False
-        except ContractLogicError as e:
-            logger.error(f"Contract logic error during ETH withdrawal: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Error withdrawing ETH: {e}")
-            return False
-    
-    async def estimate_transaction_profit(self, tx: Dict[str, Any]) -> Decimal:
-        """
-        Estimates the profit of a transaction based on the current gas price.
-
-        :param tx: Transaction dictionary.
-        :return: Estimated profit as Decimal.
-        """
-        try:
-            gas_price = await self._get_dynamic_gas_parameters()
-            gas_limit = await self.estimate_gas_limit(tx)
-            gas_cost = gas_price["gasPrice"] * gas_limit
-            profit = self.current_profit - gas_cost
-            logger.debug(f"Estimated profit: {profit} ETH")
-            return profit
-        except Exception as e:
-            logger.error(f"Error estimating transaction profit: {e}")
-            return Decimal("0")
         
-    async def withdraw_token(self, token_address: str) -> bool:
+    async def _extract_transaction_params(self, tx: Any, function_name: str, decoded_params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Withdraws a specific token from the flashloan contract.
-
-        :param token_address: Address of the token to withdraw.
-        :return: True if successful, else False.
+        Extract and validate transaction parameters with improved parsing.
         """
         try:
-            withdraw_function = self.aave_flashloan.functions.withdrawToken(
-                self.web3.to_checksum_address(token_address)
-            )
-            tx = await self.build_transaction(withdraw_function)
-            tx_hash = await self.execute_transaction(tx)
-            if tx_hash:
-                logger.debug(
-                    f"Token withdrawal transaction sent with hash: {tx_hash}"
-                )
-                return True
-            else:
-                logger.warning("Failed to send token withdrawal transaction.")
-                return False
-        except ContractLogicError as e:
-            logger.error(f"Contract logic error during token withdrawal: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Error withdrawing token: {e}")
-            return False
-
-    async def transfer_profit_to_account(self, amount: Decimal, account: str) -> bool:
-        """
-        Transfers profit to another account.
-
-        :param amount: Amount of ETH to transfer.
-        :param account: Recipient account address.
-        :return: True if successful, else False.
-        """
-        try:
-            transfer_function = self.aave_flashloan.functions.transfer(
-                self.web3.to_checksum_address(account), int(amount * Decimal(self.DEFAULT_PROFIT_TRANSFER_MULTIPLIER))
-            )
-            tx = await self.build_transaction(transfer_function)
-            tx_hash = await self.execute_transaction(tx)
-            if tx_hash:
-                logger.debug(
-                    f"Profit transfer transaction sent with hash: {tx_hash}"
-                )
-                return True
-            else:
-                logger.warning("Failed to send profit transfer transaction.")
-                return False
-        except ContractLogicError as e:
-            logger.error(f"Contract logic error during profit transfer: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Error transferring profit: {e}")
-            return False
-
-    async def stop(self) -> None:
-        try:
-            await self.safety_net.stop()
-            await self.nonce_core.stop()
-            logger.debug("Stopped 0xBuilder. ")
-        except Exception as e:
-            logger.error(f"Error stopping 0xBuilder: {e} !")
-            raise
-
-    async def calculate_gas_parameters(
-        self,
-        tx: Dict[str, Any],
-        gas_limit: Optional[int] = None
-    ) -> Dict[str, int]:
-        """Centralized gas parameter calculation."""
-        try:
-            gas_params = await self._get_dynamic_gas_parameters()
-            estimated_gas = gas_limit or await self.estimate_gas_smart(tx)
-            return {
-                'gasPrice': gas_params['gasPrice'],
-                'gas': int(estimated_gas * 1.1)  # Add 10% buffer
-            }
-        except Exception as e:
-            logger.error(f"Error calculating gas parameters: {e}")
-            # Fallback to Default values
-            return {
-                "gasPrice": int(self.web3.to_wei(self.DEFAULT_GAS_PRICE_GWEI * self.gas_price_multiplier, "gwei")),
-                "gas": self.DEFAULT_GAS_LIMIT 
-            }
-
-class Main_Core:
-    """
-    Builds and manages the entire MEV bot, initializing all components,
-    managing connections, and orchestrating the main execution loop.
-    """
-    WEB3_MAX_RETRIES: int = 3
-    WEB3_RETRY_DELAY: int = 2
-    
-    def __init__(self, configuration: "Configuration") -> None:
-        # Take first memory snapshot after initialization
-        self.memory_snapshot: tracemalloc.Snapshot = tracemalloc.take_snapshot()
-        self.configuration: "Configuration" = configuration
-        self.web3: Optional[AsyncWeb3] = None
-        self.account: Optional[Account] = None
-        self.running: bool = False
-        self.components: Dict[str, Any] = {
-            'api_config': None,
-            'nonce_core': None, 
-            'safety_net': None,
-            'market_monitor': None,
-            'mempool_monitor': None,
-            'transaction_core': None,
-            'strategy_net': None,
-        }
-        logger.info("Starting 0xBuilder...")
+            params = {}
+            
+            # Enhanced transfer parameter handling
+            if function_name in ['transfer', 'transferFrom']:
+                # Handle different parameter naming conventions
+                amount = decoded_params.get('amount', 
+                            decoded_params.get('_value', 
+                                decoded_params.get('value', 
+                                    decoded_params.get('wad', 0))))
+                to_addr = decoded_params.get('to', 
+                            decoded_params.get('_to', 
+                                decoded_params.get('dst', 
+                                    decoded_params.get('recipient'))))
+                
+                if function_name == 'transferFrom':
+                    from_addr = decoded_params.get('from', 
+                                decoded_params.get('_from', 
+                                    decoded_params.get('src', 
+                                        decoded_params.get('sender'))))
+                    params['from'] = from_addr
+                
+                params.update({
+                    'amount': amount,
+                    'to': to_addr
+                })
+            
+            # Enhanced swap parameter handling
+            elif function_name in ['swap', 'swapExactTokensForTokens', 'swapTokensForExactTokens']:
+                # Handle different swap parameter formats
+                params = {
+                    'amountIn': decoded_params.get('amountIn',
+                                decoded_params.get('amount0',
+                                    decoded_params.get('amountInMax', 0))),
+                    'amountOutMin': decoded_params.get('amountOutMin',
+                                decoded_params.get('amount1',
+                                    decoded_params.get('amountOut', 0))),
+                    'path': decoded_params.get('path', [])
+                }
+            
+            # Validate parameters presence and format
+            if not self._validate_params_format(params, function_name):
+                logger.debug(f"Invalid parameter format for {function_name}")
+                return None
+            
+            return params
         
-    async def _initialize_components(self) -> None:
-        """Initialize all components in the correct dependency order."""
+        except Exception as e:
+            logger.error(f"Error extracting transaction parameters: {e}")
+            return None
+        
+    def _validate_params_format(self, params: Dict[str, Any], function_name: str) -> bool:
+        """
+        Validate parameter format based on function type.
+        """
         try:
-            # 1. First initialize configuration and load ABIs
-            await self._load_configuration()
+            if function_name in ['transfer', 'transferFrom']:
+                required = ['amount', 'to']
+                if function_name == 'transferFrom':
+                    required.append('from')
+            elif function_name in ['swap', 'swapExactTokensForTokens', 'swapTokensForExactTokens']:
+                required = ['amountIn', 'amountOutMin', 'path']
+            else:
+                logger.debug(f"Unsupported function name: {function_name}")
+                return False
+
+            # Check required fields are present and non-empty
+            for field in required:
+                if params.get(field) is None or params.get(field) == '':
+                    logger.debug(f"Missing or empty field '{field}' for function '{function_name}'")
+                    return False
             
-            # Load and validate ERC20 ABI
-            erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            if not erc20_abi:
-                raise ValueError("Failed to load ERC20 ABI")
-            
-            self.web3 = await self._initialize_web3()
-            if not self.web3:
-                raise RuntimeError("Failed to initialize Web3 connection")
-
-            self.account = Account.from_key(self.configuration.WALLET_KEY)
-            await self._check_account_balance()
-
-            # 2. Initialize API config
-            self.components['api_config'] = API_Config(self.configuration)
-            await self.components['api_config'].initialize()
-
-            # 3. Initialize nonce core
-            self.components['nonce_core'] = Nonce_Core(
-                self.web3, 
-                self.account.address, 
-                self.configuration
-            )
-            await self.components['nonce_core'].initialize()
-
-            # 4. Initialize safety net
-            self.components['safety_net'] = Safety_Net(
-                self.web3,
-                self.configuration,
-                self.account,
-                self.components['api_config'],
-                market_monitor = self.components.get('market_monitor')
-            )
-            await self.components['safety_net'].initialize()
-
-            # 5. Initialize transaction core
-            self.components['transaction_core'] = Transaction_Core(
-                self.web3,
-                self.account,
-                self.configuration.AAVE_FLASHLOAN_ADDRESS,
-                self.configuration.AAVE_FLASHLOAN_ABI,
-                self.configuration.AAVE_POOL_ADDRESS,
-                self.configuration.AAVE_POOL_ABI,
-                api_config=self.components['api_config'],
-                nonce_core=self.components['nonce_core'],
-                safety_net=self.components['safety_net'],
-                configuration=self.configuration
-            )
-            await self.components['transaction_core'].initialize()
-
-            # 6. Initialize market monitor
-            self.components['market_monitor'] = Market_Monitor(
-                web3=self.web3,
-                configuration=self.configuration,
-                api_config=self.components['api_config'],
-                transaction_core=self.components['transaction_core']
-            )
-            await self.components['market_monitor'].initialize()
-
-            # 7. Initialize mempool monitor with validated ABI
-            self.components['mempool_monitor'] = Mempool_Monitor(
-                web3=self.web3,
-                safety_net=self.components['safety_net'],
-                nonce_core=self.components['nonce_core'],
-                api_config=self.components['api_config'],
-                monitored_tokens=await self.configuration.get_token_addresses(),
-                configuration=self.configuration,
-                erc20_abi=erc20_abi,  # Pass the loaded ABI
-                market_monitor=self.components['market_monitor']
-            )
-            await self.components['mempool_monitor'].initialize()
-
-            # 8. Finally initialize strategy net
-            self.components['strategy_net'] = Strategy_Net(
-                self.components['transaction_core'],
-                self.components['market_monitor'],
-                self.components['safety_net'],
-                self.components['api_config']
-            )
-            await self.components['strategy_net'].initialize()
-
-            logger.info("All components initialized successfully ✅")
+            return True
 
         except Exception as e:
-            logger.critical(f"Component initialization failed: {e}")
-            raise
-
-    async def initialize(self) -> None:
-        """Initialize all components with proper error handling."""
-        try:
-            before_snapshot = tracemalloc.take_snapshot()
-            await self._initialize_components()
-            after_snapshot = tracemalloc.take_snapshot()
-            
-            # Log memory usage
-            top_stats = after_snapshot.compare_to(before_snapshot, 'lineno')
-            logger.debug("Memory allocation during initialization:")
-            for stat in top_stats[:3]:
-                logger.debug(str(stat))
-
-            logger.debug("Main Core initialization complete ✅")
-            
-        except Exception as e:
-            logger.critical(f"Main Core initialization failed: {e}")
-            raise
-
-    async def _load_configuration(self) -> None:
-        """Load all configuration elements in the correct order."""
-        try:
-            # First load the configuration itself
-            await self.configuration.load()
-            
-            logger.debug("Configuration loaded ✅ ")
-        except Exception as e:
-            logger.critical(f"Failed to load configuration: {e}")
-            raise
-
-    async def _initialize_web3(self) -> Optional[AsyncWeb3]:
-        """Initialize Web3 connection with error handling and retries."""
-        providers = await self._get_providers()
-        if not providers:
-            logger.error("No valid endpoints provided!")
+            logger.error(f"Parameter validation error: {e}")
+            return False
+        
+    async def _validate_transaction(self, tx: Dict[str, Any], operation: str) -> Optional[Dict[str, Any]]:
+        """Common transaction validation logic."""
+        if not isinstance(tx, dict):
+            logger.debug("Invalid transaction format provided!")            
             return None
 
-        for provider_name, provider in providers:
-            for attempt in range(self.WEB3_MAX_RETRIES):
-                try:
-                    logger.debug(f"Attempting connection with {provider_name} (attempt {attempt + 1})...")
-                    web3 = AsyncWeb3(provider, modules={"eth": (AsyncEth,)})
-                    
-                    # Test connection with timeout
-                    try:
-                        async with async_timeout.timeout(10):
-                            if await web3.is_connected():
-                                chain_id = await web3.eth.chain_id
-                                logger.debug(f"Connected to network via {provider_name} (Chain ID: {chain_id})")
-                                await self._add_middleware(web3)
-                                return web3
-                    except asyncio.TimeoutError:
-                        logger.warning(f"Connection timeout with {provider_name}")
-                        continue
-                        
-                except Exception as e:
-                    logger.warning(f"{provider_name} connection attempt {attempt + 1} failed: {e}")
-                    if attempt < self.WEB3_MAX_RETRIES - 1:
-                        await asyncio.sleep(self.WEB3_RETRY_DELAY * (attempt + 1))
-                    continue
+        required_fields = ["input", "to", "value", "gasPrice"]
+        if not all(field in tx for field in required_fields):
+            missing = [field for field in required_fields if field not in tx]
+            logger.debug(f"Missing required parameters for {operation}: {missing}")
+            return None
 
-            logger.error(f"All attempts failed for {provider_name}")
-            
-        logger.error("Failed to initialize Web3 with any provider")
-        return None
+        # Decode and validate transaction input
+        decoded_tx = await self.decode_transaction_input(
+            tx.get("input", "0x"),
+            self.web3.to_checksum_address(tx.get("to", ""))
+        )
+        if not decoded_tx or "params" not in decoded_tx:
+            logger.debug(f"Failed to decode transaction input for {operation}")
+            return None
 
-    async def _get_providers(self) -> List[Tuple[str, Union[AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider]]]:
-        """Get list of available providers with validation."""
-        providers = []
-    
-        if self.configuration.HTTP_ENDPOINT:
-            try:
-                http_provider = AsyncHTTPProvider(self.configuration.HTTP_ENDPOINT)
-                await http_provider.make_request('eth_blockNumber', [])
-                providers.append(("HTTP Provider", http_provider))
-                logger.info("Linked to Ethereum network via HTTP Provider. ✅")
-                return providers
-            except Exception as e:
-                logger.warning(f"HTTP Provider failed. {e} ❌ - Attempting WebSocket... ")
-    
-        if self.configuration.WEBSOCKET_ENDPOINT:
-            try:
-                ws_provider = WebSocketProvider(self.configuration.WEBSOCKET_ENDPOINT)
-                await ws_provider.connect()
-                providers.append(("WebSocket Provider", ws_provider))
-                logger.info("Linked to Ethereum network via WebSocket Provider. ✅")
-                return providers
-            except Exception as e:
-                logger.warning(f"WebSocket Provider failed. {e} ❌ - Attempting IPC... ")
-            
-        if self.configuration.IPC_ENDPOINT:
-            try:
-                ipc_provider = AsyncIPCProvider(self.configuration.IPC_ENDPOINT)
-                await ipc_provider.make_request('eth_blockNumber', [])
-                providers.append(("IPC Provider", ipc_provider))
-                logger.info("Linked to Ethereum network via IPC Provider. ✅")
-                return providers
-            except Exception as e:
-                logger.warning(f"IPC Provider failed. {e} ❌ - All providers failed.")
+        # Validate path parameter
+        path = decoded_tx["params"].get("path", [])
+        if not path or not isinstance(path, list) or len(path) < 2:
+            logger.debug(f"Invalid path parameter for {operation}")
+            return None
 
-        logger.critical("No more providers are available! ❌")
-        return providers
-    
-    async def _test_connection(self, web3: AsyncWeb3, name: str) -> bool:
-        """Test Web3 connection with retries."""
-        for attempt in range(3):
-            try:
-                if await web3.is_connected():
-                    chain_id = await web3.eth.chain_id
-                    logger.debug(f"Connected to network {name} (Chain ID: {chain_id}) ")
-                    return True
-            except Exception as e:
-                logger.error(f"Connection attempt {attempt + 1} failed: {e}")
-                await asyncio.sleep(1)
-
-    async def _add_middleware(self, web3: AsyncWeb3) -> None:
-        """Add appropriate middleware based on network."""
-        try:
-            chain_id = await web3.eth.chain_id
-            if (chain_id in {99, 100, 77, 7766, 56}):  # POA networks
-                web3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-                logger.debug(f"Injected POA middleware.")
-            elif chain_id in {1, 3, 4, 5, 42, 420}:  # ETH networks
-                logger.debug(f"ETH network.")
-                pass
-            else:
-                logger.warning(f"Unknown network; no middleware injected.")
-        except Exception as e:
-            logger.error(f"Middleware configuration failed: {e}")
-            raise
-
-    async def _check_account_balance(self) -> None:
-        """Check the Ethereum account balancer_router_abi."""
-        try:
-            if not self.account:
-                raise ValueError("Account not initialized")
-
-            balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
-            balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
-
-            logger.debug(f"Account {self.account.address} initialized ")
-            logger.debug(f"Balance: {balance_eth:.4f} ETH")
-
-            if balance_eth < 0.01:
-                logger.warning(f"Low account balance (<0.01 ETH)")
-
-        except Exception as e:
-            logger.error(f"Balance check failed: {e}")
-            raise
-
-    async def _initialize_component(self, name: str, component: Any) -> None:
-        """Initialize a single component with error handling."""
-        try:
-            if hasattr(component, 'initialize'):
-                await component.initialize()
-            self.components[name] = component
-            logger.debug(f"Initialized {name} successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize {name}: {e}")
-            raise
-
-    async def _initialize_monitoring_components(self) -> None:
-        """Initialize monitoring components in the correct order."""
-        # First initialize market monitor with transaction core
-        try:
-            await self._initialize_component('market_monitor', Market_Monitor(
-                web3=self.web3, 
-                configuration=self.configuration, 
-                api_config=self.components['api_config'],
-                transaction_core=self.components.get('transaction_core')  # Add this
-            ))
-
-            # Then initialize mempool monitor with required dependencies
-            await self._initialize_component('mempool_monitor', Mempool_Monitor(
-                web3=self.web3,
-                safety_net=self.components['safety_net'],
-                nonce_core=self.components['nonce_core'],
-                api_config=self.components['api_config'],
-                monitored_tokens=await self.configuration.get_token_addresses(),
-                market_monitor=self.components['market_monitor'],
-                configuration=self.configuration,
-                erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            ))
-
-            # 7. Finally initialize strategy net
-            await self._initialize_component('strategy_net', Strategy_Net(
-                transaction_core=self.components['transaction_core'],
-                market_monitor=self.components['market_monitor'],
-                safety_net=self.components['safety_net'],
-                api_config=self.components['api_config']
-            ))
-
-        except Exception as e:
-            logger.error(f"Component initialization failed: {e}")
-            raise
-            
-
-    async def run(self) -> None:
-        """Main execution loop with improved task management."""
-        logger.debug("Starting 0xBuilder...")
-        self.running = True
-
-        try:
-            if not self.components['mempool_monitor']:
-                raise RuntimeError("Mempool monitor not properly initialized")
-
-            # Take initial memory snapshot
-            initial_snapshot = tracemalloc.take_snapshot()
-            last_memory_check = time.time()
-            MEMORY_CHECK_INTERVAL = 300
-
-            # Create task groups for different operations
-            async with asyncio.TaskGroup() as tg:
-                # Start monitoring task
-                monitoring_task = tg.create_task(
-                    self.components['mempool_monitor'].start_monitoring()
-                )
-                
-                # Start processing task
-                processing_task = tg.create_task(
-                    self._process_profitable_transactions()
-                )
-
-                # Start memory monitoring task
-                memory_task = tg.create_task(
-                    self._monitor_memory(initial_snapshot)
-                )
-
-            # Tasks will be automatically cancelled when leaving the context
-                
-        except* asyncio.CancelledError:
-            logger.info("Tasks cancelled during shutdown")
-        except* Exception as e:
-            logger.error(f"Fatal error in run loop: {e}")
-        finally:
-            await self.stop()
-
-    async def _monitor_memory(self, initial_snapshot: tracemalloc.Snapshot) -> None:
-        """Separate task for memory monitoring."""
-        while self.running:
-            try:
-                current_snapshot = tracemalloc.take_snapshot()
-                top_stats = current_snapshot.compare_to(initial_snapshot, 'lineno')
-                
-                logger.debug("Memory allocation changes:")
-                for stat in top_stats[:3]:
-                    logger.debug(str(stat))
-                                        
-                await asyncio.sleep(300)  # Check every 5 minutes
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in memory monitoring: {e}")
-
-    async def stop(self) -> None:
-        """Gracefully stop all components in the correct order."""
-        logger.warning("Shutting down Core...")
-        self.running = False
-
-        try:
-            shutdown_order = [
-                'mempool_monitor',  # Stop monitoring first
-                'strategy_net',     # Stop strategies
-                'transaction_core', # Stop transactions
-                'market_monitor',   # Stop market monitoring
-                'safety_net',      # Stop safety checks
-                'nonce_core',      # Stop nonce management
-                'api_config'       # Stop API connections last
-            ]
-
-            # Stop components in parallel where possible
-            stop_tasks = []
-            for component_name in shutdown_order:
-                component = self.components.get(component_name)
-                if component and hasattr(component, 'stop'):
-                    stop_tasks.append(self._stop_component(component_name, component))
-            
-            if stop_tasks:
-                await asyncio.gather(*stop_tasks, return_exceptions=True)
-
-            # Clean up web3 connection
-            if self.web3 and hasattr(self.web3.provider, 'disconnect'):
-                await self.web3.provider.disconnect()
-
-            # Final memory snapshot
-            final_snapshot = tracemalloc.take_snapshot()
-            top_stats = final_snapshot.compare_to(self.memory_snapshot, 'lineno')
-            
-            logger.debug("Final memory allocation changes:")
-            for stat in top_stats[:5]:
-                logger.debug(str(stat))
-
-            logger.debug("Core shutdown complete.")
-
-        except Exception as e:
-            logger.error(f"Error during shutdown: {e}")
-        finally:
-            tracemalloc.stop()
-
-    async def _stop_component(self, name: str, component: Any) -> None:
-        """Stop a single component with error handling."""
-        try:
-            await component.stop()
-            logger.debug(f"Stopped {name}")
-        except Exception as e:
-            logger.error(f"Error stopping {name}: {e}")
-
-    async def _process_profitable_transactions(self) -> None:
-        """Process profitable transactions from the queue."""
-        strategy = self.components['strategy_net']
-        monitor = self.components['mempool_monitor']
+        return decoded_tx
         
-        while self.running:
-            try:
-                try:
-                    tx = await asyncio.wait_for(monitor.profitable_transactions.get(), timeout=1.0)
-                    tx_hash = tx.get('tx_hash', 'Unknown')
-                    strategy_type = tx.get('strategy_type', 'Unknown')
-                except asyncio.TimeoutError:
-                    continue
-                
-                logger.debug(f"Processing transaction {tx_hash} with strategy type {strategy_type}")
-                success = await strategy.execute_best_strategy(tx, strategy_type)
 
-                if success:
-                    logger.debug(f"Strategy execution successful for tx: {tx_hash}")
-                else:
-                    logger.warning(f"Strategy execution failed for tx: {tx_hash}")
+class StrategyConfiguration:
+    """Configuration parameters for strategy execution."""
+    
+    def __init__(self):
+        self.decay_factor: float = 0.95
+        self.min_profit_threshold: Decimal =  Decimal("0.01")
+        self.learning_rate: float = 0.01
+        self.exploration_rate: float = 0.1
 
-                # Mark task as done
-                monitor.profitable_transactions.task_done()
-
-            except Exception as e:
-                logger.error(f"Error processing transaction: {e}")
-
-    async def _load_abi(self, abi_path: str) -> List[Dict[str, Any]]:
-       """Load contract ABI from a file with better path handling."""
-       try:
-            abi_registry = ABI_Registry()
-            abi = await abi_registry.load_abi('erc20')
-            if not abi:
-                raise ValueError("Failed to load ERC20 ABI using ABI Registry")
-            return abi
-       except Exception as e:
-            logger.error(f"Error loading ABI from {abi_path}: {e}")
-            raise
-
-# Logging and helper function
-class ColorFormatter(logging.Formatter):
-    """Custom formatter for colored log output."""
-    COLORS: Dict[str, str] = {
-        "DEBUG": "\033[94m",    # Blue
-        "INFO": "\033[92m",     # Green
-        "WARNING": "\033[93m",  # Yellow
-        "ERROR": "\033[91m",    # Red
-        "CRITICAL": "\033[91m\033[1m", # Bold Red
-        "RESET": "\033[0m",     # Reset
-    }
-
-    def format(self, record: logging.LogRecord) -> str:
-        """Formats a log record with colors."""
-        color = self.COLORS.get(record.levelname, self.COLORS["RESET"])
-        reset = self.COLORS["RESET"]
-        record.levelname = f"{color}{record.levelname}{reset}"  # Colorize level name
-        record.msg = f"{color}{record.msg}{reset}"              # Colorize message
-        return super().format(record)
-
-# Configure the logging once
-def configure_logging(level: int = logging.DEBUG) -> None:
-    """Configures logging with a colored formatter."""
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(ColorFormatter("%(asctime)s [%(levelname)s] %(message)s"))
-
-    logging.basicConfig(
-        level=level,  # Global logging level
-        handlers=[handler]
-    )
-
-# Factory function to get a logger instance
-def getLogger(name: Optional[str] = None, level: int = logging.DEBUG) -> logging.Logger:
-    """Returns a logger instance, configuring logging if it hasn't been yet."""
-    if not logging.getLogger().hasHandlers():
-        configure_logging(level)
-        
-    logger = logging.getLogger(name if name else "0xBuilder")
-    return logger
-
-# Initialize the logger globally so it can be used throughout the script
-logger = getLogger("0xBuilder")
+class StrategyPerformanceMetrics:
+    """Metrics for tracking strategy performance."""
+    successes: int = 0
+    failures: int = 0
+    profit: Decimal = Decimal("0")
+    avg_execution_time: float = 0.0
+    success_rate: float = 0.0
+    total_executions: int = 0
 
 
-# Add new cache settings
-CACHE_SETTINGS: Dict[str, Dict[str, int]] = {
-    'price': {'ttl': 300, 'size': 1000},
-    'volume': {'ttl': 900, 'size': 500},
-    'volatility': {'ttl': 600, 'size': 200}
-}
+class StrategyExecutionError(Exception):
+    """Custom exception for strategy execution failures."""
+    def __init__(self, message: str = "Strategy execution failed"):
+        self.message: str = message
+        super().__init__(self.message)
 
-
-# Add risk thresholds
-RISK_THRESHOLDS: Dict[str, Union[int, float]] = {
-    'gas_price': 500,  # Gwei
-    'min_profit': 0.01,  # ETH
-    'max_slippage': 0.05,  # 5%
-    'congestion': 0.8  # 80%
-}
-
-# Error codes
-ERROR_MARKET_MONITOR_INIT: int = 1001
-ERROR_MODEL_LOAD: int = 1002
-ERROR_DATA_LOAD: int = 1003
-ERROR_MODEL_TRAIN: int = 1004
-ERROR_CORE_INIT: int = 1005
-ERROR_WEB3_INIT: int = 1006
-ERROR_CONFIG_LOAD: int = 1007
-ERROR_STRATEGY_EXEC: int = 1008
-
-# Error messages with default fallbacks
-ERROR_MESSAGES: Dict[int, str] = {
-    ERROR_MARKET_MONITOR_INIT: "Market Monitor initialization failed",
-    ERROR_MODEL_LOAD: "Failed to load price prediction model",
-    ERROR_DATA_LOAD: "Failed to load historical training data",
-    ERROR_MODEL_TRAIN: "Failed to train price prediction model",
-    ERROR_CORE_INIT: "Core initialization failed",
-    ERROR_WEB3_INIT: "Web3 connection failed",
-    ERROR_CONFIG_LOAD: "Configuration loading failed",
-    ERROR_STRATEGY_EXEC: "Strategy execution failed",
-}
-
-# Add a helper function to get error message with fallback
-def get_error_message(code: int, default: str = "Unknown error") -> str:
-    """Get error message for error code with fallback to default message."""
-    return ERROR_MESSAGES.get(code, default)
 
 class Strategy_Net:
     """Advanced strategy network for MEV operations including front-running, back-running, and sandwich attacks."""
@@ -4714,15 +4082,15 @@ class Strategy_Net:
 
     def __init__(
         self,
-        transaction_core: Optional[Any],
-        market_monitor: Optional[Any],
-        safety_net: Optional[Any],
-        api_config: Optional[Any],
+        transaction_core: Transaction_Core,
+        market_monitor: Market_Monitor,
+        safety_net: Safety_Net,
+        api_config: API_Config,
     ) -> None:
-        self.transaction_core: Optional[Any] = transaction_core
-        self.market_monitor: Optional[Any] = market_monitor
-        self.safety_net: Optional[Any] = safety_net
-        self.api_config: Optional[Any] = api_config
+        self.transaction_core: Transaction_Core = transaction_core
+        self.market_monitor: Market_Monitor = market_monitor
+        self.safety_net: Safety_Net = safety_net
+        self.api_config: API_Config = api_config
 
         # Initialize strategy types
         self.strategy_types: List[str] = [
@@ -5679,7 +5047,7 @@ class Strategy_Net:
         elif token_symbol in volatile_tokens:
             threshold = volatile_tokens[token_symbol]
         else:
-            threshold = HIGH_VOLUME_DEFAULT  # Conservative default for unknown tokens
+            threshold = 500_000 # Conservative default for unknown tokens
 
         logger.debug(f"Volume threshold for '{token_symbol}': ${threshold:,.2f} USD")
         return threshold
@@ -5826,117 +5194,10 @@ class Strategy_Net:
         except Exception as e:
             logger.error(f"Error estimating profit: {e}")
             return Decimal("0")
-
-class StrategyConfiguration:
-    """Configuration parameters for strategy execution."""
-    
-    def __init__(self):
-        self.decay_factor: float = 0.95
-        self.min_profit_threshold: Decimal = MIN_PROFIT_THRESHOLD
-        self.learning_rate: float = 0.01
-        self.exploration_rate: float = 0.1
-
-class StrategyPerformanceMetrics:
-    """Metrics for tracking strategy performance."""
-    successes: int = 0
-    failures: int = 0
-    profit: Decimal = Decimal("0")
-    avg_execution_time: float = 0.0
-    success_rate: float = 0.0
-    total_executions: int = 0
-
-
-class StrategyExecutionError(Exception):
-    """Custom exception for strategy execution failures."""
-    def __init__(self, message: str = "Strategy execution failed"):
-        self.message: str = message
-        super().__init__(self.message)
-
-
-class ColorFormatter(logging.Formatter):
-    """Custom formatter for colored log output."""
-    COLORS = {
-        "DEBUG": "\033[94m",    # Blue
-        "INFO": "\033[92m",     # Green
-        "WARNING": "\033[93m",  # Yellow
-        "ERROR": "\033[91m",    # Red
-        "CRITICAL": "\033[91m\033[1m", # Bold Red
-        "RESET": "\033[0m",     # Reset
-    }
-
-    def format(self, record: logging.LogRecord) -> str:
-        """Formats a log record with colors."""
-        color = self.COLORS.get(record.levelname, self.COLORS["RESET"])
-        reset = self.COLORS["RESET"]
-        record.levelname = f"{color}{record.levelname}{reset}"  # Colorize level name
-        record.msg = f"{color}{record.msg}{reset}"              # Colorize message
-        return super().format(record)
-
-# Configure the logging once
-def configure_logging(level: int = logging.DEBUG) -> None:
-    """Configures logging with a colored formatter."""
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(ColorFormatter("%(asctime)s [%(levelname)s] %(message)s"))
-
-    logging.basicConfig(
-        level=level,  # Global logging level
-        handlers=[handler]
-    )
-
-# Factory function to get a logger instance
-def getLogger(name: Optional[str] = None, level: int = logging.DEBUG) -> logging.Logger:
-    """Returns a logger instance, configuring logging if it hasn't been yet."""
-    if not logging.getLogger().hasHandlers():
-        configure_logging(level)
         
-    logger = logging.getLogger(name if name else "0xBuilder")
-    return logger
-
-# Initialize the logger globally so it can be used throughout the script
-logger = getLogger("0xBuilder")# Add new cache settings
-CACHE_SETTINGS = {
-    'price': {'ttl': 300, 'size': 1000},
-    'volume': {'ttl': 900, 'size': 500},
-    'volatility': {'ttl': 600, 'size': 200}
-}
 
 
-# Add risk thresholds
-RISK_THRESHOLDS = {
-    'gas_price': 500,  # Gwei
-    'min_profit': 0.01,  # ETH
-    'max_slippage': 0.05,  # 5%
-    'congestion': 0.8  # 80%
-}
-
-# Error codes
-ERROR_MARKET_MONITOR_INIT: int = 1001
-ERROR_MODEL_LOAD: int = 1002
-ERROR_DATA_LOAD: int = 1003
-ERROR_MODEL_TRAIN: int = 1004
-ERROR_CORE_INIT: int = 1005
-ERROR_WEB3_INIT: int = 1006
-ERROR_CONFIG_LOAD: int = 1007
-ERROR_STRATEGY_EXEC: int = 1008
-
-# Error messages with default fallbacks
-ERROR_MESSAGES: Dict[int, str] = {
-    ERROR_MARKET_MONITOR_INIT: "Market Monitor initialization failed",
-    ERROR_MODEL_LOAD: "Failed to load price prediction model",
-    ERROR_DATA_LOAD: "Failed to load historical training data",
-    ERROR_MODEL_TRAIN: "Failed to train price prediction model",
-    ERROR_CORE_INIT: "Core initialization failed",
-    ERROR_WEB3_INIT: "Web3 connection failed",
-    ERROR_CONFIG_LOAD: "Configuration loading failed",
-    ERROR_STRATEGY_EXEC: "Strategy execution failed",
-}
-
-# Add a helper function to get error message with fallback
-def get_error_message(code: int, default: str = "Unknown error") -> str:
-    """Get error message for error code with fallback to default message."""
-    return ERROR_MESSAGES.get(code, default)
-
-
+logger = getLogger("0xBuilder")
 
 class Main_Core:
     """
@@ -5967,13 +5228,10 @@ class Main_Core:
     async def _initialize_components(self) -> None:
         """Initialize all components in the correct dependency order."""
         try:
-             # 1. First initialize configuration and load ABIs
+            # 1. First initialize configuration and load ABIs
             await self._load_configuration()
-
-            # Initialize ABI Registry and load ABIs
-            await self.configuration.abi_registry.initialize()
             
-            # Load and validate ERC20 ABI
+             # Load and validate ERC20 ABI
             erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
             if not erc20_abi:
                 raise ValueError("Failed to load ERC20 ABI")
@@ -5987,7 +5245,7 @@ class Main_Core:
 
             # 2. Initialize API config
             self.components['api_config'] = API_Config(self.configuration)
-            await self.components['api_config'].initialize()
+            await self._initialize_component('api_config',self.components['api_config'])
 
             # 3. Initialize nonce core
             self.components['nonce_core'] = Nonce_Core(
@@ -5995,7 +5253,7 @@ class Main_Core:
                 self.account.address, 
                 self.configuration
             )
-            await self.components['nonce_core'].initialize()
+            await self._initialize_component('nonce_core', self.components['nonce_core'])
 
             # 4. Initialize safety net
             self.components['safety_net'] = Safety_Net(
@@ -6005,22 +5263,18 @@ class Main_Core:
                 self.components['api_config'],
                 market_monitor = self.components.get('market_monitor')
             )
-            await self.components['safety_net'].initialize()
+            await self._initialize_component('safety_net', self.components['safety_net'])
 
             # 5. Initialize transaction core
             self.components['transaction_core'] = Transaction_Core(
                 self.web3,
                 self.account,
-                self.configuration.AAVE_FLASHLOAN_ADDRESS,
-                self.configuration.AAVE_FLASHLOAN_ABI,
-                self.configuration.AAVE_POOL_ADDRESS,
-                self.configuration.AAVE_POOL_ABI,
+                self.configuration,
                 api_config=self.components['api_config'],
                 nonce_core=self.components['nonce_core'],
                 safety_net=self.components['safety_net'],
-                configuration=self.configuration
             )
-            await self.components['transaction_core'].initialize()
+            await self._initialize_component('transaction_core', self.components['transaction_core'])
 
             # 6. Initialize market monitor
             self.components['market_monitor'] = Market_Monitor(
@@ -6029,7 +5283,9 @@ class Main_Core:
                 api_config=self.components['api_config'],
                 transaction_core=self.components['transaction_core']
             )
-            await self.components['market_monitor'].initialize()
+             
+            await self._initialize_component('market_monitor', self.components['market_monitor'])
+
 
             # 7. Initialize mempool monitor with validated ABI
             self.components['mempool_monitor'] = Mempool_Monitor(
@@ -6042,7 +5298,7 @@ class Main_Core:
                 erc20_abi=erc20_abi,  # Pass the loaded ABI
                 market_monitor=self.components['market_monitor']
             )
-            await self.components['mempool_monitor'].initialize()
+            await self._initialize_component('mempool_monitor', self.components['mempool_monitor'])
 
             # 8. Finally initialize strategy net
             self.components['strategy_net'] = Strategy_Net(
@@ -6051,7 +5307,7 @@ class Main_Core:
                 self.components['safety_net'],
                 self.components['api_config']
             )
-            await self.components['strategy_net'].initialize()
+            await self._initialize_component('strategy_net', self.components['strategy_net'])
 
             logger.info("All components initialized successfully ✅")
 
@@ -6129,9 +5385,9 @@ class Main_Core:
         """Get list of available providers with validation."""
         providers = []
     
-        if self.configuration.HTTP_ENDPOINT:
+        if self.configuration.http_endpoint:
             try:
-                http_provider = AsyncHTTPProvider(self.configuration.HTTP_ENDPOINT)
+                http_provider = AsyncHTTPProvider(self.configuration.http_endpoint)
                 await http_provider.make_request('eth_blockNumber', [])
                 providers.append(("HTTP Provider", http_provider))
                 logger.info("Linked to Ethereum network via HTTP Provider. ✅")
@@ -6139,9 +5395,9 @@ class Main_Core:
             except Exception as e:
                 logger.warning(f"HTTP Provider failed. {e} ❌ - Attempting WebSocket... ")
     
-        if self.configuration.WEBSOCKET_ENDPOINT:
+        if self.configuration.websocket_endpoint:
             try:
-                ws_provider = WebSocketProvider(self.configuration.WEBSOCKET_ENDPOINT)
+                ws_provider = WebSocketProvider(self.configuration.websocket_endpoint)
                 await ws_provider.connect()
                 providers.append(("WebSocket Provider", ws_provider))
                 logger.info("Linked to Ethereum network via WebSocket Provider. ✅")
@@ -6149,9 +5405,9 @@ class Main_Core:
             except Exception as e:
                 logger.warning(f"WebSocket Provider failed. {e} ❌ - Attempting IPC... ")
             
-        if self.configuration.IPC_ENDPOINT:
+        if self.configuration.ipc_endpoint:
             try:
-                ipc_provider = AsyncIPCProvider(self.configuration.IPC_ENDPOINT)
+                ipc_provider = AsyncIPCProvider(self.configuration.ipc_endpoint)
                 await ipc_provider.make_request('eth_blockNumber', [])
                 providers.append(("IPC Provider", ipc_provider))
                 logger.info("Linked to Ethereum network via IPC Provider. ✅")
@@ -6191,20 +5447,17 @@ class Main_Core:
             raise
 
     async def _check_account_balance(self) -> None:
-        """Check the Ethereum account balancer_router_abi."""
+
+        """Check the Ethereum account balance."""
         try:
             if not self.account:
                 raise ValueError("Account not initialized")
-
-            balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
-            balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
-
+            balance = await self.web3.eth.get_balance(self.account.address)
+            balance_eth = self.web3.from_wei(balance, 'ether')
             logger.debug(f"Account {self.account.address} initialized ")
             logger.debug(f"Balance: {balance_eth:.4f} ETH")
-
             if balance_eth < 0.01:
                 logger.warning(f"Low account balance (<0.01 ETH)")
-
         except Exception as e:
             logger.error(f"Balance check failed: {e}")
             raise
@@ -6219,42 +5472,6 @@ class Main_Core:
         except Exception as e:
             logger.error(f"Failed to initialize {name}: {e}")
             raise
-
-    async def _initialize_monitoring_components(self) -> None:
-        """Initialize monitoring components in the correct order."""
-        # First initialize market monitor with transaction core
-        try:
-            await self._initialize_component('market_monitor', Market_Monitor(
-                web3=self.web3, 
-                configuration=self.configuration, 
-                api_config=self.components['api_config'],
-                transaction_core=self.components.get('transaction_core')  # Add this
-            ))
-
-            # Then initialize mempool monitor with required dependencies
-            await self._initialize_component('mempool_monitor', Mempool_Monitor(
-                web3=self.web3,
-                safety_net=self.components['safety_net'],
-                nonce_core=self.components['nonce_core'],
-                api_config=self.components['api_config'],
-                monitored_tokens=await self.configuration.get_token_addresses(),
-                market_monitor=self.components['market_monitor'],
-                configuration=self.configuration,
-                erc20_abi = await self._load_abi(self.configuration.ERC20_ABI)
-            ))
-
-            # 7. Finally initialize strategy net
-            await self._initialize_component('strategy_net', Strategy_Net(
-                transaction_core=self.components['transaction_core'],
-                market_monitor=self.components['market_monitor'],
-                safety_net=self.components['safety_net'],
-                api_config=self.components['api_config']
-            ))
-
-        except Exception as e:
-            logger.error(f"Component initialization failed: {e}")
-            raise
-            
 
     async def run(self) -> None:
         """Main execution loop with improved task management."""
@@ -6406,9 +5623,6 @@ class Main_Core:
             logger.error(f"Error loading ABI from {abi_path}: {e}")
             raise
 
-
-# Initialize the logger before everything else
-logger = getLogger("0xBuilder")
 
 async def main():
     """Main entry point with graceful shutdown handling."""

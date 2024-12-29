@@ -78,10 +78,10 @@ The bot is highly configurable, allowing users to adjust parameters, strategies,
 /0xBuilder/
 ├── abi/
 │   ├── uniswap_abi.json
-│   ├── sushiswap_router_abi.json
-│   ├── pancakeswap_router_abi.json
+│   ├── sushiswap_abi.json
+│   ├── pancakeswap_abi.json
 │   ├── erc20_abi.json
-│   ├── balancer_router_abi.json
+│   ├── balancer_abi.json
 │   └── aave_pool_abi.json
 ├── contracts/
 │   ├── SimpleFlashloan.sol
@@ -352,7 +352,7 @@ SUSHISWAP_ADDRESS=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
 
 # ABI Paths
 UNISWAP_ABI=abi/uniswap_abi.json
-SUSHISWAP_ABI=abi/sushiswap_router_abi.json
+SUSHISWAP_ABI=abi/sushiswap_abi.json
 ERC20_ABI=abi/erc20_abi.json
 
 # Flashloan Configuration
@@ -544,7 +544,7 @@ SUSHISWAP_ADDRESS=0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F
 
 # ABI Paths
 UNISWAP_ABI=abi/uniswap_abi.json
-SUSHISWAP_ABI=abi/sushiswap_router_abi.json
+SUSHISWAP_ABI=abi/sushiswap_abi.json
 ERC20_ABI=abi/erc20_abi.json
 
 # Flashloan Configuration

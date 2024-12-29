@@ -1797,23 +1797,22 @@ class Main_Core:
             raise
 
     async def _check_account_balance(self) -> None:
-        """Check the Ethereum account balancer_router_abi."""
+        ''' check Account balance '''
         try:
-            if not self.account:
-                raise ValueError("Account not initialized")
-
-            balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
-            balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
-
+            
+            balance = await self.web3.eth.get_balance(self.account.address)
+            balance_eth = self.web3.from_wei(balance, 'ether')
+        
             logger.debug(f"Account {self.account.address} initialized ")
             logger.debug(f"Balance: {balance_eth:.4f} ETH")
 
             if balance_eth < 0.01:
-                logger.warning(f"Low account balance (<0.01 ETH)")
+             logger.warning(f"Low account balance (<0.01 ETH)")
 
         except Exception as e:
             logger.error(f"Balance check failed: {e}")
             raise
+
 
     async def _initialize_component(self, name: str, component: Any) -> None:
         """Initialize a single component with error handling."""

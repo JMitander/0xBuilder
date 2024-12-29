@@ -393,7 +393,7 @@ class ABI_Registry:
         abi_files = {
             'erc20': 'erc20_abi.json',
             'uniswap': 'uniswap_abi.json',
-            'sushiswap': 'sushiswap_router_abi.json',
+            'sushiswap': 'sushiswap_abi.json',
             'aave_flashloan': 'aave_flashloan.abi.json',
             'aave': 'aave_pool_abi.json'
         }
@@ -463,7 +463,7 @@ class ABI_Registry:
             abi_files = {
                 'erc20': 'erc20_abi.json',
                 'uniswap': 'uniswap_abi.json',
-                'sushiswap': 'sushiswap_router_abi.json',
+                'sushiswap': 'sushiswap_abi.json',
                 'aave_flashloan': 'aave_flashloan.abi.json',
                 'aave': 'aave_pool_abi.json'
             }
@@ -3140,8 +3140,8 @@ class Transaction_Core:
         # Initialize contract attributes
         self.aave_flashloan = None
         self.aave_pool = None
-        self.uniswap_router_contract = None
-        self.sushiswap_router_contract = None
+        self.uniswap_contract = None
+        self.sushiswap_contract = None
         self.gas_price_multiplier: float = 1.1
         
         
@@ -3726,8 +3726,8 @@ class Transaction_Core:
 
             # Router address mapping
             routers = {
-                self.configuration.uniswap_address: (self.uniswap_router_contract, "Uniswap"),
-                self.configuration.sushiswap_address: (self.sushiswap_router_contract, "Sushiswap"),
+                self.configuration.uniswap_address: (self.uniswap_contract, "Uniswap"),
+                self.configuration.sushiswap_address: (self.sushiswap_contract, "Sushiswap"),
             }
 
             if to_address not in routers:
@@ -3787,8 +3787,8 @@ class Transaction_Core:
 
             # Router address mapping
             routers = {
-                self.configuration.uniswap_address: (self.uniswap_router_contract, "Uniswap"),
-                self.configuration.sushiswap_address: (self.sushiswap_router_contract, "Sushiswap"),
+                self.configuration.uniswap_address: (self.uniswap_contract, "Uniswap"),
+                self.configuration.sushiswap_address: (self.sushiswap_contract, "Sushiswap"),
             }
 
             if to_address not in routers:

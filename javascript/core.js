@@ -58,7 +58,7 @@ class Transaction_Core {
             // Initialize contracts using ABIs from registry
             const router_configs = [
                 { address: this.configuration.UNISWAP_ADDRESS, abi_type: 'uniswap', name: 'Uniswap' },
-                { address: this.configuration.SUSHISWAP_ROUTER_ADDRESS, abi_type: 'sushiswap', name: 'Sushiswap' },
+                { address: this.configuration.SUSHISWAP_ADDRESS, abi_type: 'sushiswap', name: 'Sushiswap' },
             ];
 
             for (const { address, abi_type, name } of router_configs) {
@@ -245,7 +245,7 @@ class Transaction_Core {
         if (!decoded_tx) return null;
 
         const { function_name, params } = decoded_tx;
-        const router_contract = this.uniswap_router_contract;
+        const router_contract = this.uniswap_contract;
 
         try {
             const front_run_function = router_contract[function_name](params);
@@ -266,7 +266,7 @@ class Transaction_Core {
         params.path = reversed_path;
 
         try {
-            const router_contract = this.uniswap_router_contract;
+            const router_contract = this.uniswap_contract;
             const back_run_function = router_contract[function_name](params);
             return await this.build_transaction(back_run_function);
         } catch (e) {

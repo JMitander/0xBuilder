@@ -97,7 +97,7 @@ class Transaction_Core:
             # Initialize contracts using ABIs from registry
             router_configs = [
                 (self.configuration.UNISWAP_ADDRESS, 'uniswap', 'Uniswap'),
-                (self.configuration.SUSHISWAP_ROUTER_ADDRESS, 'sushiswap', 'Sushiswap'),
+                (self.configuration.SUSHISWAP_ADDRESS, 'sushiswap', 'Sushiswap'),
             ]
 
             for address, abi_type, name in router_configs:
@@ -676,8 +676,8 @@ class Transaction_Core:
 
             # Router address mapping
             routers = {
-                self.configuration.UNISWAP_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
-                self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
+                self.configuration.UNISWAP_ADDRESS: (self.uniswap_contract, "Uniswap"),
+                self.configuration.SUSHISWAP_ADDRESS: (self.sushiswap_contract, "Sushiswap"),
             }
 
             if to_address not in routers:
@@ -737,8 +737,8 @@ class Transaction_Core:
 
             # Router address mapping
             routers = {
-                self.configuration.UNISWAP_ADDRESS: (self.uniswap_router_contract, "Uniswap"),
-                self.configuration.SUSHISWAP_ROUTER_ADDRESS: (self.sushiswap_router_contract, "Sushiswap"),
+                self.configuration.UNISWAP_ADDRESS: (self.uniswap_contract, "Uniswap"),
+                self.configuration.SUSHISWAP_ADDRESS: (self.sushiswap_contract, "Sushiswap"),
             }
 
             if to_address not in routers:
@@ -1246,13 +1246,13 @@ class Main_Core:
             raise
 
     async def _check_account_balance(self) -> None:
-        """Check the Ethereum account balancer_router_abi."""
+        """Check the Ethereum account balancer_abi."""
         try:
             if not self.account:
                 raise ValueError("Account not initialized")
 
-            balancer_router_abi = await self.web3.eth.get_balance(self.account.address)
-            balance_eth = self.web3.from_wei(balancer_router_abi, 'ether')
+            balancer_abi = await self.web3.eth.get_balance(self.account.address)
+            balance_eth = self.web3.from_wei(balancer_abi, 'ether')
 
             logger.debug(f"Account {self.account.address} initialized ")
             logger.debug(f"Balance: {balance_eth:.4f} ETH")

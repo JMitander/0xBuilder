@@ -45,9 +45,9 @@ class ABI_Registry:
         abi_files = {
             'erc20': 'erc20_abi.json',
             'uniswap': 'uniswap_abi.json',
-            'sushiswap': 'sushiswap_router_abi.json',
-            'pancakeswap': 'pancakeswap_router_abi.json',
-            'balancer': 'balancer_router_abi.json',
+            'sushiswap': 'sushiswap_abi.json',
+            'pancakeswap': 'pancakeswap_abi.json',
+            'balancer': 'balancer_abi.json',
             'aave_flashloan': 'aave_flashloan.abi.json',
             'aave': 'aave_pool_abi.json'
         }
@@ -117,9 +117,9 @@ class ABI_Registry:
             abi_files = {
                 'erc20': 'erc20_abi.json',
                 'uniswap': 'uniswap_abi.json',
-                'sushiswap': 'sushiswap_router_abi.json',
-                'pancakeswap': 'pancakeswap_router_abi.json',
-                'balancer': 'balancer_router_abi.json',
+                'sushiswap': 'sushiswap_abi.json',
+                'pancakeswap': 'pancakeswap_abi.json',
+                'balancer': 'balancer_abi.json',
                 'aave_flashloan': 'aave_flashloan.abi.json',
                 'aave': 'aave_pool_abi.json'
             }

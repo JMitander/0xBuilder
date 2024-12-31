@@ -1,19 +1,20 @@
-# /home/mitander/0xBuilder/main.py
-#!/usr/bin/env python3
 import asyncio
 import logging
-import signal
 import tracemalloc
-import logging
+from typing import Optional
 
+from main_core import Main_Core
 from configuration import Configuration
-from core import Main_Core
+from utils import configure_logging, getLogger  # Moved logging setup to utils
 
-# Get the logger
-logger = logging.getLogger("Main")
+# Initialize the logger before everything else
+logger = getLogger("0xBuilder")
 
 async def main():
     """Main entry point with graceful shutdown handling."""
+    loop = asyncio.get_running_loop()
+    shutdown_handler_task: Optional[asyncio.Task] = None
+
     try:
         # Start memory tracking
         tracemalloc.start()
@@ -21,18 +22,9 @@ async def main():
 
         # Initialize configuration
         configuration = Configuration()
-        
+
         # Create and initialize main core
         core = Main_Core(configuration)
-        
-        def shutdown_handler():
-            logger.info("Shutdown signal received")
-            asyncio.create_task(core.stop())
-
-        # Set up signal handlers
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-             loop.add_signal_handler(sig, shutdown_handler)
 
         # Initialize and run
         await core.initialize()
@@ -46,20 +38,9 @@ async def main():
             for stat in snapshot.statistics('lineno')[:10]:
                 logger.debug(str(stat))
     finally:
-         # Remove signal handlers and perform clean shutdown
-         try:
-            loop = asyncio.get_running_loop()
-            for sig in (signal.SIGINT, signal.SIGTERM):
-                 loop.remove_signal_handler(sig)
-         except Exception as e:
-            logger.error(f"Error removing signal handlers during shutdown: {e}")
-         finally:
-            if 'core' in locals():
-                 await core.stop()
-         
-            # Stop memory tracking
-            tracemalloc.stop()
-            logger.info("0xBuilder shutdown complete")
+        # Stop memory tracking
+        tracemalloc.stop()
+        logger.info("0xBuilder shutdown complete")
 
 if __name__ == "__main__":
     try:

@@ -12,15 +12,15 @@ from web3.middleware import ExtraDataToPOAMiddleware
 from web3 import AsyncIPCProvider, AsyncHTTPProvider, WebSocketProvider
 from eth_account import Account
 
-from python.abi_registry import ABI_Registry
-from python.api_config import API_Config
-from python.configuration import Configuration
-from python.market_monitor import Market_Monitor
-from python.mempool_monitor import Mempool_Monitor
-from python.nonce_core import Nonce_Core
-from python.safety_net import Safety_Net
-from python.strategy_net import Strategy_Net
-from python.transaction_core import Transaction_Core
+from abi_registry import ABI_Registry
+from api_config import API_Config
+from configuration import Configuration
+from market_monitor import Market_Monitor
+from mempool_monitor import Mempool_Monitor
+from nonce_core import Nonce_Core
+from safety_net import Safety_Net
+from strategy_net import Strategy_Net
+from transaction_core import Transaction_Core
 
 logger = logging.getLogger("0xBuilder")
 
@@ -338,7 +338,7 @@ class Main_Core:
     async def _load_abi(self, abi_path: str, abi_registry: "ABI_Registry") -> List[Dict[str, Any]]:
         """Load contract ABI from a file with better path handling."""
         try:
-            abi = await abi_registry.load_abi('erc20')
+            abi = abi_registry.get_abi('erc20')
             if not abi:
                 raise ValueError("Failed to load ERC20 ABI using ABI Registry")
             return abi

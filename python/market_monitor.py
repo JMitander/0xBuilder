@@ -11,8 +11,8 @@ from sklearn.linear_model import LinearRegression
 from cachetools import TTLCache
 from web3 import AsyncWeb3
 
-from python.api_config import API_Config
-from python.configuration import Configuration
+from api_config import API_Config
+from configuration import Configuration
 
 logger = logging.getLogger("0xBuilder")
 
@@ -155,30 +155,22 @@ class Market_Monitor:
                 logger.error(f"Error in update scheduler: {e}")
                 await asyncio.sleep(300)  # Wait 5 minutes on error
 
-    async def check_market_conditions(
-        self, 
-        token_address: str
-    ) -> Dict[str, bool]:
-        """
-        Analyze current market conditions for a given token.
-        
-        Args:
-            token_address: Token contract address
-            
-        Returns:
-            Dictionary containing market condition indicators
-        """
+    async def check_market_conditions(self, token_address: str) -> Dict[str, bool]:
+        """Analyze current market conditions for a given token."""
         market_conditions = {
             "high_volatility": False,
             "bullish_trend": False,
             "bearish_trend": False,
             "low_liquidity": False,
         }
-        token_symbol = await self.api_config.get_token_symbol(self.web3, token_address)
+        
+        # Get symbol from address
+        token_symbol = self.api_config.get_token_symbol(token_address)
         if not token_symbol:
-            logger.debug(f"Cannot get token symbol for address {token_address}!")
+            logger.debug(f"Cannot get token symbol for address {token_address}")
             return market_conditions
 
+        # Use symbol for API calls
         prices = await self.get_price_data(token_symbol, data_type='historical', timeframe=1)
         if len(prices) < 2:
             logger.debug(f"Not enough price data to analyze market conditions for {token_symbol}")

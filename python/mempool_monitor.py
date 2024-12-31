@@ -12,12 +12,12 @@ from eth_utils import function_signature_to_4byte_selector
 import async_timeout
 import hexbytes
 
-from python.abi_registry import ABI_Registry
-from python.api_config import API_Config
-from python.configuration import Configuration
-from python.market_monitor import Market_Monitor
-from python.nonce_core import Nonce_Core
-from python.safety_net import Safety_Net
+from abi_registry import ABI_Registry
+from api_config import API_Config
+from configuration import Configuration
+from market_monitor import Market_Monitor
+from nonce_core import Nonce_Core
+from safety_net import Safety_Net
 
 logger = logging.getLogger("0xBuilder")
 

@@ -33,6 +33,7 @@ class Configuration:
         # API Keys and Endpoints
         self.ETHERSCAN_API_KEY: str = self._get_env_str("ETHERSCAN_API_KEY")
         self.INFURA_PROJECT_ID: str = self._get_env_str("INFURA_PROJECT_ID")
+        self.INFURA_API_KEY: str = self._get_env_str("INFURA_API_KEY")
         self.COINGECKO_API_KEY: str = self._get_env_str("COINGECKO_API_KEY")
         self.COINMARKETCAP_API_KEY: str = self._get_env_str("COINMARKETCAP_API_KEY")
         self.CRYPTOCOMPARE_API_KEY: str = self._get_env_str("CRYPTOCOMPARE_API_KEY")
@@ -90,21 +91,55 @@ class Configuration:
         dotenv.load_dotenv(dotenv_path=self.env_path)
         logger.debug(f"Environment variables loaded from: {self.env_path}")
 
+    def _validate_ethereum_address(self, address: str, var_name: str) -> str:
+        """Validate Ethereum address format."""
+        if not isinstance(address, str):
+            raise ValueError(f"Invalid {var_name}: must be a string")
+        
+        # Remove '0x' prefix if present for length check
+        clean_address = address.lower().replace('0x', '')
+        
+        if len(clean_address) != 40:
+            raise ValueError(f"Invalid {var_name} length: {address}")
+            
+        try:
+            # Check if address contains only valid hex characters
+            int(clean_address, 16)
+            return f"0x{clean_address}"
+        except ValueError:
+            raise ValueError(f"Invalid hex format for {var_name}: {address}")
+
     def _get_env_str(self, var_name: str, default: Optional[str] = None) -> str:
         """Get an environment variable as string, raising error if missing."""
         value = os.getenv(var_name, default)
         if value is None:
             logger.error(f"Missing environment variable: {var_name}")
             raise ValueError(f"Missing environment variable: {var_name}")
+            
+        # Only validate Ethereum addresses for contract addresses
+        if 'ADDRESS' in var_name and not any(path_suffix in var_name for path_suffix in ['ABI', 'PATH', 'ADDRESSES', 'SIGNATURES', 'SYMBOLS']):
+            return self._validate_ethereum_address(value, var_name)
+            
         return value
+
+    def _parse_numeric_string(self, value: str) -> str:
+        """Remove underscores and comments from numeric strings."""
+        # Remove any comments (starting with #)
+        value = value.split('#')[0].strip()
+        # Remove underscores from the number
+        return value.replace('_', '')
 
     def _get_env_int(self, var_name: str, default: Optional[int] = None) -> int:
         """Get an environment variable as int, raising error if missing or invalid."""
         try:
-            value = os.getenv(var_name, default)
+            value = os.getenv(var_name)
             if value is None:
-                 raise ValueError(f"Missing environment variable: {var_name}")
-            return int(value)
+                if default is None:
+                    raise ValueError(f"Missing environment variable: {var_name}")
+                return default
+            # Clean the value before parsing
+            cleaned_value = self._parse_numeric_string(value)
+            return int(cleaned_value)
         except ValueError as e:
             logger.error(f"Invalid or missing integer environment variable: {var_name} - {e}")
             raise
@@ -112,10 +147,14 @@ class Configuration:
     def _get_env_float(self, var_name: str, default: Optional[float] = None) -> float:
         """Get an environment variable as float, raising error if missing or invalid."""
         try:
-            value = os.getenv(var_name, default)
+            value = os.getenv(var_name)
             if value is None:
-                 raise ValueError(f"Missing environment variable: {var_name}")
-            return float(value)
+                if default is None:
+                    raise ValueError(f"Missing environment variable: {var_name}")
+                return default
+            # Clean the value before parsing
+            cleaned_value = self._parse_numeric_string(value)
+            return float(cleaned_value)
         except ValueError as e:
             logger.error(f"Invalid or missing float environment variable: {var_name} - {e}")
             raise
@@ -150,10 +189,14 @@ class Configuration:
     async def get_token_addresses(self) -> List[str]:
          """Get the list of monitored token addresses from the config file."""
          data = await self._load_json(self.TOKEN_ADDRESSES, "monitored tokens")
-         if not isinstance(data, list):
-             logger.error("Invalid format for token addresses: must be a list")
-             raise ValueError("Invalid format for token addresses: must be a list")
-         return data
+         if not isinstance(data, dict):
+             logger.error("Invalid format for token addresses: must be a dictionary")
+             raise ValueError("Invalid format for token addresses: must be a dictionary")
+             
+         # Extract addresses from dictionary keys
+         addresses = list(data.keys())
+         logger.debug(f"Loaded {len(addresses)} token addresses")
+         return addresses
 
     async def get_token_symbols(self) -> Dict[str, str]:
         """Get the mapping of token addresses to symbols from the config file."""
@@ -184,3 +227,47 @@ class Configuration:
     def get_all_config_values(self) -> Dict[str, Any]:
          """Returns all configuration values as a dictionary."""
          return vars(self)
+
+    async def load_abi_from_path(self, path: Path) -> List[Dict[str, Any]]:
+        """Load and return ABI content from a file path."""
+        try:
+            async with aiofiles.open(path, 'r') as f:
+                content = await f.read()
+                abi = json.loads(content)
+                if not isinstance(abi, list):
+                    raise ValueError(f"Invalid ABI format in {path}: not a list")
+                return abi
+        except Exception as e:
+            logger.error(f"Failed to load ABI from {path}: {e}")
+            raise
+
+    async def load(self) -> None:
+        """Load and validate all configuration data."""
+        try:
+            # Create required directories if they don't exist
+            os.makedirs(self.LINEAR_REGRESSION_PATH, exist_ok=True)
+            os.makedirs(self.BASE_PATH / "abi", exist_ok=True)
+            os.makedirs(self.BASE_PATH / "utils", exist_ok=True)
+
+            # Load critical ABIs
+            self.AAVE_FLASHLOAN_ABI = await self.load_abi_from_path(self._resolve_path("AAVE_FLASHLOAN_ABI"))
+            self.AAVE_POOL_ABI = await self.load_abi_from_path(self._resolve_path("AAVE_POOL_ABI"))
+            
+            # Validate API keys are set
+            required_keys = [
+                'ETHERSCAN_API_KEY',
+                'INFURA_API_KEY',
+                'COINGECKO_API_KEY',
+                'COINMARKETCAP_API_KEY',
+                'CRYPTOCOMPARE_API_KEY'
+            ]
+            
+            for key in required_keys:
+                if not getattr(self, key):
+                    logger.warning(f"Missing API key: {key}")
+
+            logger.info("Configuration loaded successfully")
+
+        except Exception as e:
+            logger.error(f"Configuration load failed: {e}")
+            raise

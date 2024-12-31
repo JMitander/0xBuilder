@@ -6,7 +6,7 @@ from cachetools import TTLCache
 from web3 import AsyncWeb3
 from web3.exceptions import Web3ValueError
 
-from python.configuration import Configuration
+from configuration import Configuration
 
 logger = logging.getLogger("0xBuilder")
 

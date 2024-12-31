@@ -10,8 +10,8 @@ from cachetools import TTLCache
 import numpy as np
 from web3 import AsyncWeb3
 
-from python.abi_registry import ABI_Registry
-from python.configuration import Configuration
+from abi_registry import ABI_Registry
+from configuration import Configuration
 
 logger = logging.getLogger("0xBuilder")
 
@@ -100,6 +100,10 @@ class API_Config:
             provider: asyncio.Semaphore(config.get("rate_limit", 10))
             for provider, config in self.api_configs.items()
         }
+        
+        # Add token mapping
+        self.token_address_to_symbol: Dict[str, str] = {}
+        self.token_symbol_to_address: Dict[str, str] = {}
     
     async def __aenter__(self) -> "API_Config":
         self.session = aiohttp.ClientSession()
@@ -115,6 +119,20 @@ class API_Config:
         try:
             self.session = aiohttp.ClientSession()
             logger.info("API_Config initialized ✅")
+            
+            # Load token mappings
+            token_data = await self.configuration._load_json(
+                self.configuration.TOKEN_ADDRESSES, 
+                "token addresses"
+            )
+            self.token_address_to_symbol = {
+                addr.lower(): symbol for addr, symbol in token_data.items()
+            }
+            self.token_symbol_to_address = {
+                symbol: addr.lower() for addr, symbol in token_data.items()
+            }
+            logger.debug(f"Loaded {len(self.token_address_to_symbol)} token mappings")
+            
         except Exception as e:
             logger.critical(f"API_Config initialization failed: {e}")
             raise
@@ -123,6 +141,14 @@ class API_Config:
         """Close the aiohttp session."""
         if self.session:
             await self.session.close()
+
+    def get_token_symbol(self, address: str) -> Optional[str]:
+        """Get token symbol for an address."""
+        return self.token_address_to_symbol.get(address.lower())
+
+    def get_token_address(self, symbol: str) -> Optional[str]:
+        """Get token address for a symbol."""
+        return self.token_symbol_to_address.get(symbol.upper())
 
     async def get_token_symbol(self, web3: "AsyncWeb3", token_address: str) -> Optional[str]:
         """Get the token symbol for a given token address, using cache or contract."""

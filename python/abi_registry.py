@@ -17,7 +17,7 @@ class ABI_Registry:
         'uniswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
         'sushiswap': {'swapExactTokensForTokens', 'swapTokensForExactTokens', 'addLiquidity', 'getAmountsOut'},
         'aave_flashloan': {'fn_RequestFlashLoan', 'executeOperation', 'ADDRESSES_PROVIDER', 'POOL'},
-        'aave': {'ADDRESSES_PROVIDER', 'getReservesList', 'getReserveData'}
+        'aave': {'admin', 'implementation', 'upgradeToAndCall'}
     }
 
     def __init__(self) -> None:
@@ -146,6 +146,26 @@ class ABI_Registry:
 
         self.signatures[abi_type] = signatures
         self.method_selectors[abi_type] = selectors
+
+    async def load_abi(self, abi_type: str) -> Optional[List[Dict]]:
+        """
+        Load and return a specific ABI type.
+        
+        Args:
+            abi_type: The type of ABI to load (e.g., 'erc20', 'uniswap', etc.)
+            
+        Returns:
+            The loaded ABI if successful, None otherwise
+        """
+        if not self._initialized:
+            logger.warning("ABI Registry not initialized. Initializing now...")
+            await self.initialize()
+
+        if abi_type in self.abis:
+            return self.abis[abi_type]
+        
+        logger.error(f"ABI type '{abi_type}' not found in registry")
+        return None
 
     def get_abi(self, abi_type: str) -> Optional[List[Dict]]:
         """Retrieve a validated ABI by type."""

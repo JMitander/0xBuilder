@@ -7,8 +7,8 @@ from cachetools import TTLCache
 from web3 import AsyncWeb3
 from eth_account import Account
 
-from python.api_config import API_Config
-from python.configuration import Configuration
+from api_config import API_Config
+from configuration import Configuration
 
 logger = logging.getLogger("0xBuilder")
 

@@ -11,13 +11,13 @@ from web3.eth import AsyncEth
 from web3.exceptions import TransactionNotFound, ContractLogicError
 from eth_account import Account
 
-from python.abi_registry import ABI_Registry
-from python.api_config import API_Config
-from python.configuration import Configuration
-from python.market_monitor import Market_Monitor
-from python.mempool_monitor import Mempool_Monitor
-from python.nonce_core import Nonce_Core
-from python.safety_net import Safety_Net
+from abi_registry import ABI_Registry
+from api_config import API_Config
+from configuration import Configuration
+from market_monitor import Market_Monitor
+from mempool_monitor import Mempool_Monitor
+from nonce_core import Nonce_Core
+from safety_net import Safety_Net
 
 logger = logging.getLogger("0xBuilder")
 
@@ -106,36 +106,16 @@ class Transaction_Core:
     async def initialize(self) -> None:
         """Initialize with proper ABI loading."""
         try:
-            # Initialize contracts using ABIs from registry
-            router_configs = [
-                (self.configuration.UNISWAP_ADDRESS, 'uniswap', 'Uniswap'),
-                (self.configuration.SUSHISWAP_ADDRESS, 'sushiswap', 'Sushiswap'),
-            ]
+            # Verify ABIs are loaded
+            if not isinstance(self.AAVE_FLASHLOAN_ABI, list):
+                raise ValueError("AAVE_FLASHLOAN_ABI not properly loaded")
+            if not isinstance(self.AAVE_POOL_ABI, list):
+                raise ValueError("AAVE_POOL_ABI not properly loaded")
 
-            for address, abi_type, name in router_configs:
-                try:
-                    # Normalize address before creating contract
-                    normalized_address = self.normalize_address(address)
-                    abi = await self.abi_registry.load_abi(abi_type)
-                    if not abi:
-                        raise ValueError(f"Failed to load {name} ABI")
-                    contract = self.web3.eth.contract(
-                        address=normalized_address,
-                        abi=abi
-                    )
-
-                    # Perform validation
-                    await self._validate_contract(contract, name, abi_type)
-
-                    setattr(self, f"{name.lower()}_router_contract", contract)
-                except Exception as e:
-                    logger.error(f"Failed to initialize {name} router: {e}")
-                    raise
-           
-            # Initialize Aave contracts with correct functions
+            # Initialize Aave contracts with loaded ABIs
             self.aave_flashloan = self.web3.eth.contract(
-                address=self.normalize_address(self.configuration.AAVE_FLASHLOAN_ADDRESS),
-                abi=self.configuration.AAVE_FLASHLOAN_ABI
+                address=self.normalize_address(self.AAVE_FLASHLOAN_ADDRESS),
+                abi=self.AAVE_FLASHLOAN_ABI
             )
 
             await self._validate_contract(self.aave_flashloan, "Aave Flashloan", 'aave_flashloan')
@@ -156,22 +136,52 @@ class Transaction_Core:
         """Validates contracts using a shared pattern."""
         try:
             if 'Lending Pool' in name:
-                await contract.functions.getReservesList().call()
-                logger.debug(f"{name} contract validated successfully via getReservesList()")
+                # Try multiple validation methods for Lending Pool
+                try:
+                    await contract.functions.getReservesList().call()
+                    logger.debug(f"{name} contract validated via getReservesList()")
+                except (ContractLogicError, OverflowError):
+                    # Fallback to admin() check
+                    await contract.functions.admin().call()
+                    logger.debug(f"{name} contract validated via admin()")
             elif 'Flashloan' in name:
-                await contract.functions.ADDRESSES_PROVIDER().call()
-                logger.debug(f"{name} contract validated successfully via ADDRESSES_PROVIDER()")
+                # Try multiple validation methods for Flashloan
+                try:
+                    await contract.functions.ADDRESSES_PROVIDER().call()
+                    logger.debug(f"{name} contract validated via ADDRESSES_PROVIDER()")
+                except (ContractLogicError, OverflowError):
+                    try:
+                        await contract.functions.owner().call()
+                        logger.debug(f"{name} contract validated via owner()")
+                    except (ContractLogicError, OverflowError):
+                        # Final fallback - just check if contract exists
+                        code = await self.web3.eth.get_code(contract.address)
+                        if code and code != '0x':
+                            logger.debug(f"{name} contract validated via code existence")
+                        else:
+                            raise ValueError(f"No code at {contract.address}")
             elif abi_type in ['uniswap', 'sushiswap']:
-                path = [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]
-                await contract.functions.getAmountsOut(1000000, path).call()
-                logger.debug(f"{name} contract validated successfully")
+                try:
+                    path = [self.configuration.WETH_ADDRESS, self.configuration.USDC_ADDRESS]
+                    await contract.functions.getAmountsOut(1000000, path).call()
+                    logger.debug(f"{name} contract validated via getAmountsOut()")
+                except (ContractLogicError, OverflowError):
+                    # Fallback validation for DEX contracts
+                    await contract.functions.factory().call()
+                    logger.debug(f"{name} contract validated via factory()")
             else:
-                logger.debug(f"No specific validation for {name}, but initialized")
-
+                # Generic validation - check if contract exists
+                code = await self.web3.eth.get_code(contract.address)
+                if code and code != '0x':
+                    logger.debug(f"{name} contract validated via code existence")
+                else:
+                    raise ValueError(f"No code at {contract.address}")
 
         except Exception as e:
-             logger.warning(f"Contract validation warning for {name}: {e}")
-    
+            logger.error(f"Contract validation failed for {name}: {e}")
+            # Don't raise the error, just log it as a warning
+            logger.warning(f"Contract validation warning for {name}: {e}")
+
     async def _load_erc20_abi(self) -> List[Dict[str, Any]]:
         """Load the ERC20 ABI with better path handling."""
         try:

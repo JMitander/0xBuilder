@@ -10,7 +10,7 @@ from web3.exceptions import Web3ValueError
 from eth_utils import function_signature_to_4byte_selector
 
 import async_timeout
-import hexbytes
+from hexbytes import *
 
 from abi_registry import ABI_Registry
 from api_config import API_Config

@@ -1014,3 +1014,19 @@ class Transaction_Core:
                 "gasPrice": int(self.web3.to_wei(self.DEFAULT_GAS_PRICE_GWEI * self.gas_price_multiplier, "gwei")),
                 "gas": self.DEFAULT_GAS_LIMIT 
             }
+    
+    async def execute_transaction_with_gas_parameters(self, tx: Dict[str, Any], gas_params: Dict[str, int]) -> Optional[str]:
+        """
+        Executes a transaction with custom gas parameters.
+
+        :param tx: Transaction dictionary.
+        :param gas_params: Dictionary containing 'gas' and 'gasPrice'.
+        :return: Transaction hash if successful, else None.
+        """
+        try:
+            tx.update(gas_params)
+            tx_hash = await self.execute_transaction(tx)
+            return tx_hash
+        except Exception as e:
+            logger.error(f"Error executing transaction with custom gas parameters: {e}")
+            return None

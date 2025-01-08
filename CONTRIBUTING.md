@@ -45,14 +45,14 @@ Click on the **"Fork"** button at the top right of the repository page to create
 #### Clone Your Fork
 
 ```bash
-git clone https://github.com/your-username/0xbuilder.git
+git clone https://github.com/jmitander/0xbuilder.git
 cd 0xBuilder
 ```
 
 #### Set Up Upstream Remote
 
 ```bash
-git remote add upstream https://github.com/original_author/0xBuilder.git
+git remote add upstream https://github.com/jmitander/0xBuilder.git
 ```
 
 #### Create a Virtual Environment

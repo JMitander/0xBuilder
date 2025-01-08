@@ -43,9 +43,9 @@ class Market_Monitor:
         self.model_last_updated: float = 0
     
         # Get from config or default
-        self.linear_regression_path: str = self.configuration.get_config_value("LINEAR_REGRESSION_PATH", "/home/mitander/0xBuilder/python/linear_regression") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression"
-        self.model_path: str = self.configuration.get_config_value("MODEL_PATH", "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression/price_model.joblib"
-        self.training_data_path: str = self.configuration.get_config_value("TRAINING_DATA_PATH", "/home/mitander/0xBuilder/python/linear_regression/training_data.csv") if self.configuration else "/home/mitander/0xBuilder/python/linear_regression/training_data.csv"
+        self.linear_regression_path: str = self.configuration.get_config_value("LINEAR_REGRESSION_PATH")
+        self.model_path: str = self.configuration.get_config_value("MODEL_PATH")
+        self.training_data_path: str = self.configuration.get_config_value("TRAINING_DATA_PATH")
 
         # Create directory if it doesn't exist
         os.makedirs(self.linear_regression_path, exist_ok=True)
@@ -351,17 +351,144 @@ class Market_Monitor:
            logger.error(f"Error getting exchange count for {token_symbol}: {e}")
            return 0
         
+        
     async def _get_buy_sell_ratio(self, token_symbol: str) -> float:
-        """Get buy/sell ratio from an exchange API (mock)."""
-        # Mock implementation returning default value.
-        # Real implementation would query an exchange API
-        return 1.0
+        """
+        Calculate buy/sell ratio using available API data.
+        Returns ratio > 1 for more buys, < 1 for more sells.
+        """
+        try:
+            # Try Binance API first as it has best real-time data
+            config = self.api_config.api_configs.get('binance')
+            if config:
+                # Get trading pairs for the token
+                pairs = await self._get_trading_pairs(token_symbol)
+                if pairs:
+                    total_buys = 0
+                    total_sells = 0
+                    
+                    for pair in pairs[:3]:  # Limit to top 3 pairs
+                        url = f"{config['base_url']}/ticker/24hr"
+                        params = {"symbol": pair}
+                        data = await self.api_config.make_request('binance', url, params=params)
+                        
+                        if data:
+                            # Use count of upward vs downward trades
+                            buys = float(data.get('count', 0)) * (float(data.get('priceChangePercent', 0)) > 0)
+                            sells = float(data.get('count', 0)) * (float(data.get('priceChangePercent', 0)) < 0)
+                            total_buys += buys
+                            total_sells += sells
+                    
+                    if total_sells > 0:
+                        return total_buys / total_sells
+                        
+            # Fallback to CoinGecko's sentiment data
+            config = self.api_config.api_configs.get('coingecko')
+            if config:
+                url = f"{config['base_url']}/coins/{token_symbol.lower()}"
+                headers = {"x-cg-pro-api-key": config['api_key']} if config['api_key'] else None
+                data = await self.api_config.make_request('coingecko', url, headers=headers)
+                
+                if data and 'sentiment_votes_up_percentage' in data:
+                    up_votes = data['sentiment_votes_up_percentage']
+                    down_votes = data['sentiment_votes_down_percentage']
+                    if down_votes > 0:
+                        return up_votes / down_votes
+            
+            return 1.0  # Neutral ratio if no data available
+            
+        except Exception as e:
+            logger.error(f"Error calculating buy/sell ratio: {e}")
+            return 1.0
 
     async def _get_smart_money_flow(self, token_symbol: str) -> float:
-        """Calculate smart money flow (mock implementation)."""
-        # Mock implementation returnig default value.
-        # Real implementation would require on-chain data analysis
-        return 0.0
+        """
+        Calculate smart money flow indicator using wallet analysis and volume.
+        Returns a value between -1 and 1 where:
+        - Positive values indicate smart money flowing in
+        - Negative values indicate smart money flowing out
+        """
+        try:
+            smart_money_score = 0.0
+            indicators = 0
+            
+            # Get volume data from CoinGecko
+            config = self.api_config.api_configs.get('coingecko')
+            if config:
+                url = f"{config['base_url']}/coins/{token_symbol.lower()}/market_chart"
+                params = {"vs_currency": "usd", "days": "1", "interval": "hourly"}
+                headers = {"x-cg-pro-api-key": config['api_key']} if config['api_key'] else None
+                
+                data = await self.api_config.make_request('coingecko', url, params=params, headers=headers)
+                if data and 'volumes' in data:
+                    # Analyze volume trend
+                    volumes = [float(v[1]) for v in data['volumes']]
+                    if len(volumes) > 12:  # Need at least 12 hours of data
+                        recent_vol = sum(volumes[-6:])  # Last 6 hours
+                        prev_vol = sum(volumes[-12:-6])  # Previous 6 hours
+                        if prev_vol > 0:
+                            vol_change = (recent_vol - prev_vol) / prev_vol
+                            smart_money_score += vol_change
+                            indicators += 1
+
+            # Get market data from CoinMarketCap
+            config = self.api_config.api_configs.get('coinmarketcap')
+            if config:
+                url = f"{config['base_url']}/cryptocurrency/quotes/latest"
+                params = {"symbol": token_symbol.upper()}
+                headers = {"X-CMC_PRO_API_KEY": config['api_key']}
+                
+                data = await self.api_config.make_request('coinmarketcap', url, params=params, headers=headers)
+                if data and 'data' in data:
+                    token_data = data['data'].get(token_symbol.upper(), {})
+                    quote = token_data.get('quote', {}).get('USD', {})
+                    
+                    # Analyze market cap vs volume ratio
+                    market_cap = quote.get('market_cap', 0)
+                    volume_24h = quote.get('volume_24h', 0)
+                    
+                    if market_cap > 0:
+                        volume_ratio = volume_24h / market_cap
+                        if volume_ratio > 0.1:  # High volume relative to market cap
+                            smart_money_score += 0.5
+                        elif volume_ratio < 0.01:  # Low volume relative to market cap
+                            smart_money_score -= 0.5
+                        indicators += 1
+
+            # Get price data from CryptoCompare
+            config = self.api_config.api_configs.get('cryptocompare')
+            if config:
+                url = f"{config['base_url']}/v2/histohour"
+                params = {
+                    "fsym": token_symbol.upper(),
+                    "tsym": "USD",
+                    "limit": 24,
+                    "api_key": config['api_key']
+                }
+                
+                data = await self.api_config.make_request('cryptocompare', url, params=params)
+                if data and 'Data' in data:
+                    prices = [float(d['close']) for d in data['Data']]
+                    if len(prices) > 12:
+                        # Analyze price trend
+                        recent_avg = sum(prices[-6:]) / 6
+                        prev_avg = sum(prices[-12:-6]) / 6
+                        if prev_avg > 0:
+                            price_change = (recent_avg - prev_avg) / prev_avg
+                            smart_money_score += price_change
+                            indicators += 1
+
+            # Normalize the score between -1 and 1
+            if indicators > 0:
+                final_score = smart_money_score / indicators
+                return max(min(final_score, 1.0), -1.0)
+            
+            return 0.0  # Neutral score if no data available
+            
+        except Exception as e:
+            logger.error(f"Error calculating smart money flow: {e}")
+            return 0.0
+
     
     async def update_training_data(self, new_data: Dict[str, Any]) -> None:
         """Update training data with new market information."""
